@@ -19,10 +19,10 @@ cmake() {
 build_cmake_dep() {
   local name="$1" url="$2" branch="$3"; shift 3
   echo "Building ${name} (static)..."
-  cd "${WORK_DIR}"
+  cd "${WORK_DIR}" || return 1
   rm -rf "${name}"
   git clone --depth 1 ${branch:+--branch "$branch"} "$url" "$name"
-  cd "$name"
+  cd "$name" || return 1
   cmake -B build \
     -DCMAKE_INSTALL_PREFIX="${DEPS_DIR}" \
     -DCMAKE_INSTALL_LIBDIR=lib \

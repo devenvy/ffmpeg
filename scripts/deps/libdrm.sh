@@ -9,10 +9,10 @@
 [[ "${BUILD_LIBDRM_SOURCE}" == "1" ]] || { echo "Skipping libdrm-from-source (not needed for ${RID})."; return 0; }
 
 echo "Building libdrm (static)..."
-cd "${WORK_DIR}"
+cd "${WORK_DIR}" || exit 1
 rm -rf libdrm
 git clone --depth 1 --branch libdrm-2.4.123 https://gitlab.freedesktop.org/mesa/drm.git libdrm
-cd libdrm
+cd libdrm || exit 1
 meson setup build --prefix="${DEPS_DIR}" --libdir=lib --default-library=static --buildtype=release \
   -Dtests=false -Dman-pages=disabled -Dvalgrind=disabled -Dcairo-tests=disabled \
   -Dintel=disabled -Dradeon=disabled -Damdgpu=disabled -Dnouveau=disabled \

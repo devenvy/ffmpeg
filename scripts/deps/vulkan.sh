@@ -6,7 +6,7 @@
 
 if [[ "${BUILD_VULKAN}" == "1" ]]; then
   echo "Installing Vulkan-Headers..."
-  cd "${WORK_DIR}"
+  cd "${WORK_DIR}" || exit 1
   rm -rf Vulkan-Headers
   git clone --depth 1 https://github.com/KhronosGroup/Vulkan-Headers.git
   cp -r Vulkan-Headers/include/vulkan "${DEPS_DIR}/include/"
@@ -42,7 +42,7 @@ PKGCONFIG
   # dlopens the system GPU ICD driver at runtime (GPU when present, CPU fallback).
   if [[ "${BUILD_VULKAN_LOADER:-0}" == "1" ]]; then
     echo "Building Vulkan-Loader (shared, no WSI — libc-only, for bundling)..."
-    cd "${WORK_DIR}"
+    cd "${WORK_DIR}" || exit 1
     # Install the Vulkan-Headers CMake package so the loader's find_package works.
     cmake -S Vulkan-Headers -B Vulkan-Headers/build -DCMAKE_INSTALL_PREFIX="${DEPS_DIR}" >/dev/null
     cmake --install Vulkan-Headers/build >/dev/null

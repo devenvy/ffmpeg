@@ -14,13 +14,13 @@ if [[ "${BUILD_LIBX265}" == "1" ]]; then
   fi
 
   echo "Building libx265 (static)..."
-  cd "${WORK_DIR}"
+  cd "${WORK_DIR}" || exit 1
   rm -rf x265_git
   # x265 4.0+ has broken aarch64 NEON intrinsics (intrapred-prim.cpp):
   # https://github.com/HandBrake/HandBrake/issues/3652
   # https://github.com/microsoft/vcpkg/issues/46880
   git clone --depth 1 --branch 3.6 https://bitbucket.org/multicoreware/x265_git.git
-  cd x265_git
+  cd x265_git || exit 1
 
   # Apply upstream fix for CMake 4.x: change cmake_policy OLD → NEW
   # https://mailman.videolan.org/pipermail/x265-devel/2025-February/014251.html

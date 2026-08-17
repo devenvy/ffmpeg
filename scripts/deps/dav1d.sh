@@ -6,10 +6,10 @@
 [[ "${BUILD_LIBDAV1D}" == "1" ]] || { echo "Skipping dav1d (not needed for ${RID})."; return 0; }
 
 echo "Building dav1d (static)..."
-cd "${WORK_DIR}"
+cd "${WORK_DIR}" || exit 1
 rm -rf dav1d
 git clone --depth 1 --branch 1.4.3 https://code.videolan.org/videolan/dav1d.git
-cd dav1d
+cd dav1d || exit 1
 
 DAV1D_ARGS=(
   --prefix="${DEPS_DIR}"

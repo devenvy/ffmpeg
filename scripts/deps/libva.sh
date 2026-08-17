@@ -9,10 +9,10 @@
 [[ "${BUILD_LIBVA_SOURCE}" == "1" ]] || { echo "Skipping libva-from-source (not needed for ${RID})."; return 0; }
 
 echo "Building libva (static, DRM backend only)..."
-cd "${WORK_DIR}"
+cd "${WORK_DIR}" || exit 1
 rm -rf libva
 git clone --depth 1 --branch 2.22.0 https://github.com/intel/libva.git
-cd libva
+cd libva || exit 1
 # libva's meson uses shared_library() explicitly, which ignores --default-library.
 # Rewrite to library() so --default-library=static yields static archives (library()
 # still accepts the version:/soversion: kwargs, unlike static_library()).

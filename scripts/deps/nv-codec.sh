@@ -6,10 +6,10 @@
 
 if [[ "${BUILD_NVIDIA}" == "1" ]]; then
   echo "Building nv-codec-headers..."
-  cd "${WORK_DIR}"
+  cd "${WORK_DIR}" || exit 1
   rm -rf nv-codec-headers
   git clone --depth 1 https://github.com/FFmpeg/nv-codec-headers.git
-  cd nv-codec-headers
+  cd nv-codec-headers || exit 1
   make install PREFIX="${DEPS_DIR}"
 else
   echo "Skipping nv-codec-headers (not needed for ${RID})."

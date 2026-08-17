@@ -6,10 +6,10 @@
 # to CONFIGURE_FLAGS where applicable). Not a standalone script.
 
 echo "Building whisper.cpp v1.8.6 (static, backend=${WHISPER_BACKEND})..."
-cd "${WORK_DIR}"
+cd "${WORK_DIR}" || exit 1
 rm -rf whisper.cpp
 git clone --depth 1 --branch v1.8.6 https://github.com/ggml-org/whisper.cpp
-cd whisper.cpp
+cd whisper.cpp || exit 1
 
 WHISPER_CMAKE=(
   -DCMAKE_INSTALL_PREFIX="${DEPS_DIR}"

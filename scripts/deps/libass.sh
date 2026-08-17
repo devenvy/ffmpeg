@@ -6,10 +6,10 @@
 [[ "${BUILD_LIBASS}" == "1" ]] || { echo "Skipping libass (not needed for ${RID})."; return 0; }
 
 echo "Building libass (static)..."
-cd "${WORK_DIR}"
+cd "${WORK_DIR}" || exit 1
 rm -rf libass
 git clone --depth 1 --branch 0.17.3 https://github.com/libass/libass.git
-cd libass
+cd libass || exit 1
 # fontconfig is only built where the platform uses it (off on Windows/mobile,
 # which fall back to DirectWrite/CoreText or an explicit fontfile=).
 FC_OPT="-Dfontconfig=disabled"

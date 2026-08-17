@@ -12,7 +12,7 @@
 
 # ── FFmpeg ────────────────────────────────────────────────────────────────
 
-cd "${WORK_DIR}"
+cd "${WORK_DIR}" || exit 1
 rm -rf "${SRC_DIR}" "${PREFIX_DIR}"
 
 echo "Downloading FFmpeg ${FFMPEG_VERSION}..."
@@ -62,7 +62,7 @@ fi
 
 # ── Configure & Build ─────────────────────────────────────────────────────
 
-cd "${SRC_DIR}"
+cd "${SRC_DIR}" || exit 1
 
 # ── Library kind & programs (RID-aware) ───────────────────────────────────
 LIB_MODE_FLAGS=(--enable-shared --disable-static)

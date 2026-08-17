@@ -59,7 +59,7 @@ case "${RID}" in
       cp -a "${real}" "${OUT_DIR}/lib/${ANDROID_ABI}/${base}"
     done
     # Rewrite soname + inter-lib NEEDED to the unversioned names.
-    pushd "${OUT_DIR}/lib/${ANDROID_ABI}" >/dev/null
+    pushd "${OUT_DIR}/lib/${ANDROID_ABI}" >/dev/null || exit 1
     for so in *.so; do
       patchelf --set-soname "${so}" "${so}"
     done
@@ -70,7 +70,7 @@ case "${RID}" in
         done
       done
     done
-    popd >/dev/null
+    popd >/dev/null || exit 1
     # Bundle libc++_shared.so: the C++-based codec libraries (OpenH264, libass,
     # whisper.cpp) make libavcodec/libavfilter depend on it at RUNTIME, and it is
     # not part of Android itself — so the artifact must ship it or a consuming app

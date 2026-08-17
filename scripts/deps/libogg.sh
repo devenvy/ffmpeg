@@ -6,10 +6,10 @@
 [[ "${BUILD_LIBVORBIS}" == "1" ]] || return 0
 
 echo "Building libogg (static)..."
-cd "${WORK_DIR}"
+cd "${WORK_DIR}" || exit 1
 rm -rf ogg
 git clone --depth 1 --branch v1.3.5 https://github.com/xiph/ogg.git
-cd ogg
+cd ogg || exit 1
 ./autogen.sh
 OGG_ARGS=(--prefix="${DEPS_DIR}" --disable-shared --enable-static --with-pic)
 case "${RID}" in

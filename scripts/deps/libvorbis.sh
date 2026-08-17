@@ -6,10 +6,10 @@
 [[ "${BUILD_LIBVORBIS}" == "1" ]] || { echo "Skipping libvorbis (not needed for ${RID})."; return 0; }
 
 echo "Building libvorbis (static)..."
-cd "${WORK_DIR}"
+cd "${WORK_DIR}" || exit 1
 rm -rf vorbis
 git clone --depth 1 --branch v1.3.7 https://github.com/xiph/vorbis.git
-cd vorbis
+cd vorbis || exit 1
 ./autogen.sh
 VORBIS_ARGS=(--prefix="${DEPS_DIR}" --disable-shared --enable-static --with-ogg="${DEPS_DIR}" --with-pic)
 case "${RID}" in

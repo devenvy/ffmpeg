@@ -7,10 +7,10 @@
 [[ "${BUILD_LIBKVAZAAR}" == "1" ]] || { echo "Skipping kvazaar (not needed for ${RID})."; return 0; }
 
 echo "Building kvazaar (static)..."
-cd "${WORK_DIR}"
+cd "${WORK_DIR}" || exit 1
 rm -rf kvazaar
 git clone --depth 1 --branch v2.3.1 https://github.com/ultravideo/kvazaar.git
-cd kvazaar
+cd kvazaar || exit 1
 ./autogen.sh
 KVZ_ARGS=(--prefix="${DEPS_DIR}" --libdir="${DEPS_DIR}/lib"
           --disable-shared --enable-static --with-pic)

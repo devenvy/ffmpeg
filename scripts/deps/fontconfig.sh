@@ -7,10 +7,10 @@
 if [[ "${BUILD_FONTCONFIG}" == "1" ]]; then
   # expat has a non-standard repo layout (CMakeLists.txt is in expat/ subdir)
   echo "Building libexpat (static)..."
-  cd "${WORK_DIR}"
+  cd "${WORK_DIR}" || exit 1
   rm -rf libexpat
   git clone --depth 1 --branch R_2_6_2 https://github.com/libexpat/libexpat.git
-  cd libexpat/expat
+  cd libexpat/expat || exit 1
   cmake -B build \
     -DCMAKE_INSTALL_PREFIX="${DEPS_DIR}" \
     -DCMAKE_INSTALL_LIBDIR=lib \
@@ -24,10 +24,10 @@ if [[ "${BUILD_FONTCONFIG}" == "1" ]]; then
   echo "expat built (fontconfig dependency)."
 
   echo "Building fontconfig (static)..."
-  cd "${WORK_DIR}"
+  cd "${WORK_DIR}" || exit 1
   rm -rf fontconfig
   git clone --depth 1 --branch 2.15.0 https://gitlab.freedesktop.org/fontconfig/fontconfig.git
-  cd fontconfig
+  cd fontconfig || exit 1
 
   FC_ARGS=(
     --prefix="${DEPS_DIR}"

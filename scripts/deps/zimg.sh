@@ -6,10 +6,10 @@
 [[ "${BUILD_LIBZIMG}" == "1" ]] || { echo "Skipping zimg (not needed for ${RID})."; return 0; }
 
 echo "Building zimg (static)..."
-cd "${WORK_DIR}"
+cd "${WORK_DIR}" || exit 1
 rm -rf zimg
 git clone --depth 1 --branch release-3.0.5 --recursive https://github.com/sekrit-twc/zimg.git
-cd zimg
+cd zimg || exit 1
 ./autogen.sh
 
 ZIMG_ARGS=(--prefix="${DEPS_DIR}" --disable-shared --enable-static --with-pic)

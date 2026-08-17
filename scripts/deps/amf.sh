@@ -6,7 +6,7 @@
 
 if [[ "${BUILD_AMF}" == "1" ]]; then
   echo "Installing AMF headers..."
-  cd "${WORK_DIR}"
+  cd "${WORK_DIR}" || exit 1
   rm -rf AMF
   git clone --depth 1 https://github.com/GPUOpen-LibrariesAndSDKs/AMF.git
   mkdir -p "${DEPS_DIR}/include/AMF"

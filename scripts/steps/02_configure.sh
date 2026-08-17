@@ -269,10 +269,13 @@ case "${RID}" in
       ios-sim-arm64) IOS_SDK=iphonesimulator; IOS_MINVER="-mios-simulator-version-min=13.0" ;;
     esac
     IOS_SYSROOT="$(xcrun --sdk "${IOS_SDK}" --show-sdk-path)"
-    export CC="$(xcrun --sdk "${IOS_SDK}" --find clang)"
-    export CXX="$(xcrun --sdk "${IOS_SDK}" --find clang++)"
-    export AR="$(xcrun --sdk "${IOS_SDK}" --find ar)"
-    export RANLIB="$(xcrun --sdk "${IOS_SDK}" --find ranlib)"
+    # Assign then export separately: `export X=$(cmd)` returns the export's status (0),
+    # masking an xcrun failure from `set -e` — a missing SDK would yield an empty CC and
+    # a broken build instead of aborting. Bare assignment lets set -e catch it.
+    CC="$(xcrun --sdk "${IOS_SDK}" --find clang)";     export CC
+    CXX="$(xcrun --sdk "${IOS_SDK}" --find clang++)";  export CXX
+    AR="$(xcrun --sdk "${IOS_SDK}" --find ar)";        export AR
+    RANLIB="$(xcrun --sdk "${IOS_SDK}" --find ranlib)"; export RANLIB
     EXTRA_CFLAGS="-arch arm64 ${IOS_MINVER} -isysroot ${IOS_SYSROOT}"
     EXTRA_CXXFLAGS="-arch arm64 ${IOS_MINVER} -isysroot ${IOS_SYSROOT}"
     EXTRA_LDFLAGS="-arch arm64 ${IOS_MINVER} -isysroot ${IOS_SYSROOT}"

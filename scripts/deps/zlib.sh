@@ -6,10 +6,10 @@
 
 if [[ "${BUILD_ZLIB}" == "1" ]]; then
   echo "Building zlib (static)..."
-  cd "${WORK_DIR}"
+  cd "${WORK_DIR}" || exit 1
   rm -rf zlib
   git clone --depth 1 --branch v1.3.1 https://github.com/madler/zlib.git
-  cd zlib
+  cd zlib || exit 1
 
   case "${RID}" in
     linux-armhf)

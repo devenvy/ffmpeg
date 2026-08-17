@@ -6,10 +6,10 @@
 
 if [[ "${BUILD_LIBVPX}" == "1" ]]; then
   echo "Building libvpx (static)..."
-  cd "${WORK_DIR}"
+  cd "${WORK_DIR}" || exit 1
   rm -rf libvpx
   git clone --depth 1 --branch v1.14.1 https://chromium.googlesource.com/webm/libvpx.git
-  cd libvpx
+  cd libvpx || exit 1
 
   VPX_ARGS=(
     --prefix="${DEPS_DIR}"

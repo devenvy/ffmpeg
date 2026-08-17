@@ -7,10 +7,10 @@
 [[ "${BUILD_LIBOPENH264}" == "1" ]] || { echo "Skipping openh264 (not needed for ${RID})."; return 0; }
 
 echo "Building openh264 (static)..."
-cd "${WORK_DIR}"
+cd "${WORK_DIR}" || exit 1
 rm -rf openh264
 git clone --depth 1 --branch v2.4.1 https://github.com/cisco/openh264.git
-cd openh264
+cd openh264 || exit 1
 
 OH_ARGS=(
   --prefix="${DEPS_DIR}"

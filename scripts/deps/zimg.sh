@@ -25,7 +25,10 @@ make install
 
 # zimg's installed pkg-config omits -lm from Libs.private, so FFmpeg's static
 # link test fails (--as-needed drops libm despite log10f etc. being used). Add it.
-sed -i 's/^Libs.private:.*/Libs.private: -lstdc++ -lm/' "${DEPS_DIR}/lib/pkgconfig/zimg.pc"
+# -i.bak (explicit backup suffix) is portable: BSD/macOS sed requires an argument
+# after -i, GNU's bare `sed -i` does not — the attached-suffix form works on both.
+sed -i.bak 's/^Libs.private:.*/Libs.private: -lstdc++ -lm/' "${DEPS_DIR}/lib/pkgconfig/zimg.pc"
+rm -f "${DEPS_DIR}/lib/pkgconfig/zimg.pc.bak"
 
 CONFIGURE_FLAGS+=(--enable-libzimg)
 echo "libzimg (high-quality scaling) enabled."

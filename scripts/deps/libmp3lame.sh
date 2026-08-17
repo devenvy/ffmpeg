@@ -13,8 +13,12 @@ curl -fsSL --retry 3 --retry-delay 5 --retry-connrefused --connect-timeout 30 \
 tar -xf lame.tar.gz
 cd lame-3.100
 # LAME 3.100 exports lame_init_old in its symbol file but no longer defines it,
-# which breaks the link on strict toolchains. Drop it.
-sed -i '/lame_init_old/d' include/libmp3lame.sym
+# which breaks the link on strict toolchains. Drop it. Use -i.bak (an explicit backup
+# suffix): BSD/macOS sed requires an argument after -i, whereas GNU's bare `sed -i`
+# does not — the attached-suffix form works on both. (GNU-bare `sed -i` fails on the
+# macOS/iOS runners with "command i expects \ followed by text".)
+sed -i.bak '/lame_init_old/d' include/libmp3lame.sym
+rm -f include/libmp3lame.sym.bak
 
 LAME_ARGS=(--prefix="${DEPS_DIR}" --disable-shared --enable-static --disable-frontend --enable-nasm --with-pic)
 case "${RID}" in

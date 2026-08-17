@@ -170,7 +170,7 @@ case "${RID}" in
     # dependency on libwinpthread-1.dll (the -posix variant pulls it in).
     # mingw-w64-tools -> gendef, llvm -> llvm-dlltool: together these turn each
     # built DLL into an MSVC-consumable COFF import library (see artifact staging).
-    PKGS=(cmake git mingw-w64 mingw-w64-tools llvm nasm ninja-build pkg-config curl xz-utils yasm
+    PKGS=(cmake git mingw-w64 mingw-w64-tools llvm meson nasm ninja-build pkg-config curl xz-utils yasm
           glslc glslang-tools)
     CROSS_PREFIX="x86_64-w64-mingw32"
     export CC="${CROSS_PREFIX}-gcc-win32"
@@ -276,6 +276,13 @@ case "${RID}" in
     EXTRA_CFLAGS="-arch arm64 ${IOS_MINVER} -isysroot ${IOS_SYSROOT}"
     EXTRA_CXXFLAGS="-arch arm64 ${IOS_MINVER} -isysroot ${IOS_SYSROOT}"
     EXTRA_LDFLAGS="-arch arm64 ${IOS_MINVER} -isysroot ${IOS_SYSROOT}"
+    # Autotools deps (kvazaar, libogg/vorbis, opus, lame) invoke a GENERIC clang —
+    # unlike the target-prefixed mingw/NDK compilers — so they need the arch/sysroot
+    # in the environment or their ./configure link test fails ("C compiler cannot
+    # create executables"). Export them so every dep's configure/cmake/meson inherits.
+    export CFLAGS="${EXTRA_CFLAGS}"
+    export CXXFLAGS="${EXTRA_CXXFLAGS}"
+    export LDFLAGS="${EXTRA_LDFLAGS}"
     CONFIGURE_FLAGS+=(
       --enable-cross-compile --target-os=darwin --arch=aarch64
       --cc="${CC}" --cxx="${CXX}" --ar="${AR}" --ranlib="${RANLIB}"

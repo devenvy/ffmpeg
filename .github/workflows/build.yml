@@ -1,0 +1,153 @@
+name: Build FFmpeg
+
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+    inputs:
+      ffmpeg_version:
+        required: true
+        type: string
+      ref:
+        required: false
+        type: string
+        default: ""
+      fail_fast:
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  build:
+    strategy:
+      fail-fast: ${{ inputs.fail_fast }}
+      matrix:
+        rid: [linux-x64, linux-arm64, linux-armhf, linux-musl-x64, win-x64, osx-x64, osx-arm64, android-arm64, ios-arm64, ios-sim-arm64]
+        license: [lgpl, gpl]
+        include:
+          - rid: linux-x64
+            runner: ubuntu-latest
+          - rid: linux-arm64
+            runner: ubuntu-24.04-arm
+          - rid: linux-armhf
+            runner: ubuntu-latest
+          - rid: linux-musl-x64
+            runner: ubuntu-latest
+            container: alpine:latest
+          - rid: win-x64
+            runner: ubuntu-latest
+          - rid: osx-x64
+            runner: macos-15-intel
+          - rid: osx-arm64
+            runner: macos-latest
+          - rid: android-arm64
+            runner: ubuntu-latest
+          - rid: ios-arm64
+            runner: macos-latest
+          - rid: ios-sim-arm64
+            runner: macos-latest
+
+    runs-on: ${{ matrix.runner }}
+    container: ${{ matrix.container || '' }}
+    name: ${{ inputs.ffmpeg_version }} ${{ matrix.rid }} (${{ matrix.license }})
+
+    env:
+      BUILD_RID: ${{ matrix.rid }}
+      BUILD_LICENSE: ${{ matrix.license }}
+      # Artifact names must be unique across every version built in one run.
+      VARIANT: ${{ inputs.ffmpeg_version }}-${{ matrix.rid }}-${{ matrix.license }}
+      # Embedded into legal/SOURCE_OFFER.txt so the corresponding-source notice
+      # points at this exact repo + commit.
+      SOURCE_REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+      SOURCE_REPO_REF: ${{ github.sha }}
+
+    steps:
+      - name: Bootstrap Alpine container
+        if: matrix.container
+        run: apk add --no-cache bash git file   # 'file' is needed by the test script
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Build FFmpeg
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${BUILD_RID}" == android-* ]]; then
+            export ANDROID_NDK_HOME="${ANDROID_NDK_HOME:-$ANDROID_NDK_LATEST_HOME}"
+            echo "Using Android NDK: ${ANDROID_NDK_HOME}"
+          fi
+          mkdir -p "artifacts/${BUILD_RID}/logs"
+          {
+            if command -v gcc &>/dev/null; then
+              echo "gcc: $(gcc --version | head -1)"
+            fi
+            if command -v clang &>/dev/null; then
+              echo "clang: $(clang --version | head -1)"
+            fi
+            echo "nasm: $(nasm --version 2>/dev/null || echo 'not installed')"
+            echo "pkg-config: $(pkg-config --version 2>/dev/null || echo 'not installed')"
+          } > "artifacts/${BUILD_RID}/logs/toolchain.txt"
+          chmod +x scripts/build.sh
+          export FFMPEG_VERSION="${{ inputs.ffmpeg_version }}"
+          if [[ "${BUILD_RID}" == "linux-x64" || "${BUILD_RID}" == "linux-arm64" ]]; then
+            # Build in the STOCK upstream manylinux_2_28 image (glibc 2.28) for a low
+            # runtime floor. The image is pulled unmodified from quay.io/pypa — there is
+            # no custom image to maintain; 03_install_packages.sh provisions the
+            # toolchain inside it (triggered by BUILD_CONTAINER=manylinux). Artifacts
+            # land in the mounted workspace; the test/upload steps below run on the HOST
+            # against them — which also proves the low-floor binary runs on the runner's
+            # newer glibc.
+            case "${BUILD_RID}" in
+              linux-x64)   MANYLINUX_ARCH=x86_64 ;;
+              linux-arm64) MANYLINUX_ARCH=aarch64 ;;
+            esac
+            docker run --rm -v "${PWD}:/work" -w /work \
+              -e BUILD_RID -e BUILD_LICENSE -e FFMPEG_VERSION -e BUILD_CONTAINER=manylinux \
+              -e SOURCE_REPO_URL -e SOURCE_REPO_REF \
+              "quay.io/pypa/manylinux_2_28_${MANYLINUX_ARCH}" \
+              bash -c 'chmod +x scripts/build.sh && ./scripts/build.sh' \
+              2>&1 | tee "artifacts/${BUILD_RID}/logs/build.log"
+            # Container ran as root — hand the outputs back to the runner user so the
+            # host-side test/upload steps can read/clean them.
+            sudo chown -R "$(id -u):$(id -g)" artifacts .build 2>/dev/null || true
+          else
+            ./scripts/build.sh 2>&1 | tee "artifacts/${BUILD_RID}/logs/build.log"
+          fi
+
+      # Tests run in the separate test.yml workflow (chained after this one), which
+      # downloads the artifact uploaded below and runs the per-platform checks —
+      # keeping build and test decoupled so tests can grow / re-run independently.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.VARIANT }}
+          path: artifacts/${{ matrix.rid }}/native
+          if-no-files-found: error
+          retention-days: 1
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: ${{ env.VARIANT }}-diagnostics
+          path: |
+            artifacts/${{ matrix.rid }}/build-info.txt
+            artifacts/${{ matrix.rid }}/logs/
+            .build/${{ matrix.rid }}/src/ffbuild/config.log
+            .build/${{ matrix.rid }}/src/ffbuild/config.mak
+            .build/${{ matrix.rid }}/libvpx/config.log
+          if-no-files-found: warn
+          retention-days: 1
+
+  # Gate job — single required status check for branch protection
+  all-builds:
+    if: always()
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          if [[ "${{ needs.build.result }}" != "success" ]]; then
+            echo "One or more build jobs failed"
+            exit 1
+          fi

@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# kvazaar — H.265/HEVC software encoder (BSD-3-Clause). The permissive H.265
+# encoder for the LGPL builds (x265 is GPL) — the H.265 counterpart to OpenH264,
+# and a software fallback where hardware HEVC encode is unavailable. SOURCED by
+# scripts/build.sh (appends --enable-libkvazaar). Not a standalone script.
+
+[[ "${BUILD_LIBKVAZAAR}" == "1" ]] || { echo "Skipping kvazaar (not needed for ${RID})."; return 0; }
+
+echo "Building kvazaar (static)..."
+cd "${WORK_DIR}"
+rm -rf kvazaar
+git clone --depth 1 --branch v2.3.1 https://github.com/ultravideo/kvazaar.git
+cd kvazaar
+./autogen.sh
+KVZ_ARGS=(--prefix="${DEPS_DIR}" --libdir="${DEPS_DIR}/lib"
+          --disable-shared --enable-static --with-pic)
+case "${RID}" in
+  win-x64)       KVZ_ARGS+=(--host=x86_64-w64-mingw32) ;;
+  linux-armhf)   KVZ_ARGS+=(--host=arm-linux-gnueabihf) ;;
+  android-arm64) KVZ_ARGS+=(--host=aarch64-linux-android) ;;
+esac
+./configure "${KVZ_ARGS[@]}"
+# Build and install the LIBRARY only — FFmpeg does not need the kvazaar CLI, and
+# skipping it avoids the CLI's hardcoded -lrt (kvazaar adds it for any linux* host,
+# which includes Android, where librt does not exist).
+make -j"$(${NPROC})" -C src libkvazaar.la
+make -C src install-libLTLIBRARIES install-includeHEADERS
+# Install pkg-config, dropping -lrt from Libs.private: clock_gettime is in libc on
+# every target we build (modern glibc/musl/bionic/darwin), and librt is absent on
+# Android — so -lrt would break FFmpeg's static pkg-config link there.
+mkdir -p "${DEPS_DIR}/lib/pkgconfig"
+sed 's/-lrt//g' src/kvazaar.pc > "${DEPS_DIR}/lib/pkgconfig/kvazaar.pc"
+CONFIGURE_FLAGS+=(--enable-libkvazaar)
+echo "kvazaar (H.265/HEVC software encoder) enabled."

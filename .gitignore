@@ -1,0 +1,19 @@
+# Build artifacts
+.build/
+artifacts/
+
+# Stray build/config logs (e.g. an FFmpeg config.log copied out for debugging)
+*.log
+
+# Editor / IDE
+*.swp
+*.swo
+*~
+.vs/
+.vscode/
+*.user
+
+# OS junk
+Thumbs.db
+Desktop.ini
+.DS_Store

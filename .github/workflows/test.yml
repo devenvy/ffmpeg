@@ -1,0 +1,107 @@
+name: Test (desktop)
+
+# Desktop/server execution tests against the artifacts from build.yml: download
+# each variant and RUN it (version, filter/decoder/protocol enumeration incl.
+# https/tls, an encode->decode round-trip) on a runner where the target executes
+# natively — Linux on Linux, Windows on Windows, macOS on macOS. Mobile (Android/
+# iOS) is deliberately a SEPARATE workflow (test-mobile.yml): its emulator/simulator
+# setup is slow and fiddly and shouldn't gate or destabilise these fast checks.
+# Chained after build.yml by ci.yml and release.yml.
+
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+    inputs:
+      ffmpeg_version:
+        required: true
+        type: string
+      ref:
+        required: false
+        type: string
+        default: ""
+      fail_fast:
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  test:
+    strategy:
+      fail-fast: ${{ inputs.fail_fast }}
+      matrix:
+        rid: [linux-x64, linux-arm64, linux-armhf, linux-musl-x64, win-x64, osx-x64, osx-arm64]
+        license: [lgpl, gpl]
+        include:
+          # Tests run where the target executes natively. The glibc Linux builds test
+          # on the PLAIN Ubuntu runner (not the manylinux build container) — running
+          # the low-glibc-floor binary on the runner's newer glibc also proves
+          # portability. Windows tests run on a real Windows runner (native .exe, no
+          # Wine).
+          - rid: linux-x64
+            runner: ubuntu-latest
+          - rid: linux-arm64
+            runner: ubuntu-24.04-arm
+          - rid: linux-armhf
+            runner: ubuntu-latest
+          - rid: linux-musl-x64
+            runner: ubuntu-latest
+            container: alpine:latest
+          - rid: win-x64
+            runner: windows-latest
+          - rid: osx-x64
+            runner: macos-15-intel
+          - rid: osx-arm64
+            runner: macos-latest
+
+    runs-on: ${{ matrix.runner }}
+    container: ${{ matrix.container || '' }}
+    name: ${{ inputs.ffmpeg_version }} ${{ matrix.rid }} (${{ matrix.license }})
+
+    env:
+      BUILD_RID: ${{ matrix.rid }}
+      VARIANT: ${{ inputs.ffmpeg_version }}-${{ matrix.rid }}-${{ matrix.license }}
+
+    steps:
+      - name: Bootstrap Alpine container
+        if: matrix.rid == 'linux-musl-x64'
+        run: apk add --no-cache bash git file   # 'file' is needed by the test script
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.VARIANT }}
+          path: artifacts/${{ matrix.rid }}/native
+
+      - name: Restore executable bits
+        shell: bash
+        run: |
+          # actions/upload-artifact does not preserve the executable bit, so the
+          # downloaded ffmpeg/ffprobe come back non-executable. Restore them.
+          for exe in ffmpeg ffprobe ffmpeg.exe ffprobe.exe; do
+            f="artifacts/${BUILD_RID}/native/${exe}"
+            [ -f "$f" ] && chmod +x "$f" || true
+          done
+
+      - name: Test artifact
+        shell: bash
+        run: |
+          chmod +x scripts/test.sh scripts/test/*.sh
+          bash scripts/test.sh "${BUILD_RID}" "artifacts/${BUILD_RID}/native"
+
+  # Gate job — single required status check for branch protection.
+  all-tests:
+    if: always()
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          if [[ "${{ needs.test.result }}" != "success" ]]; then
+            echo "One or more desktop test jobs failed"
+            exit 1
+          fi

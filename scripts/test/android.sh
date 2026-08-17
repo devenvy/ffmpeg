@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+# Android (arm64) test — structural checks + an ABI link check. The artifact is
+# aarch64 shared libraries (no executables), so we verify they are shaped and
+# configured correctly, then (when the NDK is present, i.e. the build job)
+# compile the smoke program against them to prove the ABI is complete. Actually
+# EXECUTING on a device is scripts/test/android-run.sh (the emulator job).
+set -uo pipefail
+DIR="${1:?usage: android.sh <artifact-native-dir>}"
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. "${HERE}/lib.sh"
+
+LIBDIR="${DIR}/lib/arm64-v8a"
+info "Android arm64 structural checks (${LIBDIR})"
+
+for base in avcodec avformat avutil avfilter swscale swresample avdevice; do
+  lib="${LIBDIR}/lib${base}.so"
+  [ -e "$lib" ] || { [ "$base" = avdevice ] && continue; fail "missing lib${base}.so"; continue; }
+  check_arch "$lib" 'ELF 64-bit.*ARM aarch64'
+  check_soname_unversioned "$lib"
+done
+
+check_core_symbols "${LIBDIR}" so
+
+# Android hardware decode must link the NDK media libs.
+if ${READELF} -d "${LIBDIR}/libavcodec.so" 2>/dev/null | grep -q 'libmediandk.so'; then
+  pass "libavcodec links libmediandk.so (MediaCodec)"
+else
+  fail "libavcodec does not link libmediandk.so"
+fi
+
+# The C++ codec libs (OpenH264/libass/whisper) make libavcodec/libavfilter depend
+# on libc++_shared.so at runtime. It is not part of Android, so the artifact must
+# bundle it — otherwise a consuming app crashes on load. (Found by the on-device
+# smoke test; guarded here so it cannot silently regress.)
+if [ -f "${LIBDIR}/libc++_shared.so" ]; then
+  pass "libc++_shared.so bundled (C++ runtime dependency)"
+else
+  fail "libc++_shared.so NOT bundled — apps will fail to load libavcodec.so"
+fi
+
+load_config_string "${LIBDIR}/libavcodec.so" "${LIBDIR}/libavutil.so"
+check_config "--enable-mediacodec" "MediaCodec"
+check_config "--enable-jni" "JNI"
+check_config "--enable-decoder=h264_mediacodec" "h264 MediaCodec decoder"
+check_config "--enable-whisper" "Whisper ASR filter"
+check_config "--enable-vulkan" "Vulkan"
+check_tls
+check_license_boundary
+
+# Link artifact must ship headers.
+[ -f "${DIR}/include/libavcodec/avcodec.h" ] \
+  && pass "headers present (include/libavcodec/avcodec.h)" \
+  || fail "missing include/libavcodec/avcodec.h"
+
+# Runtime-ABI link check with the NDK (present in the android build job): compile
+# the smoke program against the .so — proves the libraries have no undefined
+# symbols and a consuming app can link them. The emulator RUN is android-run.sh.
+if [ -n "${ANDROID_NDK_HOME:-}" ]; then
+  TCBIN="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin"
+  check_smoke_link "${TCBIN}/aarch64-linux-android28-clang" "${DIR}/include" /tmp/smoke_android \
+    -L "${LIBDIR}" -lavformat -lavcodec -lavfilter -lavutil -lswscale -lswresample
+else
+  skip "smoke link: ANDROID_NDK_HOME not set (run in the android build job)"
+fi
+
+finish

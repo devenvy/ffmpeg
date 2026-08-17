@@ -1,0 +1,19 @@
+FFmpeg @FFMPEG_VERSION@ — @LICENSE@ build (@RID@)
+
+This distribution contains FFmpeg together with a set of statically-linked
+third-party libraries, produced by an automated, public, reproducible build
+recipe:
+
+    @REPO@
+
+That repository's build script pins the exact version of FFmpeg and of every
+bundled library, and records where each one comes from. The repository — together
+with the corresponding unmodified upstream FFmpeg release at
+https://ffmpeg.org/releases/ffmpeg-@FFMPEG_VERSION@.tar.xz — is the complete
+corresponding source for the FFmpeg libraries in this build, as required by the
+GNU @LICENSE@. Everything is public; no request to the distributor is necessary
+to obtain it.
+
+The bundled libraries and their versions/licenses are listed in that build
+script, and the applicable license texts accompany this notice in the legal/
+folder. GPL builds additionally include the x264 and x265 software encoders.

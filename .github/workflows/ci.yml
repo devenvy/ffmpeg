@@ -1,0 +1,125 @@
+name: CI
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Build/test only the versions this PR actually affects, so a PR doesn't rebuild
+  # every tracked FFmpeg version. Same diff logic as release.yml's prepare, so CI and
+  # release agree on what a change touches:
+  #   - a build-recipe change (scripts/, except tests) → ALL tracked versions
+  #   - only versions.txt → just the added/changed lines (an add-9 PR → only 9)
+  #   - anything else (docs, etc.) → nothing
+  resolve:
+    runs-on: ubuntu-latest
+    outputs:
+      versions: ${{ steps.v.outputs.versions }}
+      any: ${{ steps.v.outputs.any }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # need the base commit to diff the PR against
+      - id: v
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          mapfile -t TRACKED < <(grep -vE '^[[:space:]]*(#|$)' versions.txt | sed 's/[[:space:]]//g' | grep .)
+          CHANGED="$(git diff --name-only "${BASE_SHA}" HEAD)"
+          echo "Changed files:"; echo "${CHANGED}"
+
+          SEL=()
+          if echo "${CHANGED}" | grep -E '^scripts/' | grep -qv '^scripts/test/'; then
+            SEL=("${TRACKED[@]}")
+            echo "Build-recipe change → all tracked versions."
+          elif echo "${CHANGED}" | grep -qx 'versions.txt'; then
+            if git cat-file -e "${BASE_SHA}:versions.txt" 2>/dev/null; then
+              mapfile -t PREV < <(git show "${BASE_SHA}:versions.txt" | grep -vE '^[[:space:]]*(#|$)' | sed 's/[[:space:]]//g' | grep .)
+            else
+              PREV=()
+            fi
+            for v in "${TRACKED[@]}"; do
+              found=false
+              for p in "${PREV[@]:-}"; do [[ "$v" == "$p" ]] && found=true && break; done
+              $found || SEL+=("$v")
+            done
+            echo "versions.txt change → added/changed lines only."
+          else
+            echo "No build-affecting change → nothing to build."
+          fi
+
+          VERSIONS='[]'
+          for v in "${SEL[@]:-}"; do
+            [[ -z "$v" ]] && continue
+            VERSIONS=$(jq -c --arg v "$v" '. + [$v]' <<< "$VERSIONS")
+          done
+          ANY=$([[ "$(jq 'length' <<< "$VERSIONS")" -gt 0 ]] && echo true || echo false)
+          {
+            echo "versions=${VERSIONS}"
+            echo "any=${ANY}"
+          } >> "$GITHUB_OUTPUT"
+          echo "Building: ${VERSIONS}"
+
+  build:
+    needs: resolve
+    if: needs.resolve.outputs.any == 'true'
+    strategy:
+      fail-fast: true
+      matrix:
+        version: ${{ fromJson(needs.resolve.outputs.versions) }}
+    uses: ./.github/workflows/build.yml
+    with:
+      ffmpeg_version: ${{ matrix.version }}
+      fail_fast: true
+
+  # Tests run separately, after the build, against its uploaded artifacts. Desktop and
+  # mobile are split so mobile's slow emulator/simulator setup doesn't gate or
+  # destabilise the fast desktop execution checks.
+  test:
+    needs: [resolve, build]
+    if: needs.resolve.outputs.any == 'true'
+    strategy:
+      fail-fast: true
+      matrix:
+        version: ${{ fromJson(needs.resolve.outputs.versions) }}
+    uses: ./.github/workflows/test.yml
+    with:
+      ffmpeg_version: ${{ matrix.version }}
+      fail_fast: true
+
+  test-mobile:
+    needs: [resolve, build]
+    if: needs.resolve.outputs.any == 'true'
+    strategy:
+      fail-fast: true
+      matrix:
+        version: ${{ fromJson(needs.resolve.outputs.versions) }}
+    uses: ./.github/workflows/test-mobile.yml
+    with:
+      ffmpeg_version: ${{ matrix.version }}
+      fail_fast: true
+
+  # Single required status check for branch protection. Passes when the build/test
+  # jobs succeeded OR were skipped (a docs-only PR builds nothing) — fails only on a
+  # real failure/cancellation. Set THIS as the required check, not the matrix jobs.
+  ci-passed:
+    if: always()
+    needs: [resolve, build, test, test-mobile]
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          for r in "${{ needs.build.result }}" "${{ needs.test.result }}" "${{ needs.test-mobile.result }}"; do
+            if [[ "$r" == "failure" || "$r" == "cancelled" ]]; then
+              echo "CI failed (a build/test job did not pass)"; exit 1
+            fi
+          done
+          echo "CI passed. Built versions: ${{ needs.resolve.outputs.versions }}"

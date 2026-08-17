@@ -1,0 +1,50 @@
+name: CodeQL
+
+# Security/quality analysis of the code WE own. This repo is a builder of stock
+# upstream FFmpeg + libraries — it vendors no upstream source, so there is nothing
+# upstream for CodeQL to (mis)attribute to us:
+#   - c-cpp runs in build-mode: none → it scans the C committed to the repo
+#     (scripts/test/smoke.c and any future test programs) WITHOUT building, so
+#     upstream is never cloned or analyzed and no build minutes are spent.
+#   - actions scans our workflow YAML (e.g. script-injection in inline `run:` steps).
+# NOTE: CodeQL has no shell/bash analyzer — the bash scripts are covered separately
+# by the ShellCheck workflow.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '23 4 * * 1'   # weekly (Mon 04:23 UTC), catches newly-published queries
+
+permissions:
+  contents: read
+  security-events: write   # required to upload results to the Security tab
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: c-cpp
+            build-mode: none
+          - language: actions
+            build-mode: none
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          config-file: ./.github/codeql/codeql-config.yml
+      - uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"

@@ -31,5 +31,16 @@ make -C src install-libLTLIBRARIES install-includeHEADERS
 # Android — so -lrt would break FFmpeg's static pkg-config link there.
 mkdir -p "${DEPS_DIR}/lib/pkgconfig"
 sed 's/-lrt//g' src/kvazaar.pc > "${DEPS_DIR}/lib/pkgconfig/kvazaar.pc"
+# On Windows, kvazaar.h declares its API __declspec(dllimport) by default, so a
+# consumer emits a reference to the DLL import stub (__imp_kvz_api_get) and fails
+# to link the STATIC libkvazaar.a, which exports the plain symbol. FFmpeg surfaces
+# this as "kvazaar >= 2.0.0 not found using pkg-config" (its configure link test
+# fails, not the version check). Advertise KVZ_STATIC_LIB via the .pc Cflags so
+# both that test and the FFmpeg compile (which uses pkg-config --cflags kvazaar)
+# see the static declarations. Windows-only: the dllimport path is _WIN32-gated,
+# which is why only the win-x64 build hit this.
+if [[ "${RID}" == win-* ]]; then
+  sed -i 's|^Cflags:.*|& -DKVZ_STATIC_LIB|' "${DEPS_DIR}/lib/pkgconfig/kvazaar.pc"
+fi
 CONFIGURE_FLAGS+=(--enable-libkvazaar)
 echo "kvazaar (H.265/HEVC software encoder) enabled."

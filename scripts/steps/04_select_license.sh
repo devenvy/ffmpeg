@@ -57,5 +57,12 @@ if [[ "${RID}" == "ios-sim-arm64" ]]; then
   BUILD_LIBKVAZAAR=0
   BUILD_LIBOPUS=0
   BUILD_LIBAOM=0
+  # Drop the freetype-based text/subtitle stack as a unit: libass (and fontconfig)
+  # require freetype, so disabling freetype alone would break their configure. The
+  # lean testing slice doesn't need subtitle rendering.
   BUILD_FREETYPE=0
+  BUILD_FONTCONFIG=0
+  BUILD_FRIBIDI=0
+  BUILD_HARFBUZZ=0
+  BUILD_LIBASS=0
 fi

@@ -73,13 +73,13 @@ jobs:
     needs: resolve
     if: needs.resolve.outputs.any == 'true'
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
         version: ${{ fromJson(needs.resolve.outputs.versions) }}
     uses: ./.github/workflows/build.yml
     with:
       ffmpeg_version: ${{ matrix.version }}
-      fail_fast: true
+      fail_fast: false
 
   # Tests run separately, after the build, against its uploaded artifacts. Desktop and
   # mobile are split so mobile's slow emulator/simulator setup doesn't gate or
@@ -88,25 +88,25 @@ jobs:
     needs: [resolve, build]
     if: needs.resolve.outputs.any == 'true'
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
         version: ${{ fromJson(needs.resolve.outputs.versions) }}
     uses: ./.github/workflows/test.yml
     with:
       ffmpeg_version: ${{ matrix.version }}
-      fail_fast: true
+      fail_fast: false
 
   test-mobile:
     needs: [resolve, build]
     if: needs.resolve.outputs.any == 'true'
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
         version: ${{ fromJson(needs.resolve.outputs.versions) }}
     uses: ./.github/workflows/test-mobile.yml
     with:
       ffmpeg_version: ${{ matrix.version }}
-      fail_fast: true
+      fail_fast: false
 
   # Single required status check for branch protection. Passes when the build/test
   # jobs succeeded OR were skipped (a docs-only PR builds nothing) — fails only on a

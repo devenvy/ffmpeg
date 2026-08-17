@@ -16,6 +16,7 @@ case "${RID}" in
   win-x64)       OGG_ARGS+=(--host=x86_64-w64-mingw32) ;;
   linux-armhf)   OGG_ARGS+=(--host=arm-linux-gnueabihf) ;;
   android-arm64) OGG_ARGS+=(--host=aarch64-linux-android) ;;
+  ios-arm64|ios-sim-arm64) OGG_ARGS+=(--host=aarch64-apple-darwin) ;;
 esac
 ./configure "${OGG_ARGS[@]}"
 make -j"$(${NPROC})"

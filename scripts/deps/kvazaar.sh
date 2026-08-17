@@ -18,6 +18,7 @@ case "${RID}" in
   win-x64)       KVZ_ARGS+=(--host=x86_64-w64-mingw32) ;;
   linux-armhf)   KVZ_ARGS+=(--host=arm-linux-gnueabihf) ;;
   android-arm64) KVZ_ARGS+=(--host=aarch64-linux-android) ;;
+  ios-arm64|ios-sim-arm64) KVZ_ARGS+=(--host=aarch64-apple-darwin) ;;
 esac
 ./configure "${KVZ_ARGS[@]}"
 # Build and install the LIBRARY only — FFmpeg does not need the kvazaar CLI, and

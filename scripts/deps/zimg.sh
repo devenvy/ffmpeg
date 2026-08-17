@@ -17,6 +17,7 @@ case "${RID}" in
   win-x64)       ZIMG_ARGS+=(--host=x86_64-w64-mingw32) ;;
   linux-armhf)   ZIMG_ARGS+=(--host=arm-linux-gnueabihf) ;;
   android-arm64) ZIMG_ARGS+=(--host=aarch64-linux-android) ;;
+  ios-arm64|ios-sim-arm64) ZIMG_ARGS+=(--host=aarch64-apple-darwin) ;;
 esac
 ./configure "${ZIMG_ARGS[@]}"
 make -j"$(${NPROC})"

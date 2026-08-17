@@ -14,7 +14,10 @@
 if [[ "${SKIP_DEPS:-false}" != "true" ]]; then
 case "${RID}" in
   osx-*|ios-*)
-    for pkg in cmake gperf meson nasm pkg-config yasm; do
+    # autoconf/automake/libtool provide `autoreconf`, which several deps' autogen.sh
+    # needs (kvazaar, libogg, libvorbis, zimg — cloned from git with no pre-generated
+    # configure). GitHub's macOS runners no longer ship them, so install explicitly.
+    for pkg in autoconf automake libtool cmake gperf meson nasm pkg-config yasm; do
       brew list "$pkg" &>/dev/null || brew install "$pkg"
     done
     ;;

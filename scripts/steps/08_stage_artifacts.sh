@@ -89,6 +89,11 @@ case "${RID}" in
     mkdir -p "${OUT_DIR}/include" "${OUT_DIR}/lib"
     cp -a "${PREFIX_DIR}/include/." "${OUT_DIR}/include/"
     cp -a "${PREFIX_DIR}/lib/"*.a "${OUT_DIR}/lib/"
+    # A static .a does NOT embed its dependencies the way a shared lib does: FFmpeg's
+    # libav*.a reference symbols that live in the dependency archives (zimg, whisper/
+    # ggml, opus, openssl, freetype, ...), which sit in DEPS_DIR — not the FFmpeg
+    # prefix. Ship them too, or a consumer (and our ABI smoke link) can't resolve them.
+    cp -a "${DEPS_DIR}/lib/"*.a "${OUT_DIR}/lib/" 2>/dev/null || true
     ;;
   *)
     mkdir -p "${OUT_DIR}/include"

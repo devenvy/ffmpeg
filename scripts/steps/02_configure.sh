@@ -148,11 +148,17 @@ case "${RID}" in
     ;;
 
   linux-musl-x64)
-    # musl/Alpine — native build inside Alpine container
+    # musl/Alpine — native build inside Alpine container. Like the glibc targets, the
+    # hwaccel dispatch libraries (libdrm/libva/libvpl/Vulkan-Loader) are built from
+    # source as STATIC and linked in (the BUILD_*_SOURCE flags) rather than taken from
+    # Alpine's -dev packages — otherwise FFmpeg links the system libva.so.2/libvpl.so.2
+    # dynamically and the artifact won't start on a stock musl system that lacks them.
+    # The static dispatch layers dlopen the GPU driver at runtime, so VAAPI/QSV still
+    # work when a driver is present. (libstdc++/libgcc_s remain — whisper's C++ runtime,
+    # a standard `apk add libstdc++ libgcc` on any musl host.)
     PKGS_APK=(autoconf automake libtool build-base cmake curl diffutils gperf git linux-headers
               meson nasm ninja patchelf perl pkgconf xz yasm
-              libdrm-dev libva-dev libvpl-dev
-              glslang shaderc vulkan-loader-dev)
+              glslang shaderc)
     CONFIGURE_FLAGS+=(
       --enable-cuda --enable-cuvid --enable-nvenc --enable-nvdec --enable-ffnvcodec
       --enable-vaapi --enable-libdrm --enable-libvpl
@@ -160,6 +166,10 @@ case "${RID}" in
     HWACCEL_FEATURES="CUDA NVENC NVDEC VAAPI libdrm QSV"
     BUILD_NVIDIA=1
     BUILD_VULKAN=1
+    BUILD_LIBDRM_SOURCE=1
+    BUILD_LIBVA_SOURCE=1
+    BUILD_VPL_SOURCE=1
+    BUILD_VULKAN_LOADER=1
     WHISPER_BACKEND="vulkan"
     BUILD_TYPE_LABEL="Linux musl (native Alpine)"
     ;;

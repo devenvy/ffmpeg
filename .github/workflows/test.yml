@@ -66,7 +66,10 @@ jobs:
     steps:
       - name: Bootstrap Alpine container
         if: matrix.rid == 'linux-musl-x64'
-        run: apk add --no-cache bash git file   # 'file' is needed by the test script
+        # file: arch check. binutils: nm for symbol checks. libstdc++/libgcc: whisper's
+        # C++ runtime, which the (shared) libav* link — a standard runtime dep present on
+        # any real musl host (`apk add libstdc++ libgcc`), not something we can avoid.
+        run: apk add --no-cache bash git file binutils libstdc++ libgcc
 
       - uses: actions/checkout@v4
         with:

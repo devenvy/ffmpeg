@@ -60,9 +60,16 @@ check_soname_unversioned() {
 # symbol lands in nm's output). Same pattern as run_functional below.
 check_symbol() {
   local f="$1" s="$2" syms
+  # Inspection-only: if no nm/llvm-nm is present, skip rather than fail — execution
+  # (Tier 2) is the real signal; a missing inspection tool must not fail the job.
+  if [ -z "$NM" ]; then skip "symbol check ($s): no nm/llvm-nm available"; return; fi
+  # Match an optional leading underscore: Mach-O (macOS/iOS) prefixes symbols with '_'
+  # (e.g. _avcodec_version), ELF does not. A pattern beats `grep -w`, whose word
+  # boundary treats the leading '_' as part of the token and misses it.
+  local re="(^|[^A-Za-z0-9_])_?${s}([^A-Za-z0-9_]|\$)"
   syms="$(${NM} -D --defined-only "$f" 2>/dev/null)"
-  grep -qw "$s" <<<"$syms" || syms="$(${NM} "$f" 2>/dev/null)"
-  if grep -qw "$s" <<<"$syms"; then
+  grep -qE "$re" <<<"$syms" || syms="$(${NM} "$f" 2>/dev/null)"
+  if grep -qE "$re" <<<"$syms"; then
     pass "symbol: $(basename "$f") exports $s"
   else
     fail "symbol: $(basename "$f") missing $s"
@@ -128,11 +135,16 @@ check_tls() {
 
 # License-appropriate encoder expectations, driven by the embedded config string.
 check_license_boundary() {
+  local lean="${1:-}"   # a lean slice (e.g. ios-sim) intentionally omits x264/x265
   case " ${CONFIG_STR} " in
     *" --enable-gpl "*)
       info "GPL build (per embedded config)"
-      check_config "--enable-libx264" "x264 (H.264 SW encoder)"
-      check_config "--enable-libx265" "x265 (H.265 SW encoder)" ;;
+      if [ -n "$lean" ]; then
+        info "lean slice: x264/x265 intentionally omitted — skipping GPL-encoder presence check"
+      else
+        check_config "--enable-libx264" "x264 (H.264 SW encoder)"
+        check_config "--enable-libx265" "x265 (H.265 SW encoder)"
+      fi ;;
     *" --disable-gpl "*)
       info "LGPL build (per embedded config)"
       check_config_absent "--enable-gpl" "GPL"

@@ -83,9 +83,13 @@ jobs:
         if: matrix.rid == 'ios-sim-arm64' && matrix.license == 'lgpl'
         shell: bash
         run: |
-          UDID="$(xcrun simctl create ff-smoke \
-            "$(xcrun simctl list devicetypes -j | python3 -c 'import json,sys;print([d["identifier"] for d in json.load(sys.stdin)["devicetypes"] if "iPhone" in d["name"]][-1])')" \
-            "$(xcrun simctl list runtimes -j | python3 -c 'import json,sys;print([r["identifier"] for r in json.load(sys.stdin)["runtimes"] if r["name"].startswith("iOS") and r["isAvailable"]][-1])')")"
+          # Pick an available iOS runtime AND an iPhone from THAT runtime's own
+          # supportedDeviceTypes — picking device and runtime independently can yield an
+          # incompatible pair, which simctl rejects with "Incompatible device" (403).
+          PAIR="$(xcrun simctl list runtimes -j | python3 -c 'import json,sys; rts=[r for r in json.load(sys.stdin)["runtimes"] if r["name"].startswith("iOS") and r.get("isAvailable") and r.get("supportedDeviceTypes")]; r=rts[-1]; iph=[d for d in r["supportedDeviceTypes"] if "iPhone" in d["name"]] or r["supportedDeviceTypes"]; print(r["identifier"], iph[-1]["identifier"])')"
+          RT="${PAIR% *}"; DEV="${PAIR#* }"
+          echo "Using runtime=$RT device=$DEV"
+          UDID="$(xcrun simctl create ff-smoke "$DEV" "$RT")"
           xcrun simctl boot "$UDID"
           xcrun simctl bootstatus "$UDID"
           bash scripts/test/ios-run.sh "${BUILD_RID}" "artifacts/${BUILD_RID}/native"

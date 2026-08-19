@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 ############################################
 # Step 3: Install Host Packages
 #

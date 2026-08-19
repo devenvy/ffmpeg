@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # libopus — Opus audio encoder + decoder (BSD-3).
 # SOURCED by scripts/build.sh (shares its environment; appends its --enable-*
 # to CONFIGURE_FLAGS where applicable). Not a standalone script.

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # dav1d — fast AV1 video decoder (BSD-2-Clause), from VideoLAN.
 # SOURCED by scripts/build.sh (shares its environment; appends its --enable-*
 # to CONFIGURE_FLAGS where applicable). Not a standalone script.

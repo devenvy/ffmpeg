@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # soxr — high-quality audio resampling library (LGPL-2.1).
 # SOURCED by scripts/build.sh (shares its environment; appends its --enable-*
 # to CONFIGURE_FLAGS where applicable). Not a standalone script.

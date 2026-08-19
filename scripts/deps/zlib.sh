@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # zlib — DEFLATE compression (Zlib license); used by PNG, HTTP gzip, Matroska
 # and more.
 # SOURCED by scripts/build.sh (shares its environment; appends its --enable-*

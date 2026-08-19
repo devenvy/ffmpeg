@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # x264 — H.264 / AVC software encoder (GPL-2.0+). GPL builds only.
 # SOURCED by scripts/build.sh (shares its environment; appends its --enable-*
 # to CONFIGURE_FLAGS where applicable). Not a standalone script.

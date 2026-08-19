@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # fontconfig — system font discovery (MIT) so drawtext can pick fonts by name.
 # Builds expat first as a dependency.
 # SOURCED by scripts/build.sh (shares its environment; appends its --enable-*

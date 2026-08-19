@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # OpenSSL — TLS/https backend for FFmpeg (Apache-2.0; GPL/LGPL-compatible, so no
 # --enable-nonfree needed). Built only where the OS gives FFmpeg no usable TLS:
 # Linux and Android. Windows uses SChannel and Apple uses SecureTransport, both

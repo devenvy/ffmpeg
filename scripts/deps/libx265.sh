@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # x265 — H.265 / HEVC software encoder (GPL-2.0+). GPL builds only; pinned to
 # 3.6 (4.0+ has broken aarch64 NEON intrinsics).
 # SOURCED by scripts/build.sh (shares its environment; appends its --enable-*

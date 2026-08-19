@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # AMF — AMD Advanced Media Framework headers (MIT) for AMD hardware
 # H.264/H.265 encoding (Windows).
 # SOURCED by scripts/build.sh (shares its environment; appends its --enable-*

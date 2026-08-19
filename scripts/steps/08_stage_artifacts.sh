@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 ############################################
 # Step 8: Stage Artifacts
 #

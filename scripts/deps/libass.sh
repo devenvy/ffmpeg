@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # libass — SSA/ASS subtitle renderer (ISC). Needs fribidi + harfbuzz + freetype
 # + fontconfig (all built earlier). SOURCED by scripts/build.sh (uses
 # MESON_CROSS_FILE for cross targets; appends --enable-libass). Not standalone.

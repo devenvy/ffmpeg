@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # libvorbis — Vorbis audio encoder + decoder (BSD-3). Requires libogg.
 # SOURCED by scripts/build.sh (shares its environment; appends its --enable-*
 # to CONFIGURE_FLAGS where applicable). Not a standalone script.
@@ -12,12 +13,7 @@ git clone --depth 1 --branch v1.3.7 https://github.com/xiph/vorbis.git
 cd vorbis || exit 1
 ./autogen.sh
 VORBIS_ARGS=(--prefix="${DEPS_DIR}" --disable-shared --enable-static --with-ogg="${DEPS_DIR}" --with-pic)
-case "${RID}" in
-  win-x64)       VORBIS_ARGS+=(--host=x86_64-w64-mingw32) ;;
-  linux-armhf)   VORBIS_ARGS+=(--host=arm-linux-gnueabihf) ;;
-  android-arm64) VORBIS_ARGS+=(--host=aarch64-linux-android) ;;
-  ios-arm64|ios-sim-arm64) VORBIS_ARGS+=(--host=aarch64-apple-darwin) ;;
-esac
+[ -n "${CROSS_HOST:-}" ] && VORBIS_ARGS+=(--host="${CROSS_HOST}")   # cross triple resolved in 02_configure
 ./configure "${VORBIS_ARGS[@]}"
 # Build and install the LIBRARIES ONLY (same idiom as kvazaar.sh). libvorbis's
 # configure injects -force_cpusubtype_ALL into CFLAGS on Darwin — an obsolete flag

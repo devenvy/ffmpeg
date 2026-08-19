@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # Shared build helpers: the cmake policy wrapper and build_cmake_dep, used by
 # the dependency scripts. Sourced by build.sh before the build steps run.
 

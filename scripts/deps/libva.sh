@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # libva — VA-API dispatch library (MIT). Built STATIC with the DRM backend only
 # (no X11/GLX/Wayland) and linked into FFmpeg, so the artifact carries no libva.so
 # runtime dependency; the static dispatcher dlopens the system VA driver

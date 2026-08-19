@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # libdrm — Direct Rendering Manager userspace library (MIT). Built as a STATIC
 # library on Linux and linked into FFmpeg (VAAPI needs it, and FFmpeg's
 # --enable-libdrm), so the artifact carries no libdrm.so.2 runtime dependency —

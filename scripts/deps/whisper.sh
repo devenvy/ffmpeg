@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # whisper.cpp — on-device speech-to-text engine (MIT) behind FFmpeg's
 # af_whisper filter; built with a per-platform GGML backend (Vulkan / Metal /
 # CPU).

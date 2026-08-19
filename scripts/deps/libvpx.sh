@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # libvpx — VP8 / VP9 video encoder + decoder (BSD-3), the WebM reference
 # codec.
 # SOURCED by scripts/build.sh (shares its environment; appends its --enable-*

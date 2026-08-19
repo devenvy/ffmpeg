@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # openh264 — Cisco's H.264 software encoder/decoder (BSD-2-Clause). Gives the
 # LGPL builds a software H.264 encoder (x264 is GPL-only). SOURCED by
 # scripts/build.sh (uses MESON_CROSS_FILE for cross targets; appends its

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # kvazaar — H.265/HEVC software encoder (BSD-3-Clause). The permissive H.265
 # encoder for the LGPL builds (x265 is GPL) — the H.265 counterpart to OpenH264,
 # and a software fallback where hardware HEVC encode is unavailable. SOURCED by
@@ -14,12 +15,7 @@ cd kvazaar || exit 1
 ./autogen.sh
 KVZ_ARGS=(--prefix="${DEPS_DIR}" --libdir="${DEPS_DIR}/lib"
           --disable-shared --enable-static --with-pic)
-case "${RID}" in
-  win-x64)       KVZ_ARGS+=(--host=x86_64-w64-mingw32) ;;
-  linux-armhf)   KVZ_ARGS+=(--host=arm-linux-gnueabihf) ;;
-  android-arm64) KVZ_ARGS+=(--host=aarch64-linux-android) ;;
-  ios-arm64|ios-sim-arm64) KVZ_ARGS+=(--host=aarch64-apple-darwin) ;;
-esac
+[ -n "${CROSS_HOST:-}" ] && KVZ_ARGS+=(--host="${CROSS_HOST}")   # cross triple resolved in 02_configure
 ./configure "${KVZ_ARGS[@]}"
 # Build and install the LIBRARY only — FFmpeg does not need the kvazaar CLI, and
 # skipping it avoids the CLI's hardcoded -lrt (kvazaar adds it for any linux* host,

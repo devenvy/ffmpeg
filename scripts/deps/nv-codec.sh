@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # nv-codec-headers — NVIDIA codec API headers (MIT) enabling the NVENC / NVDEC
 # / CUVID hardware encoders and decoders.
 # SOURCED by scripts/build.sh (shares its environment; appends its --enable-*

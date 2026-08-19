@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # fribidi — Unicode bidirectional text algorithm (LGPL-2.1); a libass dependency.
 # SOURCED by scripts/build.sh (uses MESON_CROSS_FILE for cross targets). No
 # FFmpeg --enable flag of its own. Not a standalone script.

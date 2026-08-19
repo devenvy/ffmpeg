@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # zimg — high-quality image scaling/colorspace/depth conversion (WTFPL/BSD-ish).
 # SOURCED by scripts/build.sh (shares its environment; appends its --enable-* to
 # CONFIGURE_FLAGS where applicable). Not a standalone script.

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # libaom — AV1 reference encoder + decoder (BSD-2-Clause-Patent), from
 # AOMedia.
 # SOURCED by scripts/build.sh (shares its environment; appends its --enable-*

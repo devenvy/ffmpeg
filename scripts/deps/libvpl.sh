@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # libvpl (oneVPL) — Intel Video Processing Library dispatcher (MIT) for Quick
 # Sync Video (QSV) hardware transcode.
 # SOURCED by scripts/build.sh (shares its environment; appends its --enable-*

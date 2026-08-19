@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # Vulkan-Headers — Khronos Vulkan API headers (Apache-2.0) for FFmpeg's Vulkan
 # filters/hwaccel and whisper's GPU backend.
 # SOURCED by scripts/build.sh (shares its environment; appends its --enable-*

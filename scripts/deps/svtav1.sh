@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # SVT-AV1 — fast, production-grade AV1 encoder (BSD-3), from AOMedia.
 # SOURCED by scripts/build.sh (shares its environment; appends its --enable-*
 # to CONFIGURE_FLAGS where applicable). Not a standalone script.

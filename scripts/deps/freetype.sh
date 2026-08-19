@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 # FreeType — font rasterization (FTL / BSD-like) for the drawtext filter.
 # Builds libpng first as a dependency.
 # SOURCED by scripts/build.sh (shares its environment; appends its --enable-*

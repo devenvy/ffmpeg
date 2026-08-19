@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 ############################################
 # Step 4: Select License
 #
@@ -9,24 +10,28 @@
 # Sourced by build.sh (shares its environment); not a standalone script.
 ############################################
 
-# ── License flag ──────────────────────────────────────────────────────────
+# ── License: family (gpl/lgpl) × version series (v3/v2) ────────────────────
+# Two axes combine into the license identity:
+#   LICENSE                gpl | lgpl   — GPL adds the x264/x265 software encoders
+#   BUILD_LICENSE_VERSION  3 (default) | 2
+# v3 = (L)GPLv3: may link the Apache-2.0 deps (OpenSSL 3.x TLS, Vulkan), so it uses
+# --enable-version3. v2 = GPLv2 / LGPLv2.1 (the App-Store-safe series): NO version3,
+# and the Apache-2.0 deps are dropped — GnuTLS replaces OpenSSL wherever TLS came from
+# OpenSSL, and Vulkan is turned off (whisper falls back to CPU; Apple is already Metal).
+LICENSE_VERSION="${BUILD_LICENSE_VERSION:-3}"
 
 case "${LICENSE}" in
   gpl)
     CONFIGURE_FLAGS+=(--enable-gpl)
-    LICENSE_LABEL="GPLv3"
     BUILD_LIBX264=1
     BUILD_LIBX265=1
-    # GPL builds get the stronger x264/x265. kvazaar is only useful as the
-    # permissive HEVC encoder for the LGPL builds (where x265 can't go), so drop
-    # it here rather than ship a weaker redundant encoder.
+    # GPL builds get the stronger x264/x265. kvazaar is only useful as the permissive
+    # HEVC encoder for the LGPL builds (where x265 can't go), so drop the redundant one.
     BUILD_LIBKVAZAAR=0
     ;;
   lgpl)
     CONFIGURE_FLAGS+=(--disable-gpl)
-    LICENSE_LABEL="LGPLv3"
-    # kvazaar (BSD) stays on — it is the LGPL builds' only software HEVC encoder,
-    # the H.265 counterpart to OpenH264 for H.264.
+    # kvazaar (BSD) stays on — the LGPL builds' only software HEVC encoder.
     ;;
   *)
     echo "Error: unsupported BUILD_LICENSE '${LICENSE}' (expected gpl or lgpl)" >&2
@@ -34,13 +39,36 @@ case "${LICENSE}" in
     ;;
 esac
 
-# Every build is (L)GPL *version 3*, uniformly across all platforms. We build with
-# OpenSSL 3.x (Apache-2.0) for TLS, which is compatible with (L)GPLv3 but NOT with
-# v2.1/v2, so FFmpeg requires --enable-version3. We apply it unconditionally (not
-# just where OpenSSL is linked) so there is a single, unambiguous license version
-# for the whole matrix — no per-platform juggling of v2-vs-v3. This mirrors the
-# reference BtbN builds, which also ship (L)GPLv3.
-CONFIGURE_FLAGS+=(--enable-version3)
+case "${LICENSE_VERSION}" in
+  3)
+    # OpenSSL 3.x (Apache-2.0) and Vulkan are (L)GPLv3-compatible but NOT v2 — v3 needs this.
+    CONFIGURE_FLAGS+=(--enable-version3)
+    ;;
+  2)
+    # (L)GPLv2.1 / GPLv2 — drop the Apache-2.0 deps; no version3.
+    BUILD_VULKAN=0
+    BUILD_VULKAN_LOADER=0
+    [[ "${WHISPER_BACKEND}" == "vulkan" ]] && WHISPER_BACKEND="cpu"   # Apple is already metal
+    # TLS: swap OpenSSL (Apache-2.0) → GnuTLS (LGPLv2.1+) wherever OpenSSL was used
+    # (Linux/Android). Windows/Apple keep their OS-native SChannel/SecureTransport.
+    if [[ "${BUILD_OPENSSL:-0}" == "1" ]]; then
+      BUILD_OPENSSL=0
+      BUILD_GNUTLS=1
+    fi
+    ;;
+  *)
+    echo "Error: unsupported BUILD_LICENSE_VERSION '${LICENSE_VERSION}' (expected 2 or 3)" >&2
+    exit 1
+    ;;
+esac
+
+# Human/legal label + the artifact license token (lgplv3/gplv3/lgplv2/gplv2).
+case "${LICENSE}-${LICENSE_VERSION}" in
+  gpl-3)  LICENSE_LABEL="GPLv3"    ;;
+  gpl-2)  LICENSE_LABEL="GPLv2"    ;;
+  lgpl-3) LICENSE_LABEL="LGPLv3"   ;;
+  lgpl-2) LICENSE_LABEL="LGPLv2.1" ;;
+esac
 
 # ── Lean iOS simulator slice ───────────────────────────────────────────────
 # The iOS simulator slice exists only for developer testing in Xcode. The

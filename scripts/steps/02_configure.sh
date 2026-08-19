@@ -83,6 +83,7 @@ case "${RID}" in
   android-*)   PLATFORM=android ;;
   *) echo "Error: unsupported BUILD_RID '${RID}'" >&2; exit 1 ;;
 esac
+# shellcheck source=/dev/null  # dynamic path — platform/<family>.sh resolved at runtime
 . "${ROOT_DIR}/scripts/platform/${PLATFORM}.sh"
 
 # Linux and Android have no OS TLS backend FFmpeg can use, so they build OpenSSL

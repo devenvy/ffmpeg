@@ -38,6 +38,7 @@ jobs:
       matrix:
         rid: [android-arm64, ios-arm64, ios-sim-arm64]
         license: [lgpl, gpl]
+        license_version: [3, 2]   # v3 = OpenSSL/Vulkan; v2 = GnuTLS, no Vulkan (App-Store-safe)
         include:
           - rid: android-arm64
             runner: ubuntu-latest
@@ -47,11 +48,11 @@ jobs:
             runner: macos-latest
 
     runs-on: ${{ matrix.runner }}
-    name: ${{ inputs.ffmpeg_version }} ${{ matrix.rid }} (${{ matrix.license }})
+    name: ${{ inputs.ffmpeg_version }} ${{ matrix.rid }} (${{ matrix.license }}v${{ matrix.license_version }})
 
     env:
       BUILD_RID: ${{ matrix.rid }}
-      VARIANT: ${{ inputs.ffmpeg_version }}-${{ matrix.rid }}-${{ matrix.license }}
+      VARIANT: ${{ inputs.ffmpeg_version }}-${{ matrix.rid }}-${{ matrix.license }}v${{ matrix.license_version }}
 
     steps:
       - uses: actions/checkout@v4

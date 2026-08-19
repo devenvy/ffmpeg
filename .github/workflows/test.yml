@@ -33,6 +33,7 @@ jobs:
       matrix:
         rid: [linux-x64, linux-arm64, linux-armhf, linux-musl-x64, win-x64, osx-x64, osx-arm64]
         license: [lgpl, gpl]
+        license_version: [3, 2]   # v3 = OpenSSL/Vulkan; v2 = GnuTLS, no Vulkan (App-Store-safe)
         include:
           # Tests run where the target executes natively. The glibc Linux builds test
           # on the PLAIN Ubuntu runner (not the manylinux build container) — running
@@ -57,11 +58,11 @@ jobs:
 
     runs-on: ${{ matrix.runner }}
     container: ${{ matrix.container || '' }}
-    name: ${{ inputs.ffmpeg_version }} ${{ matrix.rid }} (${{ matrix.license }})
+    name: ${{ inputs.ffmpeg_version }} ${{ matrix.rid }} (${{ matrix.license }}v${{ matrix.license_version }})
 
     env:
       BUILD_RID: ${{ matrix.rid }}
-      VARIANT: ${{ inputs.ffmpeg_version }}-${{ matrix.rid }}-${{ matrix.license }}
+      VARIANT: ${{ inputs.ffmpeg_version }}-${{ matrix.rid }}-${{ matrix.license }}v${{ matrix.license_version }}
 
     steps:
       - name: Bootstrap Alpine container

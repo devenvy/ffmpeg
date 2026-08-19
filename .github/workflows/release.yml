@@ -176,33 +176,19 @@ jobs:
     strategy:
       matrix:
         build: ${{ fromJson(needs.prepare.outputs.builds) }}
-        variant:
-          - linux-x64-lgpl
-          - linux-x64-gpl
-          - linux-arm64-lgpl
-          - linux-arm64-gpl
-          - linux-armhf-lgpl
-          - linux-armhf-gpl
-          - linux-musl-x64-lgpl
-          - linux-musl-x64-gpl
-          - win-x64-lgpl
-          - win-x64-gpl
-          - osx-x64-lgpl
-          - osx-x64-gpl
-          - osx-arm64-lgpl
-          - osx-arm64-gpl
-          - android-arm64-lgpl
-          - android-arm64-gpl
+        rid: [linux-x64, linux-arm64, linux-armhf, linux-musl-x64, win-x64, osx-x64, osx-arm64, android-arm64]
+        license: [lgpl, gpl]
+        license_version: [3, 2]   # → license token {license}v{series}: lgplv3/gplv3/lgplv2/gplv2
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: ${{ matrix.build.version }}-${{ matrix.variant }}
-          path: artifacts/${{ matrix.variant }}
+          name: ${{ matrix.build.version }}-${{ matrix.rid }}-${{ matrix.license }}v${{ matrix.license_version }}
+          path: artifacts/${{ matrix.rid }}-${{ matrix.license }}v${{ matrix.license_version }}
 
       - name: Create release tarballs (runtime + optional dev)
         run: |
           VERSION="${{ matrix.build.version }}"
-          VARIANT="${{ matrix.variant }}"
+          VARIANT="${{ matrix.rid }}-${{ matrix.license }}v${{ matrix.license_version }}"
           SRC="artifacts/${VARIANT}"
           RUN="/tmp/run"; DEV="/tmp/dev"
           rm -rf "${RUN}" "${DEV}" && mkdir -p "${RUN}"
@@ -246,7 +232,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           VERSION="${{ matrix.build.version }}"
-          VARIANT="${{ matrix.variant }}"
+          VARIANT="${{ matrix.rid }}-${{ matrix.license }}v${{ matrix.license_version }}"
           gh release upload "${{ matrix.build.tag }}" \
             "ffmpeg-${VERSION}-${VARIANT}.tar.gz" --clobber --repo "${{ github.repository }}"
           if [ -f "ffmpeg-${VERSION}-${VARIANT}-dev.tar.gz" ]; then
@@ -263,14 +249,15 @@ jobs:
       matrix:
         build: ${{ fromJson(needs.prepare.outputs.builds) }}
         license: [lgpl, gpl]
+        license_version: [3, 2]   # ios v2 = LGPLv2.1/GPLv2 (App-Store-safe): no version3
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: ${{ matrix.build.version }}-ios-arm64-${{ matrix.license }}
+          name: ${{ matrix.build.version }}-ios-arm64-${{ matrix.license }}v${{ matrix.license_version }}
           path: artifacts/ios-arm64
       - uses: actions/download-artifact@v4
         with:
-          name: ${{ matrix.build.version }}-ios-sim-arm64-${{ matrix.license }}
+          name: ${{ matrix.build.version }}-ios-sim-arm64-${{ matrix.license }}v${{ matrix.license_version }}
           path: artifacts/ios-sim-arm64
 
       - name: Assemble xcframeworks
@@ -286,13 +273,13 @@ jobs:
               -output "bundle/${name}.xcframework"
           done
           cp -r artifacts/ios-arm64/legal bundle/legal
-          tar -czf "ffmpeg-${VERSION}-ios-${{ matrix.license }}.tar.gz" -C bundle .
+          tar -czf "ffmpeg-${VERSION}-ios-${{ matrix.license }}v${{ matrix.license_version }}.tar.gz" -C bundle .
 
       - name: Upload release asset
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release upload "${{ matrix.build.tag }}" \
-            "ffmpeg-${{ matrix.build.version }}-ios-${{ matrix.license }}.tar.gz" \
+            "ffmpeg-${{ matrix.build.version }}-ios-${{ matrix.license }}v${{ matrix.license_version }}.tar.gz" \
             --clobber \
             --repo "${{ github.repository }}"

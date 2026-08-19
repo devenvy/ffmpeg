@@ -127,9 +127,10 @@ check_tls() {
   if [ -z "$CONFIG_STR" ]; then skip "tls check: no embedded config string"; return; fi
   case " ${CONFIG_STR} " in
     *" --enable-openssl "*)         pass "TLS backend: OpenSSL (https/tls)" ;;
+    *" --enable-gnutls "*)          pass "TLS backend: GnuTLS (https/tls)" ;;   # v2 series
     *" --enable-schannel "*)        pass "TLS backend: SChannel (https/tls)" ;;
     *" --enable-securetransport "*) pass "TLS backend: SecureTransport (https/tls)" ;;
-    *) fail "no TLS backend configured (expected openssl/schannel/securetransport)" ;;
+    *) fail "no TLS backend configured (expected openssl/gnutls/schannel/securetransport)" ;;
   esac
 }
 
@@ -176,7 +177,7 @@ check_smoke_link() {
     pass "smoke program links against the artifact (ABI complete)"
     SMOKE_BIN="$out"; return 0
   fi
-  local msg="smoke program did not link: $(tail -3 /tmp/smoke-cc.err | tr '\n' ' ')"
+  local msg; msg="smoke program did not link: $(tail -3 /tmp/smoke-cc.err | tr '\n' ' ')"
   # SMOKE_SOFT: report as skip, not fail. Used for the iOS static-.a link, which is
   # -all_load framework whack-a-mole on a static archive that is about to be replaced
   # by dynamic frameworks — where this becomes a clean, gating check again.

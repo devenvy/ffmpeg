@@ -43,7 +43,12 @@ check_config "--enable-mediacodec" "MediaCodec"
 check_config "--enable-jni" "JNI"
 check_config "--enable-decoder=h264_mediacodec" "h264 MediaCodec decoder"
 check_config "--enable-whisper" "Whisper ASR filter"
-check_config "--enable-vulkan" "Vulkan"
+# Vulkan is v3-only (Vulkan-Headers are Apache-2.0, dropped from the v2 series). The
+# embedded --enable-version3 flag distinguishes the series.
+case " ${CONFIG_STR} " in
+  *" --enable-version3 "*) check_config "--enable-vulkan" "Vulkan" ;;
+  *)                       check_config_absent "--enable-vulkan" "Vulkan (v2: dropped)" ;;
+esac
 check_tls
 check_license_boundary
 

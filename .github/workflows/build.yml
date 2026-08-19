@@ -25,6 +25,9 @@ jobs:
       matrix:
         rid: [linux-x64, linux-arm64, linux-armhf, linux-musl-x64, win-x64, osx-x64, osx-arm64, android-arm64, ios-arm64, ios-sim-arm64]
         license: [lgpl, gpl]
+        # License version series. 3 = (L)GPLv3 (OpenSSL 3.x TLS + Vulkan, both Apache-2.0).
+        # 2 = LGPLv2.1 / GPLv2 (App-Store-safe): GnuTLS replaces OpenSSL, Vulkan dropped.
+        license_version: [3, 2]
         include:
           - rid: linux-x64
             runner: ubuntu-latest
@@ -50,13 +53,15 @@ jobs:
 
     runs-on: ${{ matrix.runner }}
     container: ${{ matrix.container || '' }}
-    name: ${{ inputs.ffmpeg_version }} ${{ matrix.rid }} (${{ matrix.license }})
+    name: ${{ inputs.ffmpeg_version }} ${{ matrix.rid }} (${{ matrix.license }}v${{ matrix.license_version }})
 
     env:
       BUILD_RID: ${{ matrix.rid }}
       BUILD_LICENSE: ${{ matrix.license }}
-      # Artifact names must be unique across every version built in one run.
-      VARIANT: ${{ inputs.ffmpeg_version }}-${{ matrix.rid }}-${{ matrix.license }}
+      BUILD_LICENSE_VERSION: ${{ matrix.license_version }}
+      # Artifact names must be unique across every version/license/series in one run.
+      # License token = {license}v{series}: lgplv3 | gplv3 | lgplv2 | gplv2 (lgplv2 = LGPLv2.1).
+      VARIANT: ${{ inputs.ffmpeg_version }}-${{ matrix.rid }}-${{ matrix.license }}v${{ matrix.license_version }}
       # Embedded into legal/SOURCE_OFFER.txt so the corresponding-source notice
       # points at this exact repo + commit.
       SOURCE_REPO_URL: ${{ github.server_url }}/${{ github.repository }}
@@ -105,7 +110,7 @@ jobs:
               linux-arm64) MANYLINUX_ARCH=aarch64 ;;
             esac
             docker run --rm -v "${PWD}:/work" -w /work \
-              -e BUILD_RID -e BUILD_LICENSE -e FFMPEG_VERSION -e BUILD_CONTAINER=manylinux \
+              -e BUILD_RID -e BUILD_LICENSE -e BUILD_LICENSE_VERSION -e FFMPEG_VERSION -e BUILD_CONTAINER=manylinux \
               -e SOURCE_REPO_URL -e SOURCE_REPO_REF \
               "quay.io/pypa/manylinux_2_28_${MANYLINUX_ARCH}" \
               bash -c 'chmod +x scripts/build.sh && ./scripts/build.sh' \

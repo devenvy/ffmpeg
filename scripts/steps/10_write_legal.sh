@@ -18,31 +18,54 @@ mkdir -p "${LEGAL_DIR}"
 cp "${SRC_DIR}/LICENSE.md" "${LEGAL_DIR}/"
 cp "${SRC_DIR}/CREDITS" "${LEGAL_DIR}/" 2>/dev/null || true
 
-# Every build is (L)GPL *version 3* (see 04_select_license.sh: --enable-version3 is
-# unconditional because we link OpenSSL 3.x / Apache-2.0). Ship ONLY the governing
-# v3 text — not the v2.1/v2 text — so there is no ambiguity about which version
-# applies. LGPLv3 is defined as a set of additional permissions on top of GPLv3, so
-# an LGPLv3 build must ALSO include the GPLv3 text.
-case "${LICENSE}" in
-  gpl)
-    cp "${SRC_DIR}/COPYING.GPLv3" "${LEGAL_DIR}/"
-    ;;
-  lgpl)
-    cp "${SRC_DIR}/COPYING.LGPLv3" "${LEGAL_DIR}/"
-    cp "${SRC_DIR}/COPYING.GPLv3" "${LEGAL_DIR}/"   # LGPLv3 incorporates GPLv3 by reference
-    ;;
+# Ship the license text(s) that ACTUALLY govern this build — family (gpl/lgpl) × version
+# (3/2). v3 builds use --enable-version3 (they link Apache-2.0 deps: OpenSSL 3.x / Vulkan,
+# compatible with v3 but NOT v2.1/2); v2 builds (GPLv2 / LGPLv2.1, App-Store-safe) do not.
+# LGPL incorporates the matching GPL text by reference, so an LGPL build ships both. FFmpeg's
+# source tree carries all four COPYING files.
+LICENSE_VER="${LICENSE_VERSION:-3}"
+case "${LICENSE}-${LICENSE_VER}" in
+  gpl-3)  cp "${SRC_DIR}/COPYING.GPLv3"   "${LEGAL_DIR}/" ;;
+  gpl-2)  cp "${SRC_DIR}/COPYING.GPLv2"   "${LEGAL_DIR}/" ;;
+  lgpl-3) cp "${SRC_DIR}/COPYING.LGPLv3"  "${LEGAL_DIR}/"; cp "${SRC_DIR}/COPYING.GPLv3" "${LEGAL_DIR}/" ;;
+  lgpl-2) cp "${SRC_DIR}/COPYING.LGPLv2.1" "${LEGAL_DIR}/"; cp "${SRC_DIR}/COPYING.GPLv2" "${LEGAL_DIR}/" ;;
 esac
 
-# Prominent, plain-language statement of the EFFECTIVE license version. This is the
-# first thing a consumer/auditor should read — it removes any "is this v2 or v3?"
-# guesswork that copying multiple COPYING files would otherwise create.
-if [[ "${LICENSE}" == "lgpl" ]]; then
-  LICENSE_FULLNAME="GNU Lesser General Public License, version 3"
-  GOVERNING_TEXTS="COPYING.LGPLv3 (plus COPYING.GPLv3, which it extends)"
-else
-  LICENSE_FULLNAME="GNU General Public License, version 3"
-  GOVERNING_TEXTS="COPYING.GPLv3"
+# GnuTLS TLS chain (gpl-2 only — lgpl-2 drops TLS): ship each bundled dependency's license
+# text so the LGPL/GPL attribution requirement is met. GMP + nettle are dual LGPLv3+/GPLv2+,
+# libtasn1 is LGPLv2.1+, GnuTLS is LGPLv2.1+. Their sources are still in WORK_DIR here.
+if [[ "${BUILD_GNUTLS:-0}" == "1" ]]; then
+  for dep in gmp nettle libtasn1 gnutls; do
+    for d in "${WORK_DIR}/${dep}"-*/; do
+      [ -d "${d}" ] || continue
+      mkdir -p "${LEGAL_DIR}/licenses/${dep}"
+      find "${d}" -maxdepth 2 \( -iname 'COPYING*' -o -iname 'LICENSE*' \) \
+        -exec cp {} "${LEGAL_DIR}/licenses/${dep}/" \; 2>/dev/null || true
+    done
+  done
 fi
+
+# Prominent, plain-language statement of the EFFECTIVE license — the first thing a
+# consumer/auditor should read, so there's no "is this v2 or v3?" guesswork.
+case "${LICENSE}-${LICENSE_VER}" in
+  gpl-3)  LICENSE_FULLNAME="GNU General Public License, version 3";          GOVERNING_TEXTS="COPYING.GPLv3" ;;
+  gpl-2)  LICENSE_FULLNAME="GNU General Public License, version 2";          GOVERNING_TEXTS="COPYING.GPLv2" ;;
+  lgpl-3) LICENSE_FULLNAME="GNU Lesser General Public License, version 3";   GOVERNING_TEXTS="COPYING.LGPLv3 (plus COPYING.GPLv3, which it extends)" ;;
+  lgpl-2) LICENSE_FULLNAME="GNU Lesser General Public License, version 2.1"; GOVERNING_TEXTS="COPYING.LGPLv2.1 (plus COPYING.GPLv2, which it extends)" ;;
+esac
+if [[ "${LICENSE_VER}" == "3" ]]; then
+  WHY_VERSION="This build uses --enable-version3 because it links Apache-2.0 dependencies
+  (OpenSSL 3.x TLS and/or Vulkan headers), whose license is compatible with version 3 of the
+  (L)GPL but NOT with version 2.1/2. Its effective license is therefore VERSION 3."
+else
+  WHY_VERSION="This is a VERSION 2 build (App-Store-safe): it does NOT use --enable-version3
+  and links no Apache-2.0 dependency. TLS is GnuTLS (gpl-2) or omitted entirely (lgpl-2, for
+  which no LGPLv2.1-compatible TLS backend exists), and Vulkan is disabled."
+fi
+GNUTLS_NOTE=""
+[[ "${BUILD_GNUTLS:-0}" == "1" ]] && GNUTLS_NOTE="
+Bundled TLS stack: GnuTLS + GMP + nettle + libtasn1 — their license texts are in the
+licenses/ subdirectory of this directory."
 cat > "${LEGAL_DIR}/LICENSE-NOTICE.txt" <<EOF
 FFmpeg ${FFMPEG_VERSION} — ${RID}
 
@@ -50,14 +73,8 @@ EFFECTIVE LICENSE:  ${LICENSE_LABEL} (${LICENSE_FULLNAME})
 
 Governing license text: ${GOVERNING_TEXTS}
 
-Why version 3 (not 2.1/2):
-  FFmpeg's own code is "(L)GPL v2.1 or later", so it could in principle be used
-  under version 2.1. THIS build, however, is compiled with --enable-version3
-  because it links OpenSSL 3.x, whose Apache-2.0 license is compatible with
-  version 3 of the (L)GPL but NOT with version 2.1/2. The effective license of
-  this combined work is therefore VERSION 3, uniformly on every platform
-  (Windows/macOS/Linux/Android/iOS) — there is no v2 variant of these builds.
-
+${WHY_VERSION}
+${GNUTLS_NOTE}
 Corresponding source: see SOURCE_OFFER.txt in this directory.
 EOF
 

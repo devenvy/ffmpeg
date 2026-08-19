@@ -48,6 +48,20 @@ case "${RID}" in
     cp -a "${PREFIX_DIR}/bin/ffmpeg" "${OUT_DIR}/"
     cp -a "${PREFIX_DIR}/bin/ffprobe" "${OUT_DIR}/"
     cp -a "${PREFIX_DIR}/include/." "${OUT_DIR}/include/"
+    # Bundle the Vulkan-Loader + MoltenVK ICD (v3 only) so --enable-vulkan runs on Metal. The
+    # @rpath install-names are set in the fixup pass below. Not fully self-contained at runtime:
+    # the consumer points VK_ICD_FILENAMES at the bundled MoltenVK_icd.json (see the macOS
+    # install doc). The ICD's library_path is rewritten relative so the folder can be relocated.
+    if [[ "${BUILD_VULKAN:-0}" == "1" ]]; then
+      cp -a "${DEPS_DIR}/lib/"libvulkan*.dylib  "${OUT_DIR}/" 2>/dev/null || true
+      cp -a "${DEPS_DIR}/lib/libMoltenVK.dylib" "${OUT_DIR}/" 2>/dev/null || true
+      cp -a "${DEPS_DIR}/lib/MoltenVK_icd.json" "${OUT_DIR}/" 2>/dev/null || true
+      if [ -f "${OUT_DIR}/MoltenVK_icd.json" ]; then
+        sed -i.bak 's|"library_path"[[:space:]]*:[[:space:]]*"[^"]*"|"library_path": "./libMoltenVK.dylib"|' \
+          "${OUT_DIR}/MoltenVK_icd.json"
+        rm -f "${OUT_DIR}/MoltenVK_icd.json.bak"
+      fi
+    fi
     ;;
   android-*)
     mkdir -p "${OUT_DIR}/include" "${OUT_DIR}/lib/${ANDROID_ABI}"
@@ -87,20 +101,93 @@ case "${RID}" in
     fi
     ;;
   ios-*)
-    mkdir -p "${OUT_DIR}/include" "${OUT_DIR}/lib"
-    cp -a "${PREFIX_DIR}/include/." "${OUT_DIR}/include/"
-    # iOS is --enable-shared now: copy each libav* dylib under its UNVERSIONED name
-    # (libavcodec.dylib, not libavcodec.62.dylib) so the xcframework names come out clean.
-    # The static dependency archives (whisper/ggml, kvazaar, opus, ...) are linked INTO
-    # these dylibs, so each is self-contained — no dep .a to ship (unlike the old static
-    # build, which had to ship the DEPS_DIR archives for the consumer to resolve).
-    # cp (without -P/-a) dereferences the libavcodec.dylib -> libavcodec.NN.dylib symlink and
-    # writes the REAL dylib content under the unversioned name. (No `readlink -f` — BSD/macOS
-    # readlink, which is what runs here, has no -f.)
+    # iOS ships one dynamic .framework per libav* library (release.yml assembles the device +
+    # simulator frameworks into a per-lib .xcframework). Each framework bundles the dylib (deref'd
+    # from its versioned symlink, renamed to the framework's executable name), that lib's public
+    # Headers, and an Info.plist. The static dependencies (whisper/ggml, kvazaar, opus, …) are
+    # linked INTO the dylibs, so each framework is self-contained. @rpath install-names make them
+    # relocatable — Xcode embeds them under the app's Frameworks dir and supplies the runpath.
+    # Cross-library header includes ("libavutil/…" from a libavcodec header) resolve at consume
+    # time because the sibling frameworks are all on the framework search path.
+    mkdir -p "${OUT_DIR}/frameworks"
+    case "${RID}" in
+      ios-arm64)     IOS_PLATFORM=iPhoneOS ;;
+      ios-sim-arm64) IOS_PLATFORM=iPhoneSimulator ;;
+    esac
     for base in avcodec avformat avutil avfilter swscale swresample; do
       src="${PREFIX_DIR}/lib/lib${base}.dylib"
-      [ -e "${src}" ] && cp "${src}" "${OUT_DIR}/lib/lib${base}.dylib"
+      [ -e "${src}" ] || continue
+      fw="lib${base}"
+      fwdir="${OUT_DIR}/frameworks/${fw}.framework"
+      mkdir -p "${fwdir}/Headers"
+      cp "${src}" "${fwdir}/${fw}"                                    # deref symlink -> real dylib
+      cp -a "${PREFIX_DIR}/include/lib${base}/." "${fwdir}/Headers/"  # this lib's public headers
+      cat > "${fwdir}/Info.plist" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleExecutable</key><string>${fw}</string>
+  <key>CFBundleIdentifier</key><string>org.ffmpeg.${fw}</string>
+  <key>CFBundleName</key><string>${fw}</string>
+  <key>CFBundlePackageType</key><string>FMWK</string>
+  <key>CFBundleShortVersionString</key><string>${FFMPEG_VERSION}</string>
+  <key>CFBundleVersion</key><string>${FFMPEG_VERSION}</string>
+  <key>MinimumOSVersion</key><string>13.0</string>
+  <key>CFBundleSupportedPlatforms</key><array><string>${IOS_PLATFORM}</string></array>
+</dict>
+</plist>
+PLIST
     done
+    # Rewrite each framework binary's id and its sibling references to the @rpath framework layout.
+    for base in avcodec avformat avutil avfilter swscale swresample; do
+      fw="lib${base}"; bin="${OUT_DIR}/frameworks/${fw}.framework/${fw}"
+      [ -e "${bin}" ] || continue
+      install_name_tool -id "@rpath/${fw}.framework/${fw}" "${bin}"
+      otool -L "${bin}" | awk 'NR>1{print $1}' | while read -r ref; do
+        b="$(basename "${ref}")"; stem="${b%%.*}"
+        case "${stem}" in
+          libav*|libsw*) install_name_tool -change "${ref}" "@rpath/${stem}.framework/${stem}" "${bin}" 2>/dev/null || true ;;
+        esac
+      done
+    done
+    # Vulkan (v3 only): wrap the Vulkan-Loader + MoltenVK ICD as frameworks so they ride in the
+    # xcframework set (release.yml wraps every *.framework here). FFmpeg's --enable-vulkan resolves
+    # them at runtime; the consumer points VK_ICD_FILENAMES at the bundled MoltenVK_icd.json (see
+    # the iOS install doc). Same loader+ICD mechanism as macOS, for parity.
+    if [[ "${BUILD_VULKAN:-0}" == "1" ]]; then
+      case "${RID}" in ios-arm64) VKPLAT=iPhoneOS ;; ios-sim-arm64) VKPLAT=iPhoneSimulator ;; esac
+      for pair in "vulkan:$(ls "${DEPS_DIR}/lib/"libvulkan*.dylib 2>/dev/null | head -1)" \
+                   "MoltenVK:${DEPS_DIR}/lib/libMoltenVK.dylib"; do
+        vkfw="${pair%%:*}"; vksrc="${pair#*:}"
+        [ -n "${vksrc}" ] && [ -e "${vksrc}" ] || continue
+        vkdir="${OUT_DIR}/frameworks/${vkfw}.framework"; mkdir -p "${vkdir}"
+        cp "${vksrc}" "${vkdir}/${vkfw}"
+        install_name_tool -id "@rpath/${vkfw}.framework/${vkfw}" "${vkdir}/${vkfw}"
+        cat > "${vkdir}/Info.plist" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleExecutable</key><string>${vkfw}</string>
+  <key>CFBundleIdentifier</key><string>org.ffmpeg.${vkfw}</string>
+  <key>CFBundleName</key><string>${vkfw}</string>
+  <key>CFBundlePackageType</key><string>FMWK</string>
+  <key>CFBundleShortVersionString</key><string>${FFMPEG_VERSION}</string>
+  <key>CFBundleVersion</key><string>${FFMPEG_VERSION}</string>
+  <key>MinimumOSVersion</key><string>13.0</string>
+  <key>CFBundleSupportedPlatforms</key><array><string>${VKPLAT}</string></array>
+</dict>
+</plist>
+PLIST
+      done
+      if [ -f "${DEPS_DIR}/lib/MoltenVK_icd.json" ]; then
+        cp "${DEPS_DIR}/lib/MoltenVK_icd.json" "${OUT_DIR}/frameworks/MoltenVK_icd.json"
+        sed -i.bak 's|"library_path"[[:space:]]*:[[:space:]]*"[^"]*"|"library_path": "./MoltenVK.framework/MoltenVK"|' \
+          "${OUT_DIR}/frameworks/MoltenVK_icd.json"
+        rm -f "${OUT_DIR}/frameworks/MoltenVK_icd.json.bak"
+      fi
+    fi
     ;;
   *)
     mkdir -p "${OUT_DIR}/include"
@@ -145,25 +232,10 @@ case "${RID}" in
       install_name_tool -add_rpath "@loader_path" "${target}" 2>/dev/null || true
     done
     ;;
-  android-*)
-    echo "Mobile build — no rpath/install_name fixup needed."
-    ;;
-  ios-*)
-    # Point each dylib's own id — and its references to sibling libav*/libsw* dylibs — at
-    # @rpath so the frameworks are relocatable (Xcode embeds them under the app's Frameworks
-    # dir and supplies the runpath). Mirrors the macOS fixup, but reads the ACTUAL recorded
-    # dependency names via otool, so the dylib version suffixes don't have to be hardcoded.
-    echo "Fixing iOS dylib install-names for @rpath..."
-    for t in "${OUT_DIR}/lib/"*.dylib; do
-      [ -e "${t}" ] || continue
-      install_name_tool -id "@rpath/$(basename "${t}")" "${t}"
-      otool -L "${t}" | awk 'NR>1{print $1}' | while read -r ref; do
-        b="$(basename "${ref}")"; stem="${b%%.*}"
-        case "${stem}" in
-          libav*|libsw*) install_name_tool -change "${ref}" "@rpath/${stem}.dylib" "${t}" 2>/dev/null || true ;;
-        esac
-      done
-    done
+  android-*|ios-*)
+    # Android: unversioned sonames, no rpath needed. iOS: the per-framework @rpath install-names
+    # are set during framework assembly above, so nothing to do here.
+    echo "Mobile build — no additional rpath/install_name fixup needed."
     ;;
   *)
     # Linux (glibc/musl): use patchelf to set $ORIGIN rpath

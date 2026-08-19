@@ -46,7 +46,8 @@ D="${ROOT_DIR}/scripts/deps"
 . "${D}/nettle.sh"       #   crypto (nettle/hogweed; needs GMP)
 . "${D}/libtasn1.sh"     #   ASN.1
 . "${D}/gnutls.sh"       #   GnuTLS (needs the three above; appends --enable-gnutls)
-. "${D}/vulkan.sh"       # Vulkan headers + (glibc Linux) a libc-only loader to bundle
+. "${D}/vulkan.sh"       # Vulkan headers + (glibc Linux / macOS) a loader to bundle
+. "${D}/moltenvk.sh"     # MoltenVK Vulkan-over-Metal ICD (v3 macOS only; pairs with the loader)
 . "${D}/whisper.sh"      # whisper.cpp — af_whisper ASR (links the Vulkan loader above)
 
 # Ensure deps dirs are in compiler/linker search paths

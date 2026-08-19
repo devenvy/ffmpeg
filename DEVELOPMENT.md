@@ -17,7 +17,7 @@ ffmpeg/
                             #   portable runtime program run on device/emulator/simulator
     gen-matrix.sh           # Regenerates the coverage matrices from the scripts + each version's configure
     gen-coverage.sh         # Lists FFmpeg libraries we don't build (used by check-updates)
-  docs/BUILD-MATRIX.md      # Auto-generated matrix index (do not edit by hand)
+  docs/matrix/README.md     # Auto-generated matrix index (do not edit by hand)
   docs/matrix/              # Auto-generated coverage matrix per FFmpeg major × license
   .github/workflows/        # CI/CD workflows
 ```
@@ -42,7 +42,8 @@ third-party libraries to build and link, and the per-platform configure flags).
 
 ## Build variants
 
-Each release covers all 20 platform × license build variants:
+Each release covers every platform × license build variant. Each RID is built in **four**
+license cells — `gplv3`, `gplv2`, `lgplv3`, `lgplv2` — not one:
 
 | RID | Platform | Build method | Output |
 |---|---|---|---|
@@ -54,14 +55,17 @@ Each release covers all 20 platform × license build variants:
 | `osx-x64` | macOS Intel | Native | dylibs + `ffmpeg`/`ffprobe` |
 | `osx-arm64` | macOS Apple Silicon | Native | dylibs + `ffmpeg`/`ffprobe` |
 | `android-arm64` | Android arm64-v8a | Cross-compiled (Android NDK) | `lib/arm64-v8a/*.so` (unversioned) + `include/`, no binaries |
-| `ios-arm64` | iOS device (arm64) | Cross-compiled (iOS SDK, on macOS) | static `*.a` + `include/`, no binaries |
-| `ios-sim-arm64` | iOS simulator (Apple Silicon) | Cross-compiled (simulator SDK) | static `*.a` + `include/` (lean slice) |
+| `ios-arm64` | iOS device (arm64) | Cross-compiled (iOS SDK, on macOS) | dynamic `*.dylib` + `include/`, no binaries |
+| `ios-sim-arm64` | iOS simulator (Apple Silicon) | Cross-compiled (simulator SDK) | dynamic `*.dylib` + `include/` (lean slice) |
 
-Each RID is built in 2 variants: `{rid}-lgpl` and `{rid}-gpl` (10 RIDs × 2 = 20 build jobs). The
-two iOS slices (`ios-arm64`, `ios-sim-arm64`) are published as one combined `.xcframework` per
-license, so a release surfaces **18** downloadable runtime archives — 8 non-iOS RIDs × 2 licenses
-(16) plus 2 iOS xcframework bundles. Desktop targets additionally ship a `-dev` archive (headers,
-plus MSVC import libraries on Windows).
+Each RID is built in 4 license cells: `{rid}-{gplv3,gplv2,lgplv3,lgplv2}` (10 RIDs × 4 = 40 build
+jobs). The two axes are **family** — `gpl` (`--enable-gpl`, includes x264 + x265) vs `lgpl`
+(`--disable-gpl`, kvazaar for HEVC, no x264/x265) — and **version** — `v3` (`--enable-version3`,
+may link Apache-2.0 deps like OpenSSL and Vulkan) vs `v2` (GPLv2 / LGPLv2.1, no `--enable-version3`,
+no Vulkan). The `lgplv2` series is the App-Store-safe one (v3's anti-tivoization terms are
+incompatible with the Apple App Store); it exists chiefly for the iOS App Store build. The two iOS
+slices (`ios-arm64`, `ios-sim-arm64`) are published as one combined `.xcframework` per license cell.
+Desktop targets additionally ship a `-dev` archive (headers, plus MSVC import libraries on Windows).
 
 **Why build the glibc Linux targets in a container?** `linux-x64` and `linux-arm64` build inside
 the **stock** [`manylinux_2_28`](https://github.com/pypa/manylinux) image (AlmaLinux 8, glibc
@@ -92,9 +96,12 @@ via `gendef` + `llvm-dlltool`, so a Visual Studio / CMake project links the DLLs
   (link-only artifact, so headers stay in the main tarball).
   Sonames are normalized to unversioned `lib*.so` so Android's loader/Gradle accept them.
 - **iOS** — one `.xcframework` per `libav*` library, bundling the device (`ios-arm64`) and
-  simulator (`ios-sim-arm64`) slices, packaged per license with headers + `legal/`. The
-  individual iOS slices are **not** published on their own (App Store rules reject loose
-  dylibs, so iOS libs are static and delivered as xcframeworks).
+  simulator (`ios-sim-arm64`) slices, packaged per license with headers + `legal/`. The slices
+  are **dynamic** dylibs (iOS's old static `.a` is gone — every platform now ships dynamic
+  libraries). Dynamic is required for the App-Store `lgplv2` build: LGPLv2.1 §6 obliges the end
+  user to be able to relink the app against a modified library, which a dynamic framework
+  satisfies inherently but static linking cannot (it would force shipping object files). The
+  individual iOS slices are **not** published on their own — they are delivered as xcframeworks.
 
 Mobile builds drop the `ffmpeg`/`ffprobe` executables (the libraries are consumed directly)
 and enable platform hardware decode (MediaCodec / VideoToolbox).
@@ -125,15 +132,18 @@ requires that application to comply with the GPL (source disclosure).
 **Rule of thumb:** ship LGPL if you link FFmpeg into a closed-source app; use GPL for internal
 tooling or GPL-compatible projects that need software H.264/H.265 encoding.
 
-**License version — everything is v3.** Every build is (L)GPL **version 3** (LGPLv3 / GPLv3), not
-v2.1/v2: the builds link OpenSSL 3.x (Apache-2.0), which is compatible with version 3 of the
-(L)GPL but not with 2.1/2, so FFmpeg is configured with `--enable-version3`. It is applied
-unconditionally (in `04_select_license.sh`, not gated on OpenSSL) so the whole matrix has one
-unambiguous license version rather than a per-platform mix. LGPLv3 still grants the LGPL
-dynamic-linking permission (ship it inside a proprietary app as a replaceable shared library);
-the v3 bump adds an explicit patent grant and the install-information (anti-tivoization) terms.
+**License version — v3 and v2 both ship.** The matrix carries both a v3 and a v2 line of each
+family, four cells in total (GPLv3, GPLv2, LGPLv3, LGPLv2.1). The **v3** cells set
+`--enable-version3`, which lets them link Apache-2.0 deps (OpenSSL 3.x for TLS, and Vulkan) —
+Apache-2.0 is compatible with version 3 of the (L)GPL but not with 2.1/2. The **v2** cells omit
+`--enable-version3` (so GPLv2 / LGPLv2.1) and drop Vulkan; whisper falls back to CPU where v3
+used the Vulkan backend. The v2 series is the App-Store-safe one: v3's install-information
+(anti-tivoization) terms are incompatible with the Apple App Store, so the iOS App Store build is
+`lgplv2`. LGPL (either version) still grants the dynamic-linking permission — ship it inside a
+proprietary app as a replaceable shared library. `04_select_license.sh` selects the cell and
 `10_write_legal.sh` writes each artifact's `legal/LICENSE-NOTICE.txt` stating the effective
-version and why, and ships the v3 license texts.
+license and why, shipping the matching COPYING text (GPLv2/GPLv3/LGPLv2.1/LGPLv3 as appropriate).
+Every bundled dependency's own license also ships under `legal/licenses/<dep>/`.
 
 ## Build script
 
@@ -142,7 +152,8 @@ The unified build script (`scripts/build.sh`) accepts environment variables:
 | Variable | Required | Default | Values |
 |---|---|---|---|
 | `BUILD_RID` | Yes | — | `linux-x64`, `linux-arm64`, `linux-armhf`, `linux-musl-x64`, `win-x64`, `osx-x64`, `osx-arm64`, `android-arm64`, `ios-arm64`, `ios-sim-arm64` |
-| `BUILD_LICENSE` | No | `lgpl` | `lgpl`, `gpl` |
+| `BUILD_LICENSE` | No | `lgpl` | `lgpl`, `gpl` — family (`--disable-gpl` vs `--enable-gpl`) |
+| `BUILD_LICENSE_VERSION` | No | `3` | `3` (`--enable-version3`) or `2` (GPLv2 / LGPLv2.1, no version3) |
 | `ANDROID_NDK_HOME` | for `android-*` | — | path to the Android NDK (r26+) |
 | `FFMPEG_VERSION` | No | first line of `versions.txt` | e.g., `8.1.2` |
 | `SKIP_DEPS` | No | `false` | `true`, `false` — skip apt/apk/brew dependency installation |
@@ -164,6 +175,9 @@ SKIP_DEPS=true BUILD_RID=win-x64 BUILD_LICENSE=lgpl bash scripts/build.sh
 ANDROID_NDK_HOME=/path/to/android-ndk-r26d \
   SKIP_DEPS=true BUILD_RID=android-arm64 BUILD_LICENSE=lgpl bash scripts/build.sh
 # Output: artifacts/android-arm64/native/  (include/ + lib/arm64-v8a/*.so)
+
+# iOS device, LGPLv2.1 (the App-Store-safe cell: no version3, no Vulkan, no TLS)
+SKIP_DEPS=true BUILD_RID=ios-arm64 BUILD_LICENSE=lgpl BUILD_LICENSE_VERSION=2 bash scripts/build.sh
 ```
 
 The build ends with an in-process static verification gate (`09_verify_build.sh`, all RIDs)
@@ -183,12 +197,14 @@ however it's built:
   (Android `libmediandk`/`libc++_shared.so`, unversioned sonames, headers present). `nm`/
   `readelf`/`strings` read foreign-arch binaries fine, so this works from any host.
 - **Functional (where the target runs on the runner).** Executes `ffmpeg`: version, filter/
-  decoder/protocol enumeration (incl. `https`/`tls`), and an encode→decode round-trip — natively
+  decoder/protocol enumeration (asserting `https`/`tls` are present on every cell **except**
+  `lgplv2`, which drops TLS and is verified to have none), and an encode→decode round-trip — natively
   on matching hosts (Linux on Linux, **Windows on a real Windows runner**, macOS on macOS), or via
   **qemu-user** for cross Linux arches. Execution is the primary signal; a missing binary-
   inspection tool (e.g. `file` on a minimal shell) skips a structural check rather than failing.
 - **Mobile (no `ffmpeg` binary).** `test/smoke.c` is a portable libav program (encode→decode +
-  whisper filter + `https`/`tls`) compiled against the artifact. Compiling+linking it with no
+  whisper filter, plus `https`/`tls` where the cell has a TLS backend — skipped on `lgplv2`)
+  compiled against the artifact. Compiling+linking it with no
   undefined symbols is a real **ABI check** that runs in the `test-mobile` workflow (NDK/Xcode
   present on the runner).
   Executing it is the **runtime** layer: `test/ios-run.sh` runs it on the iOS **simulator** via
@@ -252,7 +268,7 @@ Release by hand, because manual Releases do not build or attach artifacts.
 The glibc Linux builds (`linux-x64`/`arm64`/`armhf`) are **self-contained**: the VAAPI/QSV/libdrm
 dispatch libraries are static-linked and the Vulkan loader is bundled, so `ffmpeg` starts on a
 bare system with no package install. (The musl build still links these dynamically — see
-[Runtime dependencies](docs/INSTALL.md#runtime-dependencies).) NVIDIA (CUDA/NVENC/NVDEC) and
+[Runtime dependencies](docs/install/linux.md#runtime-dependencies).) NVIDIA (CUDA/NVENC/NVDEC) and
 Vulkan are loaded at runtime via `dlopen`, not linked into the binary, so they are silently
 unavailable if absent. To actually **use** hardware acceleration you still need the GPU
 **driver** (Intel `intel-media-va-driver`, AMD `mesa-va-drivers`, the NVIDIA driver, or
@@ -268,7 +284,7 @@ counterpart to x265, and a software fallback where hardware HEVC encode isn't av
 kvazaar, which x265 supersedes.
 
 **Which library is built on which platform — and which ones we deliberately don't build — lives
-in the auto-generated [docs/BUILD-MATRIX.md](docs/BUILD-MATRIX.md)**, an index to one matrix per
+in the auto-generated [docs/matrix/README.md](docs/matrix/README.md)**, an index to one matrix per
 maintained FFmpeg major × license (`docs/matrix/ffmpeg-<major>-<gpl|lgpl>.md`). It derives from
 the build scripts and each version's own configure, so it never drifts; the per-matrix footnotes
 explain the platform gaps (SVT-AV1 needs 64-bit; fontconfig is native on Windows/Apple; etc.),
@@ -276,15 +292,19 @@ and the index flags libraries that differ between versions. Don't restate that c
 here — update the generator, not this file.
 
 Two build-mechanics notes that aren't about coverage:
-- **TLS backend:** OpenSSL is built on Linux/Android; Windows/Apple use their OS-native SChannel/
-  SecureTransport. All three enable the `https`/`tls` protocols. (`--disable-autodetect` is set,
-  so each backend is requested explicitly.) OpenSSL 3.x is Apache-2.0, so the build sets
-  `--enable-version3` — see [License version](#lgpl-vs-gpl) (all artifacts are (L)GPLv3).
+- **TLS backend (depends on the cell) on Linux/Android:** the **v3** cells build **OpenSSL**
+  (Apache-2.0, allowed by `--enable-version3`); the **gpl-2** cell builds **GnuTLS** (which pulls
+  in GMP + nettle + libtasn1 — fine under GPLv2); the **lgpl-2** cell has **no TLS at all** (no
+  `https`/`tls`), because GnuTLS's GMP + nettle deps are dual LGPLv3+/GPLv2+ (never LGPLv2.1) and
+  no other FFmpeg TLS backend is LGPLv2.1-compatible, so a genuine LGPLv2.1 build must drop TLS.
+  **Windows/Apple** are unaffected by the v2/v3 split: Windows uses OS-native **SChannel** and
+  Apple **SecureTransport** in every cell, with no dependency. (`--disable-autodetect` is set, so
+  each backend is requested explicitly.) See [License version](#lgpl-vs-gpl).
 - **x265** is pinned to **3.6** (4.0+ has broken ARM NEON intrinsics) and built with
   `-DENABLE_ASSEMBLY=OFF` under the NDK/iOS toolchains, where its aarch64 asm won't assemble.
 
 ## Roadmap
 
-- **Other libraries** — the `—` rows in [docs/BUILD-MATRIX.md](docs/BUILD-MATRIX.md) list every
+- **Other libraries** — the `—` rows in [docs/matrix/README.md](docs/matrix/README.md) list every
   library FFmpeg supports that we don't build (SRT/RIST, VMAF, JXL, …). `check-updates.yml`
   re-surfaces this gap on each version bump.

@@ -15,6 +15,17 @@ cmake() {
   fi
 }
 
+# ── curl wrapper: retry downloads on transient network failures ───────────
+# The dependency tarball downloads hit the same transient blips as the git clones (a CDN
+# returns a short/garbage response). Inject retry flags so a hiccup doesn't fail the build.
+# curl takes the LAST of a repeated option, so a dep that passes its own --retry still wins;
+# --retry-connrefused is in curl >= 7.52 (present on the old manylinux image). We do NOT add
+# --retry-all-errors here — it needs curl >= 7.71, which the manylinux image predates (the
+# FFmpeg download step probes for it separately).
+curl() {
+  command curl --retry 5 --retry-delay 3 --retry-connrefused "$@"
+}
+
 # ── git wrapper: retry clones on transient network failures ───────────────
 # Dependency source clones intermittently fail when the remote returns an HTML error
 # page instead of the git protocol ("could not determine hash algorithm", "bad line

@@ -31,19 +31,22 @@ case "${LICENSE}-${LICENSE_VER}" in
   lgpl-2) cp "${SRC_DIR}/COPYING.LGPLv2.1" "${LEGAL_DIR}/"; cp "${SRC_DIR}/COPYING.GPLv2" "${LEGAL_DIR}/" ;;
 esac
 
-# GnuTLS TLS chain (gpl-2 only — lgpl-2 drops TLS): ship each bundled dependency's license
-# text so the LGPL/GPL attribution requirement is met. GMP + nettle are dual LGPLv3+/GPLv2+,
-# libtasn1 is LGPLv2.1+, GnuTLS is LGPLv2.1+. Their sources are still in WORK_DIR here.
-if [[ "${BUILD_GNUTLS:-0}" == "1" ]]; then
-  for dep in gmp nettle libtasn1 gnutls; do
-    for d in "${WORK_DIR}/${dep}"-*/; do
-      [ -d "${d}" ] || continue
-      mkdir -p "${LEGAL_DIR}/licenses/${dep}"
-      find "${d}" -maxdepth 2 \( -iname 'COPYING*' -o -iname 'LICENSE*' \) \
-        -exec cp {} "${LEGAL_DIR}/licenses/${dep}/" \; 2>/dev/null || true
-    done
-  done
-fi
+# Attribution: ship EVERY bundled dependency's license text into legal/licenses/<dep>/.
+# The dep sources are still in WORK_DIR at this step, so collect their COPYING/LICENSE/
+# COPYRIGHT files (skipping FFmpeg's own src/ and the install/deps output trees). This
+# covers the permissive deps (BSD/MIT/zlib require the copyright notice to travel with the
+# binary) and the copyleft ones (x264/x265, the GnuTLS chain, lame, soxr, …) uniformly and
+# platform-adaptively — whatever this RID/license actually built is what gets credited.
+mkdir -p "${LEGAL_DIR}/licenses"
+for d in "${WORK_DIR}"/*/; do
+  dep="$(basename "${d}")"
+  case "${dep}" in src|install|deps) continue ;; esac
+  dest="${LEGAL_DIR}/licenses/${dep}"
+  mkdir -p "${dest}"
+  find "${d}" -maxdepth 2 -type f \( -iname 'COPYING*' -o -iname 'LICENSE*' -o -iname 'COPYRIGHT*' \) \
+    -exec cp {} "${dest}/" \; 2>/dev/null || true
+  rmdir "${dest}" 2>/dev/null || true   # drop the dir again if this dep had no license file
+done
 
 # Prominent, plain-language statement of the EFFECTIVE license — the first thing a
 # consumer/auditor should read, so there's no "is this v2 or v3?" guesswork.
@@ -62,10 +65,6 @@ else
   and links no Apache-2.0 dependency. TLS is GnuTLS (gpl-2) or omitted entirely (lgpl-2, for
   which no LGPLv2.1-compatible TLS backend exists), and Vulkan is disabled."
 fi
-GNUTLS_NOTE=""
-[[ "${BUILD_GNUTLS:-0}" == "1" ]] && GNUTLS_NOTE="
-Bundled TLS stack: GnuTLS + GMP + nettle + libtasn1 — their license texts are in the
-licenses/ subdirectory of this directory."
 cat > "${LEGAL_DIR}/LICENSE-NOTICE.txt" <<EOF
 FFmpeg ${FFMPEG_VERSION} — ${RID}
 
@@ -74,7 +73,11 @@ EFFECTIVE LICENSE:  ${LICENSE_LABEL} (${LICENSE_FULLNAME})
 Governing license text: ${GOVERNING_TEXTS}
 
 ${WHY_VERSION}
-${GNUTLS_NOTE}
+
+Bundled third-party dependencies: this artifact incorporates several libraries (codecs,
+TLS, text shaping, resampling, …). Each one's own license text is in the licenses/
+subdirectory of this directory — that attribution travels with the binary as required.
+
 Corresponding source: see SOURCE_OFFER.txt in this directory.
 EOF
 

@@ -11,6 +11,11 @@ case "${RID}" in
     )
     HWACCEL_FEATURES="VideoToolbox AudioToolbox"
     BUILD_VULKAN=1
+    # macOS has no native Vulkan: build the Vulkan-Loader and pair it with MoltenVK (moltenvk.sh)
+    # so --enable-vulkan actually runs on Metal. Both are bundled into the artifact by 08. This is
+    # v3-only — 04_select_license clears BUILD_VULKAN for v2 (MoltenVK is Apache-2.0). Whisper still
+    # uses the Metal ggml backend directly; Vulkan is for FFmpeg's GPU filters.
+    BUILD_VULKAN_LOADER=1
     WHISPER_BACKEND="metal"
     NPROC="sysctl -n hw.ncpu"
     BUILD_TYPE_LABEL="macOS (native)"
@@ -48,7 +53,12 @@ case "${RID}" in
       --enable-securetransport   # OS-native TLS/https (no dependency)
     )
     HWACCEL_FEATURES="VideoToolbox"
-    BUILD_VULKAN=0        # Apple has no native Vulkan; MoltenVK deferred (separate investigation)
+    # Vulkan via MoltenVK (Vulkan-over-Metal) for parity with macOS + the other platforms — for
+    # FFmpeg's Vulkan GPU filters (no Metal equivalent in the filtergraph). v3 only: MoltenVK is
+    # Apache-2.0, so 04_select_license clears BUILD_VULKAN for the App-Store-safe v2 cells. Whisper
+    # still uses the native Metal ggml backend; the loader + MoltenVK ICD are bundled by 08.
+    BUILD_VULKAN=1
+    BUILD_VULKAN_LOADER=1
     WHISPER_BACKEND="metal"
     BUILD_FONTCONFIG=0
     BUILD_LIBSVTAV1=0  # SVT-AV1 static-archive step fails cross-compiling; AV1 covered by libaom

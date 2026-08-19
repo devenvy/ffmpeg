@@ -81,7 +81,7 @@ jobs:
             # docs/matrix/ffmpeg-<major>.md + updates the index. Needs network to
             # fetch each version's configure; python3 + curl are on the runner.
             if bash scripts/gen-matrix.sh; then
-              git add docs/BUILD-MATRIX.md docs/matrix
+              git add docs/matrix
             else
               echo "  WARN: matrix regeneration failed — PR will not include it" >&2
             fi

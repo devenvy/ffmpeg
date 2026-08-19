@@ -3,7 +3,8 @@
 ## What this repository is
 
 This repository is a **build system** for stock upstream FFmpeg and its supporting
-libraries (x264, x265, kvazaar, dav1d, SVT-AV1, OpenSSL, and others). It does **not**
+libraries (x264, x265, kvazaar, dav1d, SVT-AV1, OpenSSL, GnuTLS, and others — the TLS
+backend varies by license cell). It does **not**
 vendor, fork, patch, or ship modified copies of that upstream source — each library is
 fetched from its official upstream at a pinned release tag and built **unmodified** at
 CI time, into a git-ignored, ephemeral `.build/` tree. The only source original to this

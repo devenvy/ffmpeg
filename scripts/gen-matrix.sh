@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Regenerate the build coverage matrix — ONE file per maintained FFmpeg major and
 # license variant (docs/matrix/ffmpeg-<major>-<gpl|lgpl>.md) plus an index
-# (docs/BUILD-MATRIX.md).
+# (docs/matrix/README.md).
 #
 # Each matrix's rows are DISCOVERED from that version's own configure component
 # lists (HWACCEL_AUTODETECT_LIBRARY_LIST, HWACCEL_LIBRARY_LIST,
@@ -45,22 +45,24 @@ done
 # so the matrix can be sliced per license: gpl builds get x264/x265, lgpl kvazaar.
 simfile="$(mktemp)"
 for RID in "${RIDS[@]}"; do
-  for LIC in gpl lgpl; do
+  for CELL in gplv3 gplv2 lgplv3 lgplv2; do
   (
     set +u
     xcrun() { echo /dummy-sdk; }
-    ROOT_DIR="${ROOT_DIR}"; RID="$RID"; LICENSE="$LIC"; BUILD_RID="$RID"; BUILD_LICENSE="$LIC"
+    LIC="${CELL%v*}"; VER="${CELL##*v}"          # gplv3 -> LIC=gpl VER=3
+    ROOT_DIR="${ROOT_DIR}"; RID="$RID"; LICENSE="$LIC"; BUILD_RID="$RID"
+    BUILD_LICENSE="$LIC"; BUILD_LICENSE_VERSION="$VER"
     ANDROID_NDK_HOME=/dummy-ndk; ANDROID_ABI=arm64-v8a; API=28; TOOLCHAIN=/dummy
     WORK_DIR=/tmp/sim; DEPS_DIR=/tmp/sim/deps; SRC_DIR=/tmp/sim/src
     source scripts/steps/02_configure.sh >/dev/null 2>&1
     source scripts/steps/04_select_license.sh >/dev/null 2>&1
     hw=$(printf '%s\n' "${CONFIGURE_FLAGS[@]}" \
          | grep -oE '^--enable-[a-z0-9_-]+' | sed 's/--enable-//' \
-         | grep -vE '^(cross-compile|gpl|hwaccel|decoder|encoder|shared|static|pic|pthreads|w32threads)$' \
+         | grep -vE '^(cross-compile|gpl|version3|hwaccel|decoder|encoder|shared|static|pic|pthreads|w32threads)$' \
          | tr '\n' ' ')
     flags=""
     for v in ${!BUILD_@}; do [ "${!v}" = 1 ] && flags="$flags ${v}"; done
-    echo "${RID}|${LIC}|${hw}|${flags}"
+    echo "${RID}|${CELL}|${hw}|${flags}"
   ) >> "$simfile"
   done
 done
@@ -72,8 +74,8 @@ import sys, re, glob, os
 # --- per-(RID, license) enabled sets ------------------------------------------
 sim = {}
 for line in open(sys.argv[1]):
-    rid, lic, hw, flags = line.rstrip("\n").split("|")
-    d = sim.setdefault((rid, lic), {"hw": set(), "flags": set()})
+    rid, cell, hw, flags = line.rstrip("\n").split("|")
+    d = sim.setdefault((rid, cell), {"hw": set(), "flags": set()})
     d["hw"]    |= set(t.replace("-", "_") for t in hw.split())
     d["flags"] |= set(flags.split())
 
@@ -117,9 +119,9 @@ for f in glob.glob("scripts/deps/*.sh"):
         if g: tok_build[t] = g.group(1)
         else: tok_uncond.add(t)
 
-def enabled(tok, rid, lic):
+def enabled(tok, rid, cid):
     t = tok.replace("-", "_")
-    s = sim[(rid, lic)]
+    s = sim[(rid, cid)]
     if t in s["hw"]: return True
     if t in tok_uncond: return True
     bv = tok_build.get(t)
@@ -217,7 +219,7 @@ APPLIES = {
   "nvdec":LINUX|WIN,"ffnvcodec":LINUX|WIN,"vaapi":LINUX,"vdpau":{"linux-x64"},
   "libdrm":LINUX,"v4l2_m2m":LINUX,"libvpl":LINUX|WIN,"libmfx":LINUX|WIN,
   "d3d11va":WIN,"d3d12va":WIN,"dxva2":WIN,"amf":WIN,"mediafoundation":WIN,
-  "videotoolbox":APPLE,"audiotoolbox":MAC,"mediacodec":ANDROID,"vulkan":ALL-IOS,
+  "videotoolbox":APPLE,"audiotoolbox":MAC,"mediacodec":ANDROID,"vulkan":ALL,
   "mmal":LINUX,"omx":LINUX,"schannel":WIN,"securetransport":APPLE,
   "libsvtav1":ALL-{"linux-armhf","android-arm64","ios-arm64","ios-sim-arm64"},
   "libwebp":DESKTOP, "libfontconfig":LINUX|MAC,
@@ -235,12 +237,15 @@ SHORT = {"linux-x64":"lin-x64","linux-arm64":"lin-a64","linux-armhf":"lin-hf",
 # and auto-numbered (by first appearance) at the bottom of the file.
 FN_REF = {
   "d3d12va":"d3d12", "libfontconfig":"fontconfig", "libsvtav1":"svtav1", "libwebp":"webp",
-  "openssl":"tls", "schannel":"tls", "securetransport":"tls",
+  "openssl":"tls", "gnutls":"tls", "schannel":"tls", "securetransport":"tls",
 }
 FN_TEXT = {
-  "tls": "TLS/https backend. OpenSSL is built on Linux/Android; Windows uses SChannel and Apple "
-         "uses SecureTransport (OS-native `HAVE_*` backends, not FFmpeg library components). All "
-         "three enable the `https`/`tls` protocols.",
+  "tls": "TLS/https backend — depends on the license SERIES. v3 builds link OpenSSL 3.x "
+         "(Apache-2.0, requires --enable-version3) on Linux/Android. The App-Store-safe v2 builds "
+         "instead use GnuTLS on gpl-2 (its GMP/nettle deps are fine under GPLv2) and DROP TLS "
+         "ENTIRELY on lgpl-2 (GMP/nettle are never LGPLv2.1 and no other backend is either). "
+         "Windows uses SChannel and Apple uses SecureTransport (OS-native) in every series. All "
+         "enable the `https`/`tls` protocols EXCEPT lgpl-2 on Linux/Android, which has no TLS.",
   "d3d12": "Not built: FFmpeg's `d3d12va` needs `ID3D12VideoDecoder` from `d3d12video.h`, which the "
            "mingw-w64 cross-toolchain doesn't ship (it has `d3d12.h` only). Windows hw decode is "
            "covered by D3D11VA + DXVA2.",
@@ -262,9 +267,11 @@ def parse_list(conf, name):
         if mm: out.append(mm.group(1))
     return out
 
-def render(version, conf, lic):
-    """Return (markdown, universe_set, gpl_set) for one FFmpeg version + license."""
-    LIC = "GPL" if lic == "gpl" else "LGPL"
+def render(version, conf, cid):
+    """Return (markdown, universe_set, gpl_set) for one FFmpeg version + license CELL
+    (cid is one of gplv3 / gplv2 / lgplv3 / lgplv2)."""
+    fam = "gpl" if cid.startswith("gpl") else "lgpl"
+    LABEL = {"gplv3":"GPLv3","gplv2":"GPLv2","lgplv3":"LGPLv3","lgplv2":"LGPLv2.1"}[cid]
     hw  = parse_list(conf, "HWACCEL_AUTODETECT_LIBRARY_LIST") + parse_list(conf, "HWACCEL_LIBRARY_LIST")
     ext = parse_list(conf, "EXTERNAL_LIBRARY_LIST")
     gpl = parse_list(conf, "EXTERNAL_LIBRARY_GPL_LIST")
@@ -279,10 +286,10 @@ def render(version, conf, lic):
         applies = APPLIES.get(tok, ALL)
         if rid not in applies: return "n/a"
         if rid == "ios-sim-arm64" and KIND.get(tok) == "lib" \
-           and enabled(tok, "ios-arm64", lic) and not enabled(tok, "ios-sim-arm64", lic):
+           and enabled(tok, "ios-arm64", cid) and not enabled(tok, "ios-sim-arm64", cid):
             return "n/a"
-        if enabled(tok, rid, lic): return "✓"
-        if lic == "lgpl" and tok in GPLSET: return "✗"   # GPL lib, can't go in an LGPL build
+        if enabled(tok, rid, cid): return "✓"
+        if fam == "lgpl" and tok in GPLSET: return "✗"   # GPL lib, can't go in an LGPL build
         return "—"
 
     used_fn = set()
@@ -299,17 +306,22 @@ def render(version, conf, lic):
     for key in buckets: buckets[key].sort()
 
     L = []
-    L.append(f"# FFmpeg {version} · {LIC} — build coverage\n")
+    L.append(f"# FFmpeg {version} · {LABEL} — build coverage\n")
     L.append(f"_Auto-generated by `scripts/gen-matrix.sh` from FFmpeg n{version}'s `configure` and "
-             f"the build scripts — do not edit by hand. Back to the [matrix index](../BUILD-MATRIX.md)._\n")
+             f"the build scripts — do not edit by hand. Back to the [matrix index](README.md)._\n")
     legend = ("**✓** built · **n/a** not applicable on this platform · "
               "**—** FFmpeg supports it but we don't build it here (a choice — no license barrier)")
-    if lic == "lgpl":
+    if fam == "lgpl":
         legend += " · **✗** can't be included: GPL / conflicting license (use the GPL build instead)"
     L.append(legend + "\n")
     L.append("_Always-on built-in decoders (H.264/H.265/VP8/VP9 decode, AAC, PCM, …) are compiled "
              "into every build and not listed. The iOS-simulator slice is lean — a library present "
              "on the iOS device slice but dropped there shows n/a._\n")
+    L.append(f"_This is the **{LABEL}** cell — one of four ({{gplv3, gplv2, lgplv3, lgplv2}}); the "
+             f"siblings are linked from the [matrix index](README.md). Cells differ in x264/x265 "
+             f"(gpl) vs kvazaar (lgpl), and in the Apache-2.0 dependencies: **v3** links OpenSSL TLS "
+             f"+ Vulkan, while **v2** uses GnuTLS (gpl) or NO TLS (lgpl) and drops Vulkan (Whisper → "
+             f"CPU). Every cell ships DYNAMIC libraries — iOS as a dynamic-framework `.xcframework`._\n")
     hdr = "| Feature | " + " | ".join(SHORT[r] for r in RIDS) + " |"
     sep = "|" + "---|"*(len(RIDS)+1)
     for key, title in TITLES:
@@ -333,9 +345,9 @@ rendered = []   # (major, version, universe, gplset)  — universe/gpl are licen
 for mj in MAJORS:
     version, conf = by_major[mj]
     uni = gplset = None
-    for lic in ("gpl", "lgpl"):
-        body, uni, gplset = render(version, conf, lic)
-        with open(os.path.join(OUTDIR, "matrix", f"ffmpeg-{mj}-{lic}.md"), "w", encoding="utf-8") as fh:
+    for cid in ("gplv3", "gplv2", "lgplv3", "lgplv2"):
+        body, uni, gplset = render(version, conf, cid)
+        with open(os.path.join(OUTDIR, "matrix", f"ffmpeg-{mj}-{cid}.md"), "w", encoding="utf-8") as fh:
             fh.write(body)
     rendered.append((mj, version, uni, gplset))
 
@@ -352,12 +364,18 @@ idx.append("Every library FFmpeg supports × every platform, **✓** where this 
            "differ (gpl has x264/x265; lgpl has kvazaar). Markers: **✓** built · **—** not built "
            "(a choice) · **✗** (lgpl) can't include for license reasons · **n/a** not applicable on "
            "the platform.\n")
+idx.append("**Four cells per FFmpeg major** — `gplv3` · `gplv2` · `lgplv3` · `lgplv2`. Family: gpl "
+           "has x264/x265, lgpl has kvazaar (no x264/x265). Version: **v3** links the Apache-2.0 deps "
+           "(OpenSSL TLS + Vulkan); **v2** (App-Store-safe) uses GnuTLS (gpl) or **no TLS** (lgpl) and "
+           "drops Vulkan (Whisper → CPU). Every cell ships **dynamic** libraries, iOS as a "
+           "dynamic-framework `.xcframework`. Open two cells side by side to see exactly what differs.\n")
 idx.append("## Matrices\n")
 for mj, _version, _, _ in rendered:
     # Major only — the exact point version lives in each per-major file's header, so
     # the index changes only when a major is added/removed, not on point bumps.
     idx.append(f"- **FFmpeg {mj}**: "
-               f"[GPL](matrix/ffmpeg-{mj}-gpl.md) · [LGPL](matrix/ffmpeg-{mj}-lgpl.md)")
+               f"[GPLv3](ffmpeg-{mj}-gplv3.md) · [GPLv2](ffmpeg-{mj}-gplv2.md) · "
+               f"[LGPLv3](ffmpeg-{mj}-lgplv3.md) · [LGPLv2.1](ffmpeg-{mj}-lgplv2.md)")
 
 if len(rendered) > 1:
     diff = sorted([t for t in union if t not in EXTRA
@@ -378,10 +396,10 @@ if len(rendered) > 1:
     else:
         idx.append("_All maintained versions support the same set of libraries._")
 
-with open(os.path.join(OUTDIR, "BUILD-MATRIX.md"), "w", encoding="utf-8") as fh:
+with open(os.path.join(OUTDIR, "matrix", "README.md"), "w", encoding="utf-8") as fh:
     fh.write("\n".join(idx) + "\n")
 
-print("Wrote docs/BUILD-MATRIX.md + " +
-      ", ".join(f"matrix/ffmpeg-{m}-{{gpl,lgpl}}.md" for m, *_ in rendered))
+print("Wrote docs/matrix/README.md + " +
+      ", ".join(f"matrix/ffmpeg-{m}-{{gplv3,gplv2,lgplv3,lgplv2}}.md" for m, *_ in rendered))
 PY
 rm -f "$simfile" "$MANIFEST_FILE"; rm -rf "$CONF_DIR"

@@ -264,17 +264,20 @@ jobs:
         run: |
           VERSION="${{ matrix.build.version }}"
           rm -rf bundle && mkdir -p bundle
-          # One .xcframework per libav* library, each bundling device + simulator slices.
-          # Dynamic dylibs now (iOS is --enable-shared) — xcodebuild wraps each into the
-          # xcframework and Xcode embeds+signs it in the consuming app. Dynamic linking is
-          # what makes the lgplv2 build LGPLv2.1-compliant (the user can relink).
-          for libpath in artifacts/ios-arm64/lib/*.dylib; do
-            name="$(basename "${libpath}" .dylib)"
+          # One .xcframework per libav* library, each bundling the device + simulator .framework.
+          # These are dynamic frameworks (iOS is --enable-shared); Xcode embeds + signs them in
+          # the consuming app. Dynamic linking is what makes the lgplv2 build LGPLv2.1-compliant
+          # (the end user can relink). Headers travel inside each .framework/Headers.
+          for fwpath in artifacts/ios-arm64/frameworks/*.framework; do
+            name="$(basename "${fwpath}" .framework)"
             xcodebuild -create-xcframework \
-              -library "artifacts/ios-arm64/lib/${name}.dylib"     -headers artifacts/ios-arm64/include \
-              -library "artifacts/ios-sim-arm64/lib/${name}.dylib" -headers artifacts/ios-sim-arm64/include \
+              -framework "artifacts/ios-arm64/frameworks/${name}.framework" \
+              -framework "artifacts/ios-sim-arm64/frameworks/${name}.framework" \
               -output "bundle/${name}.xcframework"
           done
+          # MoltenVK ICD (v3 Vulkan cells): point VK_ICD_FILENAMES at it in the consuming app.
+          [ -f artifacts/ios-arm64/frameworks/MoltenVK_icd.json ] \
+            && cp artifacts/ios-arm64/frameworks/MoltenVK_icd.json bundle/
           cp -r artifacts/ios-arm64/legal bundle/legal
           tar -czf "ffmpeg-${VERSION}-ios-${{ matrix.license }}v${{ matrix.license_version }}.tar.gz" -C bundle .
 

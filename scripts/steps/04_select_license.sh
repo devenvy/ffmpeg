@@ -49,11 +49,18 @@ case "${LICENSE_VERSION}" in
     BUILD_VULKAN=0
     BUILD_VULKAN_LOADER=0
     [[ "${WHISPER_BACKEND}" == "vulkan" ]] && WHISPER_BACKEND="cpu"   # Apple is already metal
-    # TLS: swap OpenSSL (Apache-2.0) → GnuTLS (LGPLv2.1+) wherever OpenSSL was used
-    # (Linux/Android). Windows/Apple keep their OS-native SChannel/SecureTransport.
+    # TLS for v2 on Linux/Android, where OpenSSL (Apache-2.0) can't be used without version3.
+    # (Windows/Apple never had OpenSSL — they keep OS-native SChannel/SecureTransport.)
+    #   • gpl-2  → GnuTLS. Its deps GMP + nettle are dual LGPLv3+/GPLv2+; under a GPLv2 work
+    #              their GPLv2+ option applies cleanly, so this is fine.
+    #   • lgpl-2 → NO TLS. GMP + nettle are NEVER LGPLv2.1, so linking them would force the
+    #              artifact up to LGPLv3 (or GPLv2), breaking the LGPLv2.1 guarantee — and no
+    #              other FFmpeg TLS backend is LGPLv2.1-compatible (mbedTLS = Apache-2.0/version3,
+    #              LibreSSL carries the OpenSSL advertising clause). A genuine LGPLv2.1 build on
+    #              Linux/Android therefore ships without https/tls.
     if [[ "${BUILD_OPENSSL:-0}" == "1" ]]; then
       BUILD_OPENSSL=0
-      BUILD_GNUTLS=1
+      [[ "${LICENSE}" == "gpl" ]] && BUILD_GNUTLS=1   # lgpl-2: leave TLS off for LGPLv2.1 purity
     fi
     ;;
   *)

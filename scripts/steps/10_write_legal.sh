@@ -105,9 +105,11 @@ Software codecs: libvpx (VP8/VP9)$(
   [[ "${BUILD_LIBWEBP}" == "1" ]] && echo ", libwebp (WebP)"
 )
 TLS/https: $(
-  if [[ "${BUILD_OPENSSL}" == "1" ]]; then echo "OpenSSL"
+  if   [[ "${BUILD_OPENSSL}" == "1" ]]; then echo "OpenSSL"
+  elif [[ "${BUILD_GNUTLS:-0}" == "1" ]]; then echo "GnuTLS (with GMP, nettle, libtasn1)"
   elif [[ "${RID}" == win-* ]]; then echo "SChannel"
-  else echo "SecureTransport"; fi
+  elif [[ "${RID}" == osx-* || "${RID}" == ios-* ]]; then echo "SecureTransport"
+  else echo "none (LGPLv2.1 has no license-compatible TLS backend on this platform)"; fi
 )
 Libraries: $(
   [[ "${BUILD_ZLIB}" == "1" ]] && echo -n "zlib, "

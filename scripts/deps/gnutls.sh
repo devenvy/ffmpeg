@@ -27,15 +27,13 @@ GNUTLS_ARGS=(--prefix="${DEPS_DIR}" --libdir="${DEPS_DIR}/lib"
              --disable-doc --disable-tests --disable-tools --disable-cxx --disable-nls
              --without-idn --without-tpm --without-tpm2 --without-zlib --without-brotli --without-zstd)
 [ -n "${CROSS_HOST:-}" ] && GNUTLS_ARGS+=(--host="${CROSS_HOST}")   # cross triple resolved in 02_configure
-# GnuTLS's random.c uses a hidden __thread variable. Even with -fPIC (exported globally
-# for static deps), GCC emits the LOCAL-EXEC TLS model for it (R_ARM_TLS_LE32 on armhf,
-# R_AARCH64_TLSLE_* on arm64) — which the linker refuses inside a shared object ("relocation
-# not permitted in shared object"). This .a is linked into FFmpeg's shared libav*.so, so
-# force the general-dynamic TLS model, valid in a shared library on every arch. (x86-64
-# happens to tolerate local-exec here; 32-bit ARM does not — surfaced by linux-armhf.)
-# -std=gnu17 for the same GCC-15/C23 reason as GMP/nettle: GnuTLS bundles a same-vintage
-# gnulib snapshot with K&R prototypes that C23 rejects. (validated building with the flag.)
-GNUTLS_CFLAGS="${CFLAGS:-} -std=gnu17 -ftls-model=global-dynamic"
+# -std=gnu17: GnuTLS bundles a same-vintage gnulib snapshot with K&R prototypes that GCC 15's
+# C23 default rejects (same reason as GMP/nettle). The TLS side of random.c — its file-static
+# _Thread_local compiled to local-exec (R_ARM_TLS_LE32 / R_X86_64_TPOFF32), which can't link
+# into FFmpeg's shared libav*.so — is fixed by the -fPIC export in platform/linux.sh (armhf +
+# musl previously lacked it); with -fPIC that TLS var uses a shared-object-safe model, so no
+# per-dep TLS-model flag is needed here (verified on armhf gcc-13 and musl gcc-15).
+GNUTLS_CFLAGS="${CFLAGS:-} -std=gnu17"
 CFLAGS="${GNUTLS_CFLAGS}" \
 GMP_CFLAGS="-I${DEPS_DIR}/include" GMP_LIBS="-L${DEPS_DIR}/lib -lgmp" \
   ./configure "${GNUTLS_ARGS[@]}"

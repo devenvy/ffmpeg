@@ -130,7 +130,16 @@ check_tls() {
     *" --enable-gnutls "*)          pass "TLS backend: GnuTLS (https/tls)" ;;   # v2 series
     *" --enable-schannel "*)        pass "TLS backend: SChannel (https/tls)" ;;
     *" --enable-securetransport "*) pass "TLS backend: SecureTransport (https/tls)" ;;
-    *) fail "no TLS backend configured (expected openssl/gnutls/schannel/securetransport)" ;;
+    *)
+      # The only builds with NO TLS backend are lgpl-2 (LGPLv2.1) on Linux/Android:
+      # GnuTLS's GMP/nettle deps are LGPLv3+/GPLv2+ (never LGPLv2.1) and no other FFmpeg
+      # TLS backend is LGPLv2.1-compatible, so TLS is intentionally dropped there. That
+      # signature is --disable-gpl (lgpl) AND no --enable-version3 (v2).
+      if [[ " ${CONFIG_STR} " == *" --disable-gpl "* && " ${CONFIG_STR} " != *" --enable-version3 "* ]]; then
+        pass "no TLS backend — lgplv2 intentionally omits it (no LGPLv2.1-compatible TLS)"
+      else
+        fail "no TLS backend configured (expected openssl/gnutls/schannel/securetransport)"
+      fi ;;
   esac
 }
 

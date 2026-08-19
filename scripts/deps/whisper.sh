@@ -87,7 +87,14 @@ case "${WHISPER_BACKEND}" in
           # installed-archive enumeration below. Frameworks: Metal + Foundation + Accelerate.
           WHISPER_SYS_LIBS="-lc++ -lm -framework Foundation -framework Metal -framework MetalKit -framework Accelerate" ;;
   cpu|*)  WHISPER_CMAKE+=(-DGGML_CPU=ON)
-          WHISPER_SYS_LIBS="-lstdc++ -lm -lpthread" ;;
+          # Android/Bionic has no libstdc++ (it uses libc++) and pthread lives in libc, so
+          # -lstdc++/-lpthread don't resolve there — FFmpeg's whisper link check then fails
+          # ("whisper not found"). v2 drops Vulkan → Android takes THIS cpu fallback, so it
+          # must use -lc++. Linux (glibc/musl) keeps libstdc++.
+          case "${RID}" in
+            android-*) WHISPER_SYS_LIBS="-lc++ -lm" ;;
+            *)         WHISPER_SYS_LIBS="-lstdc++ -lm -lpthread" ;;
+          esac ;;
 esac
 
 # mingw-w64 headers lack the Win10 THREAD_POWER_THROTTLING_* definitions that ggml-cpu.c

@@ -87,6 +87,14 @@ case "${RID}" in
     BUILD_LIBSVTAV1=0  # SVT-AV1 requires 64-bit
     BUILD_VULKAN=1        # FFmpeg Vulkan (header-only + runtime dlopen) — video/filter accel
     WHISPER_BACKEND="cpu" # no dependable 32-bit-ARM GPU path for ggml; CPU-only ASR here
+    # Force -fPIC on static deps. Ubuntu's cross-gcc IS default-PIE, so regular code is
+    # already position-independent — but default-PIE does NOT change the TLS model: a
+    # file-static _Thread_local in a static dep (e.g. GnuTLS random.c) still compiles to
+    # LOCAL-EXEC TLS (R_ARM_TLS_LE32), which the linker refuses inside FFmpeg's shared
+    # libav*.so. -fPIC switches it to a shared-object-safe model (and lets global-dynamic
+    # actually take effect — GD requires PIC). glibc/manylinux already exports this above.
+    export CFLAGS="${CFLAGS:+${CFLAGS} }-fPIC"
+    export CXXFLAGS="${CXXFLAGS:+${CXXFLAGS} }-fPIC"
     BUILD_TYPE_LABEL="Linux glibc (cross-compiled)"
     ;;
 
@@ -116,6 +124,11 @@ case "${RID}" in
     BUILD_VPL_SOURCE=1
     BUILD_VULKAN_LOADER=1
     WHISPER_BACKEND="vulkan"
+    # Force -fPIC on static deps — see linux-armhf. Alpine's gcc is default-PIE, but that
+    # doesn't fix the TLS model: GnuTLS random.c's file-static _Thread_local compiles to
+    # local-exec (R_X86_64_TPOFF32) and won't link into the shared libav*.so without -fPIC.
+    export CFLAGS="${CFLAGS:+${CFLAGS} }-fPIC"
+    export CXXFLAGS="${CXXFLAGS:+${CXXFLAGS} }-fPIC"
     BUILD_TYPE_LABEL="Linux musl (native Alpine)"
     ;;
 

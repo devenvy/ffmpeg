@@ -65,24 +65,7 @@ case "${WHISPER_BACKEND}" in
           | awk '{print $2}' | sort -u > "${WORK_DIR}/vulkan-1.syms"
         { echo "LIBRARY vulkan-1.dll"; echo "EXPORTS"; cat "${WORK_DIR}/vulkan-1.syms"; } > "${WORK_DIR}/vulkan-1.def"
         "${CROSS_PREFIX}-dlltool" -d "${WORK_DIR}/vulkan-1.def" -D vulkan-1.dll -l "${DEPS_DIR}/lib/libvulkan-1.dll.a"
-        # mingw-w64 headers lack THREAD_POWER_THROTTLING_* (used by ggml-cpu); force-include a shim.
-        cat > "${WORK_DIR}/win_ggml_compat.h" <<'SHIM'
-#ifndef WHISPER_WIN_GGML_COMPAT_H
-#define WHISPER_WIN_GGML_COMPAT_H
-#include <windows.h>
-#ifndef THREAD_POWER_THROTTLING_CURRENT_VERSION
-typedef struct _THREAD_POWER_THROTTLING_STATE {
-    ULONG Version; ULONG ControlMask; ULONG StateMask;
-} THREAD_POWER_THROTTLING_STATE, *PTHREAD_POWER_THROTTLING_STATE;
-#define THREAD_POWER_THROTTLING_CURRENT_VERSION 1
-#define THREAD_POWER_THROTTLING_EXECUTION_SPEED 0x1
-#define THREAD_POWER_THROTTLING_VALID_FLAGS THREAD_POWER_THROTTLING_EXECUTION_SPEED
-#endif
-#endif
-SHIM
-        WHISPER_CMAKE+=(-DVulkan_LIBRARY="${DEPS_DIR}/lib/libvulkan-1.dll.a"
-                        -DCMAKE_C_FLAGS="-include ${WORK_DIR}/win_ggml_compat.h"
-                        -DCMAKE_CXX_FLAGS="-include ${WORK_DIR}/win_ggml_compat.h")
+        WHISPER_CMAKE+=(-DVulkan_LIBRARY="${DEPS_DIR}/lib/libvulkan-1.dll.a")
         WHISPER_SYS_LIBS="-l:libvulkan-1.dll.a -lstdc++ -lm"
         ;;
       android-arm64)
@@ -106,6 +89,30 @@ SHIM
   cpu|*)  WHISPER_CMAKE+=(-DGGML_CPU=ON)
           WHISPER_SYS_LIBS="-lstdc++ -lm -lpthread" ;;
 esac
+
+# mingw-w64 headers lack the Win10 THREAD_POWER_THROTTLING_* definitions that ggml-cpu.c
+# uses unconditionally on _WIN32 (they exist in the real Windows SDK but are gated out at
+# MinGW's default NTDDI level). Force-include a shim so ggml-cpu compiles. ggml-cpu is built
+# by EVERY backend, so this applies to all of win-x64 — hoisted out of the vulkan branch so
+# the v2 series (Vulkan dropped → cpu backend) gets it too, not just the v3/vulkan path.
+if [ "${RID}" = win-x64 ]; then
+  cat > "${WORK_DIR}/win_ggml_compat.h" <<'SHIM'
+#ifndef WHISPER_WIN_GGML_COMPAT_H
+#define WHISPER_WIN_GGML_COMPAT_H
+#include <windows.h>
+#ifndef THREAD_POWER_THROTTLING_CURRENT_VERSION
+typedef struct _THREAD_POWER_THROTTLING_STATE {
+    ULONG Version; ULONG ControlMask; ULONG StateMask;
+} THREAD_POWER_THROTTLING_STATE, *PTHREAD_POWER_THROTTLING_STATE;
+#define THREAD_POWER_THROTTLING_CURRENT_VERSION 1
+#define THREAD_POWER_THROTTLING_EXECUTION_SPEED 0x1
+#define THREAD_POWER_THROTTLING_VALID_FLAGS THREAD_POWER_THROTTLING_EXECUTION_SPEED
+#endif
+#endif
+SHIM
+  WHISPER_CMAKE+=(-DCMAKE_C_FLAGS="-include ${WORK_DIR}/win_ggml_compat.h"
+                  -DCMAKE_CXX_FLAGS="-include ${WORK_DIR}/win_ggml_compat.h")
+fi
 
 cmake -B build "${WHISPER_CMAKE[@]}" \
   ${CMAKE_CROSS_ARGS[@]+"${CMAKE_CROSS_ARGS[@]}"}

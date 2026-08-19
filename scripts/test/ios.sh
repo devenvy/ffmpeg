@@ -13,14 +13,14 @@ info "iOS structural checks (${RID}, ${DIR})"
 
 LIBDIR="${DIR}/lib"
 for base in avcodec avformat avutil avfilter swscale swresample; do
-  a="${LIBDIR}/lib${base}.a"
-  [ -e "$a" ] || { fail "missing lib${base}.a"; continue; }
-  check_arch "$a" 'ar archive|current ar archive'   # static archive
-  check_symbol "$a" "${base}_version"
+  dylib="${LIBDIR}/lib${base}.dylib"
+  [ -e "$dylib" ] || { fail "missing lib${base}.dylib"; continue; }
+  check_arch "$dylib" 'Mach-O 64-bit dynamically linked shared library arm64'
+  check_symbol "$dylib" "${base}_version"
 done
 
-# Feature/license from the embedded config (present in the compiled objects).
-load_config_string "${LIBDIR}/libavutil.a" "${LIBDIR}/libavcodec.a"
+# Feature/license from the embedded config (present in the compiled dylibs).
+load_config_string "${LIBDIR}/libavutil.dylib" "${LIBDIR}/libavcodec.dylib"
 check_config "--enable-videotoolbox" "VideoToolbox"
 check_config "--enable-whisper" "Whisper ASR filter"
 check_tls
@@ -33,15 +33,11 @@ check_license_boundary "$LEAN"
   && pass "headers present (include/libavcodec/avcodec.h)" \
   || fail "missing include/libavcodec/avcodec.h"
 
-# ABI link check for BOTH slices (macOS build job): static-link the smoke program
-# against the .a + the system frameworks FFmpeg needs. Linking clean proves the
-# archives resolve — a real Tier-2 signal even for the DEVICE slice, which can't be
-# executed on CI (the simulator RUN, on the Apple-Silicon runner, is ios-run.sh).
-# Best-effort for now: fully static-linking every FFmpeg object via -all_load against
-# a static .a is per-framework whack-a-mole (libass→CoreText, outliner helpers, …).
-# This artifact is being moved to dynamic frameworks, which resolves all of that at
-# build time — at which point this check goes back to gating. See SMOKE_SOFT in lib.sh.
-SMOKE_SOFT=1
+# ABI link check for BOTH slices (macOS build job): DYNAMICALLY link the smoke program
+# against the dylibs. iOS is dynamic now, so this resolves cleanly at build time — no
+# -all_load static whack-a-mole — which is why this is a GATING check again (SMOKE_SOFT
+# gone). A real Tier-2 signal even for the DEVICE slice, which can't be executed on CI
+# (the simulator RUN, on the Apple-Silicon runner, is ios-run.sh).
 if command -v xcrun >/dev/null 2>&1; then
   case "$RID" in
     ios-sim-arm64) IOS_SDK=iphonesimulator; IOS_MIN=-mios-simulator-version-min=13.0 ;;
@@ -49,20 +45,19 @@ if command -v xcrun >/dev/null 2>&1; then
   esac
   SDK="$(xcrun --sdk "${IOS_SDK}" --show-sdk-path 2>/dev/null)"
   CC="$(xcrun --sdk "${IOS_SDK}" --find clang 2>/dev/null)"
-  # Static-link the way a real consumer must: -all_load pulls every object. FFmpeg
-  # registers codecs/filters via constructors, and clang's machine-outliner emits
-  # cross-object helpers (_OUTLINED_FUNCTION_*), so on-demand linking leaves undefined
-  # refs. Link ALL our archives — libav* AND their static deps (zimg/whisper/ggml/
-  # opus/openssl/...) now staged alongside — plus the Apple frameworks FFmpeg + ggml need.
-  ALL_A=(); for a in "${LIBDIR}"/*.a; do [ -e "$a" ] && ALL_A+=("$a"); done
+  # Dynamic link: the static deps (whisper/ggml, opus, kvazaar, …) are baked INTO the
+  # dylibs, so we link only the libav* dylibs plus the Apple frameworks/system libs they
+  # load. No -all_load, no dep archives. -rpath points at LIBDIR so the link's own binary
+  # could resolve them (a device app resolves via the embedded frameworks dir + @rpath).
   check_smoke_link "${CC} -arch arm64 ${IOS_MIN} -isysroot ${SDK}" \
     "${DIR}/include" /tmp/smoke_ios \
-    -Wl,-all_load "${ALL_A[@]}" \
-    -lc++ -liconv -lz \
+    -L "${LIBDIR}" -lavformat -lavcodec -lavfilter -lavutil -lswscale -lswresample \
+    -Wl,-rpath,"${LIBDIR}" \
     -framework VideoToolbox -framework AudioToolbox -framework CoreMedia \
     -framework CoreVideo -framework CoreFoundation -framework CoreServices \
     -framework Security -framework Foundation -framework Metal -framework MetalKit \
-    -framework Accelerate -framework QuartzCore
+    -framework Accelerate -framework QuartzCore \
+    -lc++ -liconv -lz
 else
   skip "smoke link: Xcode/xcrun not available (run in the macOS build job)"
 fi

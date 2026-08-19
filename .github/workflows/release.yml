@@ -265,11 +265,14 @@ jobs:
           VERSION="${{ matrix.build.version }}"
           rm -rf bundle && mkdir -p bundle
           # One .xcframework per libav* library, each bundling device + simulator slices.
-          for libpath in artifacts/ios-arm64/lib/*.a; do
-            name="$(basename "${libpath}" .a)"
+          # Dynamic dylibs now (iOS is --enable-shared) — xcodebuild wraps each into the
+          # xcframework and Xcode embeds+signs it in the consuming app. Dynamic linking is
+          # what makes the lgplv2 build LGPLv2.1-compliant (the user can relink).
+          for libpath in artifacts/ios-arm64/lib/*.dylib; do
+            name="$(basename "${libpath}" .dylib)"
             xcodebuild -create-xcframework \
-              -library "artifacts/ios-arm64/lib/${name}.a"     -headers artifacts/ios-arm64/include \
-              -library "artifacts/ios-sim-arm64/lib/${name}.a" -headers artifacts/ios-sim-arm64/include \
+              -library "artifacts/ios-arm64/lib/${name}.dylib"     -headers artifacts/ios-arm64/include \
+              -library "artifacts/ios-sim-arm64/lib/${name}.dylib" -headers artifacts/ios-sim-arm64/include \
               -output "bundle/${name}.xcframework"
           done
           cp -r artifacts/ios-arm64/legal bundle/legal

@@ -89,12 +89,18 @@ case "${RID}" in
   ios-*)
     mkdir -p "${OUT_DIR}/include" "${OUT_DIR}/lib"
     cp -a "${PREFIX_DIR}/include/." "${OUT_DIR}/include/"
-    cp -a "${PREFIX_DIR}/lib/"*.a "${OUT_DIR}/lib/"
-    # A static .a does NOT embed its dependencies the way a shared lib does: FFmpeg's
-    # libav*.a reference symbols that live in the dependency archives (zimg, whisper/
-    # ggml, opus, openssl, freetype, ...), which sit in DEPS_DIR — not the FFmpeg
-    # prefix. Ship them too, or a consumer (and our ABI smoke link) can't resolve them.
-    cp -a "${DEPS_DIR}/lib/"*.a "${OUT_DIR}/lib/" 2>/dev/null || true
+    # iOS is --enable-shared now: copy each libav* dylib under its UNVERSIONED name
+    # (libavcodec.dylib, not libavcodec.62.dylib) so the xcframework names come out clean.
+    # The static dependency archives (whisper/ggml, kvazaar, opus, ...) are linked INTO
+    # these dylibs, so each is self-contained — no dep .a to ship (unlike the old static
+    # build, which had to ship the DEPS_DIR archives for the consumer to resolve).
+    # cp (without -P/-a) dereferences the libavcodec.dylib -> libavcodec.NN.dylib symlink and
+    # writes the REAL dylib content under the unversioned name. (No `readlink -f` — BSD/macOS
+    # readlink, which is what runs here, has no -f.)
+    for base in avcodec avformat avutil avfilter swscale swresample; do
+      src="${PREFIX_DIR}/lib/lib${base}.dylib"
+      [ -e "${src}" ] && cp "${src}" "${OUT_DIR}/lib/lib${base}.dylib"
+    done
     ;;
   *)
     mkdir -p "${OUT_DIR}/include"
@@ -139,8 +145,25 @@ case "${RID}" in
       install_name_tool -add_rpath "@loader_path" "${target}" 2>/dev/null || true
     done
     ;;
-  android-*|ios-*)
+  android-*)
     echo "Mobile build — no rpath/install_name fixup needed."
+    ;;
+  ios-*)
+    # Point each dylib's own id — and its references to sibling libav*/libsw* dylibs — at
+    # @rpath so the frameworks are relocatable (Xcode embeds them under the app's Frameworks
+    # dir and supplies the runpath). Mirrors the macOS fixup, but reads the ACTUAL recorded
+    # dependency names via otool, so the dylib version suffixes don't have to be hardcoded.
+    echo "Fixing iOS dylib install-names for @rpath..."
+    for t in "${OUT_DIR}/lib/"*.dylib; do
+      [ -e "${t}" ] || continue
+      install_name_tool -id "@rpath/$(basename "${t}")" "${t}"
+      otool -L "${t}" | awk 'NR>1{print $1}' | while read -r ref; do
+        b="$(basename "${ref}")"; stem="${b%%.*}"
+        case "${stem}" in
+          libav*|libsw*) install_name_tool -change "${ref}" "@rpath/${stem}.dylib" "${t}" 2>/dev/null || true ;;
+        esac
+      done
+    done
     ;;
   *)
     # Linux (glibc/musl): use patchelf to set $ORIGIN rpath

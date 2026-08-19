@@ -79,13 +79,10 @@ jobs:
 
       # iOS simulator runtime: the simulator slice is an arm64 binary, so it runs
       # natively on the Apple-Silicon runner (no emulation) — a true execution of
-      # encode/decode + whisper + TLS.
-      # Best-effort: ios-run.sh builds its own static-linked test binary, which hits the
-      # same static-.a link issues as above (soon replaced by dynamic frameworks). The
-      # gating iOS Tier-2 signal is the ABI structural checks; re-gated once dynamic.
+      # encode/decode + whisper + TLS. GATING now: iOS is dynamic, so ios-run.sh links
+      # cleanly against the dylibs and a genuine runtime failure fails the job.
       - name: iOS simulator runtime smoke
         if: matrix.rid == 'ios-sim-arm64' && matrix.license == 'lgpl'
-        continue-on-error: true
         shell: bash
         run: |
           # Pick an available iOS runtime AND an iPhone from THAT runtime's own
@@ -100,15 +97,13 @@ jobs:
           bash scripts/test/ios-run.sh "${BUILD_RID}" "artifacts/${BUILD_RID}/native"
           xcrun simctl delete "$UDID" || true
 
-      # Android emulator runtime: boot an arm64-v8a emulator and run the smoke test
-      # on it — the deepest, true on-device layer.
-      # Best-effort: the arm64 emulator boot is intermittently flaky on GitHub's
-      # runners (nested KVM). The gating android Tier-2 signal is the ABI link-check
-      # above (proves the libs are callable, undefined-symbol-free); a flaky boot must
-      # not red the build. A genuine runtime regression still shows here as a failure.
+      # Android emulator runtime: boot an arm64-v8a emulator and run the smoke test on it —
+      # the deepest, true on-device layer. GATING: a runtime failure now fails the job — we
+      # want real proof ffmpeg RUNS on-device, not just that the libs link. The emulator
+      # action retries boot internally; if nested-KVM flakiness ever resurfaces as a FALSE
+      # failure, add an explicit boot retry here rather than reinstating continue-on-error.
       - name: Android emulator runtime smoke
         if: matrix.rid == 'android-arm64' && matrix.license == 'lgpl'
-        continue-on-error: true
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 28

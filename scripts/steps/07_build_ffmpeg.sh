@@ -69,11 +69,12 @@ cd "${SRC_DIR}" || exit 1
 LIB_MODE_FLAGS=(--enable-shared --disable-static)
 PROGRAM_FLAGS=(--enable-ffmpeg --enable-ffprobe --disable-ffplay)
 case "${RID}" in
-  ios-*)
-    LIB_MODE_FLAGS=(--disable-shared --enable-static)
-    PROGRAM_FLAGS=(--disable-programs)
-    ;;
-  android-*)
+  # Mobile ships libraries only (no ffmpeg/ffprobe CLI). iOS is DYNAMIC like every other
+  # platform — the static-.a build was an anomaly. It also matters for LICENSING: LGPLv2.1
+  # §6 requires the end user be able to relink the app against a modified library; static
+  # linking forces shipping object files for that, dynamic frameworks satisfy it inherently.
+  # So the App-Store lgplv2 iOS build MUST be dynamic. Same shared libav*.dylib as macOS.
+  ios-*|android-*)
     PROGRAM_FLAGS=(--disable-programs)
     ;;
 esac

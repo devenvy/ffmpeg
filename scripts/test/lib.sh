@@ -98,7 +98,15 @@ load_config_string() {
     [ -e "$f" ] || continue
     # Anchor on an FFmpeg-distinctive flag so we don't grab a bundled dependency's
     # own embedded configure line (which lacks the FFmpeg --enable-* flags).
-    CONFIG_STR="$(strings -a "$f" 2>/dev/null | grep -m1 -- '--disable-autodetect' || true)"
+    if command -v strings >/dev/null 2>&1; then
+      CONFIG_STR="$(strings -a "$f" 2>/dev/null | grep -m1 -- '--disable-autodetect' || true)"
+    else
+      # Fallback with no `strings` (e.g. a minimal Windows/Git-bash shell): split the binary
+      # on non-printable bytes with tr — the same effect as strings, using only tr+grep which
+      # exist everywhere. This guarantees the license/TLS/config checks ALWAYS run instead of
+      # silently skipping on a host that happens to lack binutils.
+      CONFIG_STR="$(LC_ALL=C tr -c '[:print:]' '\n' < "$f" 2>/dev/null | grep -m1 -- '--disable-autodetect' || true)"
+    fi
     [ -n "$CONFIG_STR" ] && return 0
   done
   return 1
@@ -107,7 +115,7 @@ load_config_string() {
 # check_config <flag> <human label>  — the build was configured with <flag>.
 check_config() {
   local flag="$1" label="${2:-$1}"
-  if [ -z "$CONFIG_STR" ]; then skip "config check ($label): no embedded config string"; return; fi
+  if [ -z "$CONFIG_STR" ]; then fail "config check ($label): no embedded config string — artifact unreadable"; return; fi
   if grep -q -- " ${flag}\b" <<<" ${CONFIG_STR} "; then pass "configured: ${label} (${flag})"
   else fail "not configured: ${label} (${flag})"; fi
 }
@@ -115,7 +123,7 @@ check_config() {
 # check_config_absent <flag> <label>  — the build must NOT have <flag> (license gate).
 check_config_absent() {
   local flag="$1" label="${2:-$1}"
-  if [ -z "$CONFIG_STR" ]; then skip "config check ($label): no embedded config string"; return; fi
+  if [ -z "$CONFIG_STR" ]; then fail "config check ($label): no embedded config string — artifact unreadable"; return; fi
   if grep -q -- " ${flag}\b" <<<" ${CONFIG_STR} "; then fail "unexpectedly configured: ${label} (${flag})"
   else pass "absent as required: ${label} (${flag})"; fi
 }
@@ -124,7 +132,7 @@ check_config_absent() {
 # platform-appropriate: OpenSSL on Linux/Android, SChannel on Windows,
 # SecureTransport on Apple. Structural, so it also covers the mobile static libs.
 check_tls() {
-  if [ -z "$CONFIG_STR" ]; then skip "tls check: no embedded config string"; return; fi
+  if [ -z "$CONFIG_STR" ]; then fail "tls check: no embedded config string — artifact unreadable"; return; fi
   case " ${CONFIG_STR} " in
     *" --enable-openssl "*)         pass "TLS backend: OpenSSL (https/tls)" ;;
     *" --enable-gnutls "*)          pass "TLS backend: GnuTLS (https/tls)" ;;   # v2 series
@@ -140,6 +148,15 @@ check_tls() {
       else
         fail "no TLS backend configured (expected openssl/gnutls/schannel/securetransport)"
       fi ;;
+  esac
+}
+
+# build_has_tls — true if the build configured any TLS backend. Drives the license-aware
+# https/tls protocol check in run_functional (lgplv2 has none by design).
+build_has_tls() {
+  case " ${CONFIG_STR} " in
+    *" --enable-openssl "*|*" --enable-gnutls "*|*" --enable-schannel "*|*" --enable-securetransport "*) return 0 ;;
+    *) return 1 ;;
   esac
 }
 
@@ -160,7 +177,7 @@ check_license_boundary() {
       check_config_absent "--enable-gpl" "GPL"
       check_config_absent "--enable-libx264" "x264 (GPL)"
       check_config_absent "--enable-libx265" "x265 (GPL)" ;;
-    *) skip "license boundary: could not read gpl/lgpl from config string" ;;
+    *) fail "license boundary: could not read gpl/lgpl from config string — artifact unreadable" ;;
   esac
 }
 
@@ -222,11 +239,21 @@ run_functional() {
     grep -qw "$d" <<<"$decoders" && pass "$d decoder present" || fail "$d decoder missing"
   done
 
+  # https/tls presence is license-dependent: builds WITH a TLS backend must expose them;
+  # lgplv2 (which drops TLS — no LGPLv2.1-compatible backend) must NOT — and we verify the
+  # absence rather than skipping, so a stray TLS backend can't sneak into an lgplv2 artifact.
   local protocols p
   protocols="$("${RUNNER[@]}" "$FFMPEG" -hide_banner -protocols 2>/dev/null || true)"
-  for p in https tls; do
-    grep -qw "$p" <<<"$protocols" && pass "$p protocol present" || fail "$p protocol missing"
-  done
+  if build_has_tls; then
+    for p in https tls; do
+      grep -qw "$p" <<<"$protocols" && pass "$p protocol present" || fail "$p protocol missing (TLS backend configured)"
+    done
+  else
+    for p in https tls; do
+      grep -qw "$p" <<<"$protocols" && fail "$p protocol present but this build has NO TLS backend (lgplv2 leak?)" \
+                                     || pass "$p protocol correctly absent (lgplv2: TLS intentionally dropped)"
+    done
+  fi
 
   if "${RUNNER[@]}" "$FFMPEG" -hide_banner -y -f lavfi -i testsrc=size=320x240:rate=25:duration=1 \
         -c:v mpeg4 "$tmp/out.mp4" >/dev/null 2>&1 \

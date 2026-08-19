@@ -18,7 +18,12 @@ cd "gmp-${GMP_VER}" || exit 1
 GMP_ARGS=(--prefix="${DEPS_DIR}" --libdir="${DEPS_DIR}/lib"
           --disable-shared --enable-static --with-pic --enable-cxx=no)
 [ -n "${CROSS_HOST:-}" ] && GMP_ARGS+=(--host="${CROSS_HOST}")   # cross triple resolved in 02_configure
-./configure "${GMP_ARGS[@]}"
+# GMP 6.3.0's configure "long long reliability test" uses a K&R empty-paren prototype
+# `g()` and calls it with args. GCC 15 defaults to C23, where `()` means `(void)`, so that
+# call is a hard error and configure aborts with "could not find a working compiler". Pin the
+# C standard to gnu17 (K&R semantics) for GMP's configure. Surfaced on Alpine (rolling GCC 15);
+# the glibc/manylinux images ship older GCC and are unaffected, but the flag is harmless there.
+CFLAGS="${CFLAGS:-} -std=gnu17" ./configure "${GMP_ARGS[@]}"
 make -j"$(${NPROC})"
 make install
 echo "GMP built (GnuTLS dependency)."

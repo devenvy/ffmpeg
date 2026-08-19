@@ -21,7 +21,11 @@ NETTLE_ARGS=(--prefix="${DEPS_DIR}" --libdir="${DEPS_DIR}/lib"
              --disable-shared --enable-static --disable-documentation
              --with-include-path="${DEPS_DIR}/include" --with-lib-path="${DEPS_DIR}/lib")
 [ -n "${CROSS_HOST:-}" ] && NETTLE_ARGS+=(--host="${CROSS_HOST}")   # cross triple resolved in 02_configure
-./configure "${NETTLE_ARGS[@]}"
+# nettle's bundled getopt.c/getopt.h use K&R empty-paren prototypes (getopt()/getenv()).
+# GCC 15 defaults to C23 where `()` == `(void)`, turning the real calls into hard errors
+# ("too many arguments to function 'getenv'"). Pin the C standard to gnu17. Same GCC-15/C23
+# issue as GMP; surfaced on Alpine (rolling GCC). Harmless on the older glibc/manylinux GCC.
+CFLAGS="${CFLAGS:-} -std=gnu17" ./configure "${NETTLE_ARGS[@]}"
 make -j"$(${NPROC})"
 make install
 echo "nettle built (GnuTLS dependency)."

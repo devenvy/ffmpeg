@@ -27,9 +27,26 @@ GNUTLS_ARGS=(--prefix="${DEPS_DIR}" --libdir="${DEPS_DIR}/lib"
              --disable-doc --disable-tests --disable-tools --disable-cxx --disable-nls
              --without-idn --without-tpm --without-tpm2 --without-zlib --without-brotli --without-zstd)
 [ -n "${CROSS_HOST:-}" ] && GNUTLS_ARGS+=(--host="${CROSS_HOST}")   # cross triple resolved in 02_configure
+# GnuTLS's random.c uses a hidden __thread variable. Even with -fPIC (exported globally
+# for static deps), GCC emits the LOCAL-EXEC TLS model for it (R_ARM_TLS_LE32 on armhf,
+# R_AARCH64_TLSLE_* on arm64) — which the linker refuses inside a shared object ("relocation
+# not permitted in shared object"). This .a is linked into FFmpeg's shared libav*.so, so
+# force the general-dynamic TLS model, valid in a shared library on every arch. (x86-64
+# happens to tolerate local-exec here; 32-bit ARM does not — surfaced by linux-armhf.)
+# -std=gnu17 for the same GCC-15/C23 reason as GMP/nettle: GnuTLS bundles a same-vintage
+# gnulib snapshot with K&R prototypes that C23 rejects. (validated building with the flag.)
+GNUTLS_CFLAGS="${CFLAGS:-} -std=gnu17 -ftls-model=global-dynamic"
+CFLAGS="${GNUTLS_CFLAGS}" \
 GMP_CFLAGS="-I${DEPS_DIR}/include" GMP_LIBS="-L${DEPS_DIR}/lib -lgmp" \
   ./configure "${GNUTLS_ARGS[@]}"
-make -j"$(${NPROC})"
-make install
+# Build and install ONLY the library (gl = its bundled gnulib, then lib = libgnutls), NOT
+# src/. --disable-tools stops the command-line programs from linking, but GnuTLS still
+# compiles src/gl (the TOOLS' gnulib: parse-datetime/nstrftime), which calls glibc-only
+# time helpers (mktime_z, tzalloc, localtime_rz) that Bionic lacks — a hard error on Android.
+# FFmpeg only needs libgnutls + gnutls.pc + headers, all produced by lib/, so skip src
+# entirely. (Also faster; verified end-to-end that lib-only installs gnutls.pc + headers.)
+make -C gl -j"$(${NPROC})"
+make -C lib -j"$(${NPROC})"
+make -C lib install
 CONFIGURE_FLAGS+=(--enable-gnutls)
 echo "GnuTLS (TLS/https) enabled."

@@ -100,8 +100,10 @@ case "${RID}" in
     # work when a driver is present. (libstdc++/libgcc_s remain — whisper's C++ runtime,
     # a standard `apk add libstdc++ libgcc` on any musl host.)
     PKGS_APK=(autoconf automake libtool build-base cmake curl diffutils gperf git linux-headers
-              meson nasm ninja patchelf perl pkgconf xz yasm
+              m4 meson nasm ninja patchelf perl pkgconf xz yasm
               glslang shaderc)
+    # m4 is required by GMP's configure (GnuTLS chain, v2 series). build-base does not
+    # pull it in; the glibc/manylinux images already ship it, so only the Alpine list needs it.
     CONFIGURE_FLAGS+=(
       --enable-cuda --enable-cuvid --enable-nvenc --enable-nvdec --enable-ffnvcodec
       --enable-vaapi --enable-libdrm --enable-libvpl

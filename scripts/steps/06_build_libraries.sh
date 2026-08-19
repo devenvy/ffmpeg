@@ -39,7 +39,13 @@ D="${ROOT_DIR}/scripts/deps"
 . "${D}/svtav1.sh"       # fast AV1 encoder (SVT-AV1)
 . "${D}/libwebp.sh"      # WebP image
 . "${D}/zimg.sh"         # high-quality scaling/colorspace conversion
-. "${D}/openssl.sh"      # TLS/https (Linux + Android; native backends elsewhere)
+. "${D}/openssl.sh"      # TLS/https, v3 series (Linux + Android; native backends elsewhere)
+# GnuTLS chain — TLS/https for the v2 series (LGPLv2.1+/GPLv2), replacing OpenSSL where
+# it can't ship. All four self-skip unless BUILD_GNUTLS=1. Dependency order matters.
+. "${D}/gmp.sh"          #   bignum (GMP)
+. "${D}/nettle.sh"       #   crypto (nettle/hogweed; needs GMP)
+. "${D}/libtasn1.sh"     #   ASN.1
+. "${D}/gnutls.sh"       #   GnuTLS (needs the three above; appends --enable-gnutls)
 . "${D}/vulkan.sh"       # Vulkan headers + (glibc Linux) a libc-only loader to bundle
 . "${D}/whisper.sh"      # whisper.cpp — af_whisper ASR (links the Vulkan loader above)
 

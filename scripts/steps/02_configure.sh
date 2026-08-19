@@ -47,7 +47,8 @@ BUILD_LIBASS=1
 # OS-native, no dependency — enabled directly in the per-RID flags below);
 # Linux/Android have no system TLS FFmpeg can use, so they build OpenSSL. Since
 # --disable-autodetect is set, every backend must be requested explicitly.
-BUILD_OPENSSL=0
+BUILD_OPENSSL=0        # OpenSSL 3.x TLS (v3 series, Linux/Android)
+BUILD_GNUTLS=0         # GnuTLS TLS (v2 series replacement for OpenSSL; set by 04_select_license)
 EXTRA_CFLAGS=""
 EXTRA_CXXFLAGS=""
 EXTRA_LDFLAGS=""

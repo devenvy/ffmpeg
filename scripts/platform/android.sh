@@ -4,7 +4,26 @@ set -euo pipefail
 # SOURCED by steps/02_configure.sh based on the RID family; shares its environment.
 case "${RID}" in
   android-arm64)
-    : "${ANDROID_NDK_HOME:?set ANDROID_NDK_HOME (path to Android NDK r26+)}"
+    # Locate the NDK. ANDROID_NDK_HOME is an optional OVERRIDE — normally the NDK is found
+    # automatically: CI/dev shells export ANDROID_NDK_LATEST_HOME / ANDROID_NDK_ROOT, and a
+    # standard SDK install keeps it under $ANDROID_SDK_ROOT/ndk/<version>. So an Android build
+    # "just works" wherever the SDK/NDK is installed, without a platform-specific top-level arg.
+    if [[ -z "${ANDROID_NDK_HOME:-}" ]]; then
+      if   [[ -n "${ANDROID_NDK_LATEST_HOME:-}" ]]; then ANDROID_NDK_HOME="${ANDROID_NDK_LATEST_HOME}"
+      elif [[ -n "${ANDROID_NDK_ROOT:-}" ]];        then ANDROID_NDK_HOME="${ANDROID_NDK_ROOT}"
+      else
+        for _sdk in "${ANDROID_SDK_ROOT:-}" "${ANDROID_HOME:-}"; do
+          [[ -n "${_sdk}" && -d "${_sdk}/ndk" ]] || continue
+          ANDROID_NDK_HOME="$(ls -d "${_sdk}/ndk/"*/ 2>/dev/null | sort -V | tail -1)"
+          ANDROID_NDK_HOME="${ANDROID_NDK_HOME%/}"
+          [[ -n "${ANDROID_NDK_HOME}" ]] && break
+        done
+      fi
+    fi
+    [[ -n "${ANDROID_NDK_HOME:-}" && -d "${ANDROID_NDK_HOME}" ]] || {
+      echo "ERROR: Android NDK not found. Install it under the Android SDK (\$ANDROID_SDK_ROOT/ndk/<version>) or set ANDROID_NDK_HOME." >&2
+      exit 1; }
+    export ANDROID_NDK_HOME
     API=28  # Android 9+. Required so ggml-vulkan's Vulkan 1.1 symbols resolve (see below).
     TOOLCHAIN="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64"
     ANDROID_TRIPLE=aarch64-linux-android

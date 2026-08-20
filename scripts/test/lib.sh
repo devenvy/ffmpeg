@@ -204,10 +204,7 @@ check_smoke_link() {
     SMOKE_BIN="$out"; return 0
   fi
   local msg; msg="smoke program did not link: $(tail -3 /tmp/smoke-cc.err | tr '\n' ' ')"
-  # SMOKE_SOFT: report as skip, not fail. Used for the iOS static-.a link, which is
-  # -all_load framework whack-a-mole on a static archive that is about to be replaced
-  # by dynamic frameworks — where this becomes a clean, gating check again.
-  if [ "${SMOKE_SOFT:-0}" = "1" ]; then skip "$msg (best-effort)"; else fail "$msg"; fi
+  fail "$msg"
   return 1
 }
 

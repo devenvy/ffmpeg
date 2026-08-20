@@ -52,7 +52,7 @@ for RID in "${RIDS[@]}"; do
     LIC="${CELL%v*}"; VER="${CELL##*v}"          # gplv3 -> LIC=gpl VER=3
     ROOT_DIR="${ROOT_DIR}"; RID="$RID"; LICENSE="$LIC"; BUILD_RID="$RID"
     BUILD_LICENSE="$LIC"; BUILD_LICENSE_VERSION="$VER"
-    ANDROID_NDK_HOME=/dummy-ndk; ANDROID_ABI=arm64-v8a; API=28; TOOLCHAIN=/dummy
+    ANDROID_NDK_HOME=/tmp; ANDROID_ABI=arm64-v8a; API=28; TOOLCHAIN=/dummy  # /tmp: a real dir so android.sh's NDK check passes (sim never runs the toolchain)
     WORK_DIR=/tmp/sim; DEPS_DIR=/tmp/sim/deps; SRC_DIR=/tmp/sim/src
     source scripts/steps/02_configure.sh >/dev/null 2>&1
     source scripts/steps/04_select_license.sh >/dev/null 2>&1

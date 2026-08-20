@@ -250,20 +250,11 @@ Release by hand, because manual Releases do not build or attach artifacts.
 
 ## Hardware acceleration by platform
 
-| Feature | linux-x64 | linux-arm64 | linux-armhf | linux-musl-x64 | win-x64 | osx-* | android-arm64 | ios-* |
-|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-| CUDA / NVENC / NVDEC | Yes | Yes | — | Yes | Yes | — | — | — |
-| VAAPI | Yes | Yes | — | Yes | — | — | — | — |
-| QSV (libvpl) | Yes | — | — | Yes | Yes | — | — | — |
-| V4L2-M2M | Yes | Yes | Yes | — | — | — | — | — |
-| libdrm | Yes | Yes | — | Yes | — | — | — | — |
-| D3D11VA / DXVA2 | — | — | — | — | Yes | — | — | — |
-| AMF (AMD) | — | — | — | — | Yes | — | — | — |
-| MediaFoundation | — | — | — | — | Yes | — | — | — |
-| MediaCodec (h264/hevc) | — | — | — | — | — | — | Yes | — |
-| VideoToolbox | — | — | — | — | — | Yes | — | Yes |
-| AudioToolbox | — | — | — | — | — | Yes | — | — |
-| Vulkan | Yes | Yes | — | Yes | Yes | Yes | — | — |
+Which hardware acceleration each platform builds — CUDA/NVENC/NVDEC, VAAPI, QSV, V4L2-M2M,
+D3D11VA/DXVA2, AMF, MediaFoundation, MediaCodec, VideoToolbox/AudioToolbox, Vulkan — is enumerated
+**per cell** in the auto-generated [build matrix](docs/matrix/README.md) (its Hardware-acceleration
+section), which is the single source of truth — this doc doesn't duplicate it (that only drifts
+stale). What's worth saying here is *how* those libraries are packaged into the artifact:
 
 The glibc Linux builds (`linux-x64`/`arm64`/`armhf`) are **self-contained**: the VAAPI/QSV/libdrm
 dispatch libraries are static-linked and the Vulkan loader is bundled, so `ffmpeg` starts on a
@@ -273,6 +264,12 @@ Vulkan are loaded at runtime via `dlopen`, not linked into the binary, so they a
 unavailable if absent. To actually **use** hardware acceleration you still need the GPU
 **driver** (Intel `intel-media-va-driver`, AMD `mesa-va-drivers`, the NVIDIA driver, or
 `mesa-vulkan-drivers` for Vulkan).
+
+Vulkan is a **v3-only** feature (the `v2` cells drop it — Vulkan-Headers are Apache-2.0). It's
+provided by the system driver on Windows/Android, a bundled libc-only loader on glibc Linux, and
+**MoltenVK** (Vulkan-over-Metal) on macOS/iOS. It powers FFmpeg's GPU filters (and, off Apple,
+Whisper's GPU backend). The auto-generated [build matrix](docs/matrix/README.md) is the exact
+per-cell source of truth.
 
 ## Software codec & utility libraries
 
@@ -285,7 +282,7 @@ kvazaar, which x265 supersedes.
 
 **Which library is built on which platform — and which ones we deliberately don't build — lives
 in the auto-generated [docs/matrix/README.md](docs/matrix/README.md)**, an index to one matrix per
-maintained FFmpeg major × license (`docs/matrix/ffmpeg-<major>-<gpl|lgpl>.md`). It derives from
+maintained FFmpeg major × license cell (`docs/matrix/ffmpeg-<major>-<gplv3|gplv2|lgplv3|lgplv2>.md`). It derives from
 the build scripts and each version's own configure, so it never drifts; the per-matrix footnotes
 explain the platform gaps (SVT-AV1 needs 64-bit; fontconfig is native on Windows/Apple; etc.),
 and the index flags libraries that differ between versions. Don't restate that coverage in prose

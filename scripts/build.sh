@@ -3,15 +3,19 @@ set -euo pipefail
 
 # Parameterized FFmpeg build script
 #
-# Environment variables:
-#   FFMPEG_VERSION    - FFmpeg version (default: first line of versions.txt)
-#   BUILD_RID         - Runtime identifier (required):
-#                       linux-x64, linux-arm64, linux-armhf, linux-musl-x64,
-#                       win-x64, osx-x64, osx-arm64, android-arm64,
-#                       ios-arm64, ios-sim-arm64
-#   BUILD_LICENSE     - License mode: gpl or lgpl (default: lgpl)
-#   ANDROID_NDK_HOME  - path to the Android NDK (required for android-* RIDs)
-#   SKIP_DEPS         - true to skip host toolchain/package installation
+# Build parameters (environment variables):
+#   FFMPEG_VERSION         - FFmpeg version (default: first line of versions.txt)
+#   BUILD_RID              - Runtime identifier (required):
+#                            linux-x64, linux-arm64, linux-armhf, linux-musl-x64,
+#                            win-x64, osx-x64, osx-arm64, android-arm64,
+#                            ios-arm64, ios-sim-arm64
+#   BUILD_LICENSE          - License family: gpl or lgpl (default: lgpl)
+#   BUILD_LICENSE_VERSION  - License series: 3 (default) or 2 (GPLv2 / LGPLv2.1)
+#   SKIP_DEPS              - true to skip host toolchain/package installation
+#
+# The per-RID toolchain (cross-gcc, mingw-w64, the iOS SDK, the Android NDK) is expected in the
+# environment like any build tool — not a build parameter. The Android NDK is auto-detected from
+# the SDK; if it can't be found the build errors out, same as a missing compiler.
 
 ############################################
 # Step 1: Inputs & Paths

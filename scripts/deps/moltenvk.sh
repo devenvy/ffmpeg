@@ -29,12 +29,32 @@ esac
 ./fetchDependencies "--${MVK_TARGET}"
 make "${MVK_TARGET}"
 
-# libMoltenVK.dylib for the target platform + the ICD json (macOS uses the loader+ICD; the
-# iOS slices are bundled as a framework by 08 and loaded directly).
-MVK_LIB="$(find Package -path "*${MVK_PLAT}*" -name 'libMoltenVK.dylib' 2>/dev/null | head -1)"
-[ -n "${MVK_LIB}" ] || MVK_LIB="$(find Package -name 'libMoltenVK.dylib' 2>/dev/null | head -1)"
-[ -n "${MVK_LIB}" ] || { echo "ERROR: libMoltenVK.dylib not found after build (${RID})" >&2; exit 1; }
+# Locate the built MoltenVK binary. Its packaging differs by platform: macOS emits a bare
+# libMoltenVK.dylib, iOS emits MoltenVK.framework/MoltenVK (a Mach-O dylib without the .dylib
+# suffix, inside a framework). Both are the same kind of dynamic lib — copy whichever exists to
+# a normalized name; 08 wraps it (iOS as a framework, macOS bundled beside the dylibs). Search
+# prefers the platform-matching slice, then falls back to any match.
+find_mvk() {
+  local p
+  for p in "$@"; do
+    local hit
+    hit="$(find Package -path "*${p}*" \( -name 'libMoltenVK.dylib' -o -path '*MoltenVK.framework/MoltenVK' \) -type f 2>/dev/null | head -1)"
+    [ -n "${hit}" ] && { echo "${hit}"; return 0; }
+  done
+  find Package \( -name 'libMoltenVK.dylib' -o -path '*MoltenVK.framework/MoltenVK' \) -type f 2>/dev/null | head -1
+}
+case "${RID}" in
+  osx-*)         MVK_LIB="$(find_mvk macos macOS)" ;;
+  ios-arm64)     MVK_LIB="$(find_mvk ios-arm64 iOS)" ;;
+  ios-sim-arm64) MVK_LIB="$(find_mvk simulator iossim iOS_Simulator)" ;;
+esac
+[ -n "${MVK_LIB}" ] && [ -e "${MVK_LIB}" ] \
+  || { echo "ERROR: MoltenVK binary (libMoltenVK.dylib or MoltenVK.framework/MoltenVK) not found after build (${RID})" >&2
+       echo "  Package tree:" >&2; find Package -name 'libMoltenVK*' -o -name 'MoltenVK' 2>/dev/null | head -20 >&2
+       exit 1; }
 cp "${MVK_LIB}" "${DEPS_DIR}/lib/libMoltenVK.dylib"
+# The copied Mach-O keeps its original install-name (@rpath/MoltenVK.framework/... on iOS); 08
+# resets it when it wraps/bundles, so no fixup needed here.
 
 MVK_ICD="$(find Package -name 'MoltenVK_icd.json' 2>/dev/null | head -1)"
 [ -n "${MVK_ICD}" ] && cp "${MVK_ICD}" "${DEPS_DIR}/lib/MoltenVK_icd.json"

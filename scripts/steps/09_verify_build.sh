@@ -38,9 +38,15 @@ case "${RID}" in
     ;;
 esac
 
-# 4. Deliverable shape — every RID ships dev headers alongside runtime libs.
-[ -f "${OUT_DIR}/include/libavcodec/avcodec.h" ] \
-  || { echo "VERIFY FAIL: missing include/libavcodec/avcodec.h"; VERIFY_FAIL=1; }
+# 4. Deliverable shape — every RID ships dev headers alongside runtime libs. iOS ships them
+# inside each .framework/Headers (dynamic-framework layout); every other RID uses include/.
+if [[ "${RID}" == ios-* ]]; then
+  [ -f "${OUT_DIR}/frameworks/libavcodec.framework/Headers/avcodec.h" ] \
+    || { echo "VERIFY FAIL: missing libavcodec.framework/Headers/avcodec.h"; VERIFY_FAIL=1; }
+else
+  [ -f "${OUT_DIR}/include/libavcodec/avcodec.h" ] \
+    || { echo "VERIFY FAIL: missing include/libavcodec/avcodec.h"; VERIFY_FAIL=1; }
+fi
 
 # 4b. Windows ships one MSVC import library (.lib) per runtime DLL.
 if [[ "${RID}" == win-* ]]; then

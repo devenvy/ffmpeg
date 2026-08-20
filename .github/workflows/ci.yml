@@ -69,7 +69,11 @@ jobs:
           } >> "$GITHUB_OUTPUT"
           echo "Building: ${VERSIONS}"
 
-  build:
+  # The matrix-caller jobs (one reusable-workflow call, fanned out per version × RID ×
+  # license). Their individual matrix checks surface as "build-matrix / …", "test-matrix / …"
+  # — you do NOT select those in branch protection; select the aggregate `build`/`test` gates
+  # below, which reflect the whole matrix in one check each.
+  build-matrix:
     needs: resolve
     if: needs.resolve.outputs.any == 'true'
     strategy:
@@ -84,8 +88,8 @@ jobs:
   # Tests run separately, after the build, against its uploaded artifacts. Desktop and
   # mobile are split so mobile's slow emulator/simulator setup doesn't gate or
   # destabilise the fast desktop execution checks.
-  test:
-    needs: [resolve, build]
+  test-matrix:
+    needs: [resolve, build-matrix]
     if: needs.resolve.outputs.any == 'true'
     strategy:
       fail-fast: false
@@ -96,8 +100,8 @@ jobs:
       ffmpeg_version: ${{ matrix.version }}
       fail_fast: false
 
-  test-mobile:
-    needs: [resolve, build]
+  test-mobile-matrix:
+    needs: [resolve, build-matrix]
     if: needs.resolve.outputs.any == 'true'
     strategy:
       fail-fast: false
@@ -108,18 +112,33 @@ jobs:
       ffmpeg_version: ${{ matrix.version }}
       fail_fast: false
 
-  # Single required status check for branch protection. Passes when the build/test
-  # jobs succeeded OR were skipped (a docs-only PR builds nothing) — fails only on a
-  # real failure/cancellation. Set THIS as the required check, not the matrix jobs.
-  ci-passed:
+  # ── Aggregate required status checks ──────────────────────────────────────
+  # SELECT THESE TWO ("build" and "test") as the required checks in the branch ruleset —
+  # NOT the ~100 individual matrix jobs. Each reflects its whole matrix: green when every
+  # matrix job passed OR was skipped (a docs-only PR builds/tests nothing), red on any real
+  # failure/cancellation. `test` covers both desktop AND mobile. Select BOTH: `test` is
+  # green-when-skipped, so if a build fails, `build` (also required) is what blocks the merge.
+  build:
     if: always()
-    needs: [resolve, build, test, test-mobile]
+    needs: [resolve, build-matrix]
     runs-on: ubuntu-latest
     steps:
       - run: |
-          for r in "${{ needs.build.result }}" "${{ needs.test.result }}" "${{ needs.test-mobile.result }}"; do
+          r="${{ needs.build-matrix.result }}"
+          if [[ "$r" == "failure" || "$r" == "cancelled" ]]; then
+            echo "build failed (matrix result: $r)"; exit 1
+          fi
+          echo "build passed (matrix result: $r)"
+
+  test:
+    if: always()
+    needs: [resolve, test-matrix, test-mobile-matrix]
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          for r in "${{ needs.test-matrix.result }}" "${{ needs.test-mobile-matrix.result }}"; do
             if [[ "$r" == "failure" || "$r" == "cancelled" ]]; then
-              echo "CI failed (a build/test job did not pass)"; exit 1
+              echo "test failed (a desktop/mobile test matrix did not pass: $r)"; exit 1
             fi
           done
-          echo "CI passed. Built versions: ${{ needs.resolve.outputs.versions }}"
+          echo "test passed (desktop + mobile)"

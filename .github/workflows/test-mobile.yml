@@ -102,6 +102,12 @@ jobs:
       # want real proof ffmpeg RUNS on-device, not just that the libs link. The emulator
       # action retries boot internally; if nested-KVM flakiness ever resurfaces as a FALSE
       # failure, add an explicit boot retry here rather than reinstating continue-on-error.
+      # arm64-v8a runs FULLY EMULATED on the x86 runner (no KVM for a foreign arch), so boot is
+      # slow — the default ~600s timeout intermittently expires ("Timeout waiting for emulator to
+      # boot"). Give it headroom + the standard CI-reliability emulator flags (headless, software
+      # GPU, no audio/boot-anim/snapshot). disable-animations speeds first boot. This is the fix
+      # for the boot-timeout flake; if it still flakes, the robust move is running THIS job on an
+      # arm64 runner (ubuntu-24.04-arm), where the arm64 image gets KVM acceleration.
       - name: Android emulator runtime smoke
         if: matrix.rid == 'android-arm64' && matrix.license == 'lgpl'
         uses: reactivecircus/android-emulator-runner@v2
@@ -109,6 +115,10 @@ jobs:
           api-level: 28
           arch: arm64-v8a
           target: default
+          emulator-boot-timeout: 1200
+          disable-animations: true
+          force-avd-creation: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot -camera-back none -camera-front none
           script: |
             export ANDROID_NDK_HOME="${ANDROID_NDK_HOME:-$ANDROID_NDK_LATEST_HOME}"
             bash scripts/test/android-run.sh "artifacts/${BUILD_RID}/native"

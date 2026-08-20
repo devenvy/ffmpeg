@@ -23,33 +23,29 @@ jobs:
     strategy:
       fail-fast: ${{ inputs.fail_fast }}
       matrix:
-        # TEMP-IOS-ONLY: matrix trimmed to iOS while iterating on MoltenVK/dynamic-frameworks for
-        # faster turnaround. REVERT to the full list below before merging/release.
-        # rid: [linux-x64, linux-arm64, linux-armhf, linux-musl-x64, win-x64, osx-x64, osx-arm64, android-arm64, ios-arm64, ios-sim-arm64]
-        rid: [ios-arm64, ios-sim-arm64]   # TEMP-IOS-ONLY
+        rid: [linux-x64, linux-arm64, linux-armhf, linux-musl-x64, win-x64, osx-x64, osx-arm64, android-arm64, ios-arm64, ios-sim-arm64]
         license: [lgpl, gpl]
         # License version series. 3 = (L)GPLv3 (OpenSSL 3.x TLS + Vulkan, both Apache-2.0).
         # 2 = LGPLv2.1 / GPLv2 (App-Store-safe): GnuTLS replaces OpenSSL, Vulkan dropped.
         license_version: [3, 2]
         include:
-          # TEMP-IOS-ONLY: non-iOS runner entries commented out (re-enable with the full rid list).
-          # - rid: linux-x64
-          #   runner: ubuntu-latest
-          # - rid: linux-arm64
-          #   runner: ubuntu-24.04-arm
-          # - rid: linux-armhf
-          #   runner: ubuntu-latest
-          # - rid: linux-musl-x64
-          #   runner: ubuntu-latest
-          #   container: alpine:latest
-          # - rid: win-x64
-          #   runner: ubuntu-latest
-          # - rid: osx-x64
-          #   runner: macos-15-intel
-          # - rid: osx-arm64
-          #   runner: macos-latest
-          # - rid: android-arm64
-          #   runner: ubuntu-latest
+          - rid: linux-x64
+            runner: ubuntu-latest
+          - rid: linux-arm64
+            runner: ubuntu-24.04-arm
+          - rid: linux-armhf
+            runner: ubuntu-latest
+          - rid: linux-musl-x64
+            runner: ubuntu-latest
+            container: alpine:latest
+          - rid: win-x64
+            runner: ubuntu-latest
+          - rid: osx-x64
+            runner: macos-15-intel
+          - rid: osx-arm64
+            runner: macos-latest
+          - rid: android-arm64
+            runner: ubuntu-latest
           - rid: ios-arm64
             runner: macos-latest
           - rid: ios-sim-arm64

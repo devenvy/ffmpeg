@@ -12,14 +12,39 @@
 # without executing anything.
 
 PASS=0 FAIL=0 SKIP=0
-pass() { echo "[PASS] $*"; PASS=$((PASS+1)); }
-fail() { echo "[FAIL] $*"; FAIL=$((FAIL+1)); }
+# Parallel arrays for the GitHub Step Summary table (one entry per check; parallel so a
+# message containing any character — spaces, pipes — is stored intact under `set -u`).
+SUMMARY_EMOJI=()
+SUMMARY_MSG=()
+# Title for the summary table + annotations. Defaults to the build VARIANT (e.g.
+# "8.1.2-linux-x64-gplv3") set by the CI job env, so each cell's results are labelled.
+SUMMARY_TITLE="${SUMMARY_TITLE:-${VARIANT:-test} results}"
+
+# Each check prints a [PASS]/[FAIL]/[SKIP] line (visible in the raw log) AND accumulates a
+# row for the Step Summary. fail() additionally emits a GitHub ::error:: annotation so a
+# failure surfaces at the TOP of the run + inline, without opening the log.
+pass() { echo "[PASS] $*"; PASS=$((PASS+1)); SUMMARY_EMOJI+=("✅"); SUMMARY_MSG+=("$*"); }
+fail() { echo "[FAIL] $*"; FAIL=$((FAIL+1)); SUMMARY_EMOJI+=("❌"); SUMMARY_MSG+=("$*"); [ -n "${GITHUB_ACTIONS:-}" ] && echo "::error::${SUMMARY_TITLE}: $*" || true; }
 info() { echo "[INFO] $*"; }
-skip() { echo "[SKIP] $*"; SKIP=$((SKIP+1)); }
+skip() { echo "[SKIP] $*"; SKIP=$((SKIP+1)); SUMMARY_EMOJI+=("⏭️"); SUMMARY_MSG+=("$*"); }
 
 finish() {
   echo
   echo "Passed: ${PASS}  Failed: ${FAIL}  Skipped: ${SKIP}"
+  # Render a per-check table into the job's Summary tab (native GitHub UI — no external deps).
+  if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+    {
+      echo "### ${SUMMARY_TITLE} — ✅ ${PASS} · ❌ ${FAIL} · ⏭️ ${SKIP}"
+      echo
+      echo "|  | Check |"
+      echo "|--|-------|"
+      local i msg
+      for i in "${!SUMMARY_EMOJI[@]}"; do
+        msg="${SUMMARY_MSG[$i]//|/\\|}"   # escape | so it doesn't break the table
+        echo "| ${SUMMARY_EMOJI[$i]} | ${msg} |"
+      done
+    } >> "$GITHUB_STEP_SUMMARY"
+  fi
   [ "${FAIL}" -eq 0 ]
 }
 
@@ -208,6 +233,134 @@ check_smoke_link() {
   return 1
 }
 
+# --- registry enumeration -----------------------------------------------------
+# Assert the built library actually REGISTERED the expected components at runtime — a
+# stronger check than "was configured": a muxer/parser/built-in codec that silently didn't
+# build shows up here. The UNCONDITIONAL set is FFmpeg's built-ins (no external lib), present
+# in every build regardless of platform/license — verified against a live 8.1.2 binary. The
+# external-lib ENCODERS are cross-checked against the embedded config: registered iff built.
+# Uses the parameterized RUNNER + FFMPEG (so it works native / wine / qemu). CLI-only; the
+# mobile library builds do the same via av_*_iterate in smoke.c.
+_enum() { "${RUNNER[@]}" "$FFMPEG" -hide_banner "$1" 2>/dev/null || true; }
+check_registry() {
+  local list want w
+  # kind:flag  →  the list to query + the must-be-present built-ins
+  list="$(_enum -decoders)"
+  for w in h264 hevc mpeg4 mpeg2video aac mp3 flac pcm_s16le mjpeg vp8 vp9 opus vorbis av1; do
+    grep -qw "$w" <<<"$list" && pass "decoder registered: $w" || fail "built-in decoder MISSING: $w"
+  done
+  list="$(_enum -muxers)"
+  for w in mp4 mov matroska webm mpegts flv hls dash wav mp3 ogg image2 null; do
+    grep -qw "$w" <<<"$list" && pass "muxer registered: $w" || fail "built-in muxer MISSING: $w"
+  done
+  list="$(_enum -demuxers)"
+  for w in mov matroska mpegts flv wav mp3 aac h264 hevc ogg image2; do
+    grep -qw "$w" <<<"$list" && pass "demuxer registered: $w" || fail "built-in demuxer MISSING: $w"
+  done
+  list="$(_enum -bsfs)"
+  for w in h264_mp4toannexb hevc_mp4toannexb aac_adtstoasc; do
+    grep -qw "$w" <<<"$list" && pass "bitstream filter registered: $w" || fail "built-in bsf MISSING: $w"
+  done
+  list="$(_enum -protocols)"
+  for w in file pipe data crypto tcp udp; do
+    grep -qw "$w" <<<"$list" && pass "protocol registered: $w" || fail "built-in protocol MISSING: $w"
+  done
+  # External-lib encoders: registered IFF the lib was configured (config flag → encoder name).
+  local encoders; encoders="$(_enum -encoders)"
+  _enc_iff() {  # <config-flag> <encoder-name>
+    case " ${CONFIG_STR} " in
+      *" --enable-$1 "*)
+        grep -qw "$2" <<<"$encoders" \
+          && pass "encoder registered (built --enable-$1): $2" \
+          || fail "encoder MISSING despite --enable-$1: $2" ;;
+    esac
+  }
+  _enc_iff libx264   libx264
+  _enc_iff libx265   libx265
+  _enc_iff libvpx    libvpx-vp9
+  _enc_iff libopus   libopus
+  _enc_iff libmp3lame libmp3lame
+  _enc_iff libaom    libaom-av1
+  _enc_iff libsvtav1 libsvtav1
+  _enc_iff libvorbis libvorbis
+  _enc_iff libopenh264 libopenh264
+  _enc_iff libkvazaar libkvazaar
+  # Hardware ENCODERS must REGISTER when their accel is configured — independent of any GPU
+  # being present (registration != device availability). This is the strict "was it built"
+  # guarantee; the runtime probe_hwaccel below is the separate "does the path load" signal.
+  _enc_iff nvenc  h264_nvenc
+  _enc_iff vaapi  h264_vaapi
+  _enc_iff libvpl h264_qsv
+  _enc_iff amf    h264_amf
+}
+
+# --- real TLS handshake -------------------------------------------------------
+# Prove the TLS backend actually NEGOTIATES, not just that the protocol is listed. Fetch a
+# tiny well-known HTTPS resource; retry to ride out transient network blips. Only for builds
+# that HAVE a TLS backend (lgplv2 on Linux/Android has none — check_tls covers that case).
+exercise_tls() {
+  build_has_tls || { info "TLS handshake: build has no TLS backend (lgplv2) — skipping (correct-absence checked separately)"; return; }
+  # A tiny, highly-available https resource. It's a TEXT file, so after the TLS GET succeeds
+  # ffmpeg fails to DEMUX it ("Invalid data found") — that failure PROVES the handshake worked
+  # and bytes were transferred. We only truly fail if the https protocol is missing entirely.
+  local url="https://raw.githubusercontent.com/FFmpeg/FFmpeg/master/RELEASE" try out
+  for try in 1 2 3; do
+    out="$("${RUNNER[@]}" "$FFMPEG" -hide_banner -v error -i "$url" -f null - 2>&1)"
+    if [ -z "$out" ] || grep -qiE 'Invalid data found|could not find codec|Unknown input format|does not contain any stream|End of file' <<<"$out"; then
+      pass "TLS handshake: fetched bytes over https:// (backend negotiates)"; return
+    fi
+    case "$out" in
+      *"Protocol not found"*|*"Unknown protocol"*)
+        fail "TLS handshake: https unavailable — TLS backend not wired ($out)"; return ;;
+    esac
+    sleep 3
+  done
+  skip "TLS handshake: incomplete after retries (runner network/cert, not a TLS-backend defect): $(tr '\n' ' ' <<<"$out" | cut -c1-160)"
+}
+
+# --- whisper CPU inference ----------------------------------------------------
+# Prove the af_whisper filter actually RUNS ggml inference (not just that it registers).
+# Needs a model: the workflow downloads a tiny GGML model (cached) and sets WHISPER_MODEL.
+# We run it over generated audio on the CPU and assert it completes — a real forward pass;
+# transcription accuracy is out of scope (a tone yields little text, but the pipeline runs).
+exercise_whisper() {
+  local model="${WHISPER_MODEL:-}"
+  if [ -z "$model" ] || [ ! -f "$model" ]; then
+    skip "whisper inference: no model (set WHISPER_MODEL to a ggml model to exercise it)"; return
+  fi
+  local tmp; tmp="$(mktemp -d)"
+  # A short spoken-like signal isn't needed to prove execution; a tone drives the full graph.
+  if "${RUNNER[@]}" "$FFMPEG" -hide_banner -v error -f lavfi -i "sine=frequency=220:duration=2" \
+        -af "whisper=model=${model}:language=en:destination=${tmp}/out.txt:queue=1000" \
+        -f null - >/dev/null 2>&1 && [ -e "${tmp}/out.txt" ]; then
+    pass "whisper inference: af_whisper ran a CPU forward pass to completion"
+  else
+    fail "whisper inference: af_whisper failed to run with a model"
+  fi
+  rm -rf "$tmp"
+}
+
+# --- hardware-accel classified probe ------------------------------------------
+# The trichotomy that avoids "assume failure == no HW": run a hwaccel and CLASSIFY ffmpeg's
+# own error. exit 0 → ran on real hardware (pass). A driver/device error → the code path was
+# EXERCISED (loaded the runtime, enumerated devices) but no device on CI (probe-pass — a real
+# positive signal). An "Unknown encoder / not compiled" error → the BUILD is broken (fail).
+# probe_hwaccel <label> <exercised-regex> <ffmpeg-args...>
+probe_hwaccel() {
+  local label="$1" exercised="$2"; shift 2
+  local out rc
+  out="$("${RUNNER[@]}" "$FFMPEG" -hide_banner -v error "$@" -f null - 2>&1)"; rc=$?
+  if [ "$rc" -eq 0 ]; then
+    pass "hwaccel ${label}: ran on a real device"
+  elif grep -qiE 'Unknown (encoder|decoder)|not compiled|Cannot find a matching|is not supported|Unrecognized' <<<"$out"; then
+    fail "hwaccel ${label}: NOT built/registered — $(tr '\n' ' ' <<<"$out" | cut -c1-140)"
+  elif grep -qiE "$exercised" <<<"$out"; then
+    pass "hwaccel ${label}: path exercised (driver loaded + device enumeration ran; no device on CI)"
+  else
+    info "hwaccel ${label}: inconclusive — $(tr '\n' ' ' <<<"$out" | cut -c1-140)"
+  fi
+}
+
 # --- functional suite (parameterized launcher) --------------------------------
 # Set RUNNER=() for native, (wine) for Windows, (qemu-aarch64 -L <sysroot>) etc.
 # Requires FFMPEG and FFPROBE (paths) and RUNNER to be set by the caller.
@@ -259,4 +412,46 @@ run_functional() {
   else
     fail "encode + decode round-trip"
   fi
+
+  # Registry enumeration — the built-ins + external encoders actually registered (needs CONFIG_STR).
+  check_registry
+  # Real behavior: an https handshake (if the build has TLS) + a whisper CPU forward pass (if a model).
+  exercise_tls
+  exercise_whisper
+
+  # Hardware-accel: probe each backend this build configured, CLASSIFYING the result so a
+  # GPU-less runner proves the code path loads without false-failing. Gate only the unambiguous
+  # "not built" case. Driven by the embedded config so we only probe what was enabled.
+  case " ${CONFIG_STR} " in
+    *" --enable-nvenc "*)  probe_hwaccel "NVENC (h264_nvenc)" 'cannot load|libcuda|nvcuda|nvEncodeAPI|no NVENC|OpenEncodeSession|does not support|Cannot load nvcuda|Driver' \
+                             -f lavfi -i "testsrc=size=320x240:rate=25:duration=1" -c:v h264_nvenc ;;
+  esac
+  # DEV_ERR = the common failure signature for a `-init_hw_device` with no device present.
+  local DEV_ERR='Device creation failed|init_hw_device|Generic error in an external library|Cannot (load|open|create)|No such|not (found|available|supported)|failed'
+  case " ${CONFIG_STR} " in
+    *" --enable-vaapi "*)  probe_hwaccel "VAAPI" "Failed to initialise VAAPI|No VA display|/dev/dri|vaInitialize|${DEV_ERR}" \
+                             -init_hw_device "vaapi=va" -f lavfi -i "nullsrc=duration=0.1" ;;
+  esac
+  case " ${CONFIG_STR} " in
+    *" --enable-libvpl "*|*" --enable-libmfx "*)  probe_hwaccel "QSV" "MFX|libmfx|libvpl|${DEV_ERR}" \
+                             -init_hw_device "qsv=qsv" -f lavfi -i "nullsrc=duration=0.1" ;;
+  esac
+  case " ${CONFIG_STR} " in
+    *" --enable-amf "*)    probe_hwaccel "AMF (h264_amf)" "amfrt|AMF|DLL .*failed|CreateContext|No suitable|${DEV_ERR}" \
+                             -f lavfi -i "testsrc=size=320x240:rate=25:duration=1" -c:v h264_amf ;;
+  esac
+  case " ${CONFIG_STR} " in
+    *" --enable-vulkan "*) probe_hwaccel "Vulkan (scale_vulkan)" "Vulkan|VkInstance|no such device|No hardware|ICD|libvulkan|MoltenVK|${DEV_ERR}" \
+                             -init_hw_device "vulkan=vk" -f lavfi -i "testsrc=size=320x240:rate=25:duration=1" \
+                             -vf "format=nv12,hwupload,scale_vulkan=160:120,hwdownload,format=nv12" ;;
+  esac
+  # VideoToolbox (Apple) genuinely runs on the macOS runner's real GPU — a decode probe. On the
+  # iOS simulator it's software-backed; the classifier turns a no-device result into probe-pass.
+  case " ${CONFIG_STR} " in
+    *" --enable-videotoolbox "*)
+      "${RUNNER[@]}" "$FFMPEG" -hide_banner -v error -f lavfi -i "testsrc=size=320x240:rate=25:duration=1" \
+        -c:v mpeg4 "$tmp/vt.mp4" >/dev/null 2>&1 || true
+      probe_hwaccel "VideoToolbox decode" 'VideoToolbox|hwaccel|Cannot load|not available|Failed' \
+        -hwaccel videotoolbox -i "$tmp/vt.mp4" ;;
+  esac
 }

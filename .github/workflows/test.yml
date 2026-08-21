@@ -92,6 +92,29 @@ jobs:
             [ -f "$f" ] && chmod +x "$f" || true
           done
 
+      # Cache a tiny GGML Whisper model so the test can run a REAL af_whisper CPU inference
+      # (not just check the filter is registered). Cached across runs; best-effort — if the
+      # download fails the test SKIPS the whisper-inference check (never fails on it).
+      - name: Cache Whisper model
+        id: whisper-cache
+        if: matrix.rid != 'win-x64'   # native ffmpeg.exe won't accept the git-bash ~/ path
+        uses: actions/cache@v4
+        with:
+          path: ~/whisper-model/ggml-tiny.en.bin
+          key: whisper-ggml-tiny-en-v1
+      - name: Fetch Whisper model (best-effort)
+        if: matrix.rid != 'win-x64'
+        shell: bash
+        run: |
+          mkdir -p ~/whisper-model
+          m=~/whisper-model/ggml-tiny.en.bin
+          if [ ! -f "$m" ]; then
+            curl -fsSL --retry 3 --retry-delay 5 \
+              "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.en.bin" -o "$m" \
+              || { echo "model download failed — whisper inference will be skipped"; rm -f "$m"; }
+          fi
+          [ -f "$m" ] && echo "WHISPER_MODEL=$m" >> "$GITHUB_ENV" || true
+
       - name: Test artifact
         shell: bash
         run: |

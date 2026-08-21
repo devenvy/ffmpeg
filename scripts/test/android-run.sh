@@ -34,7 +34,30 @@ check_smoke_link "${TCBIN}/aarch64-linux-android28-clang" "${DIR}/include" /tmp/
 
 adb wait-for-device
 adb shell "rm -rf ${DEST}; mkdir -p ${DEST}" >/dev/null
-for so in "${LIBDIR}"/*.so; do adb push "$so" "${DEST}/" || echo "PUSH FAILED: $so"; done
+# Each .so must locate its SIBLING deps on-device (libavcodec.so -> libc++_shared.so, other libav*).
+# The emulator's arm64 native bridge ignores LD_LIBRARY_PATH, and bionic resolves rpath PER-OBJECT
+# (DT_RUNPATH is not transitive), so every lib needs its own rpath to ${DEST}. Patch that in with
+# patchelf — but on throwaway COPIES pushed to the device; the downloaded/published artifact is
+# never modified (we only add a search path for the test environment).
+_patchdir="$(mktemp -d)"
+# patchelf is MANDATORY here (the whole fix depends on it): if it can't be made
+# available, fail loudly rather than silently pushing unpatched libs that will hit
+# the exact "libc++_shared.so not found" transitive-dep error we're solving.
+if ! command -v patchelf >/dev/null 2>&1; then
+  sudo apt-get update -qq && sudo apt-get install -y -q patchelf
+fi
+command -v patchelf >/dev/null 2>&1 || { echo "android-run.sh: patchelf unavailable; cannot set per-lib rpath" >&2; exit 2; }
+for so in "${LIBDIR}"/*.so; do
+  b="$(basename "$so")"
+  cp "$so" "${_patchdir}/${b}"
+  patchelf --set-rpath "${DEST}" "${_patchdir}/${b}"
+  # Verify the rpath actually took — a no-op patch would reintroduce the transitive failure.
+  got="$(patchelf --print-rpath "${_patchdir}/${b}")"
+  [ "${got}" = "${DEST}" ] || { echo "android-run.sh: rpath not set on ${b} (got '${got}')" >&2; exit 2; }
+  adb push "${_patchdir}/${b}" "${DEST}/" >/dev/null || { echo "PUSH FAILED: ${b}" >&2; exit 2; }
+done
+echo "patchelf: DT_RUNPATH=${DEST} set + verified on $(find "${LIBDIR}" -maxdepth 1 -name '*.so' | wc -l) libs"
+rm -rf "${_patchdir}"
 adb push /tmp/smoke_android "${DEST}/smoke"
 adb shell "chmod 755 ${DEST}/smoke" >/dev/null
 echo "--- on-device contents of ${DEST} (diagnostic) ---"

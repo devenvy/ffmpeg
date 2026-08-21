@@ -36,21 +36,18 @@ jobs:
     strategy:
       fail-fast: ${{ inputs.fail_fast }}
       matrix:
-        # TEMP-ANDROID-ONLY: trimmed to android + lgpl while iterating on the emulator. REVERT below.
-        # rid: [android-arm64, ios-arm64, ios-sim-arm64]
-        # license: [lgpl, gpl]
+        # TEMP-ANDROID-ONLY: trimmed to android+lgpl for fast emulator iteration. Restore to:
+        #   rid: [android-arm64, ios-arm64, ios-sim-arm64]   license: [lgpl, gpl]  + the iOS includes.
         rid: [android-arm64]   # TEMP-ANDROID-ONLY
         license: [lgpl]        # TEMP-ANDROID-ONLY
         license_version: [3, 2]   # v3 = OpenSSL/Vulkan; v2 = GnuTLS, no Vulkan (App-Store-safe)
         include:
           - rid: android-arm64
-            # ubuntu-latest (x86_64) + KVM: run a KVM-accelerated x86_64 emulator whose API-35 image
-            # has BUILT-IN arm64 translation (native bridge) — so our arm64 code executes on the fast
-            # x86_64 emulator. This is the standard way arm64 gets tested on GHA. (Earlier dead ends
-            # were all from trying an actual arm64-v8a emulator: foreign-arch on x86, no emulator
-            # binary on arm64-Linux, HVF blocked on macOS. The trick is: don't use an arm64 emulator.)
+            # x86_64 emulator on ubuntu-latest, KVM-accelerated; its API-35 image translates our
+            # arm64 code via the native bridge (an actual arm64-v8a emulator has no accel on any
+            # hosted runner: foreign-arch on x86, no emulator binary on arm64-Linux, HVF blocked on mac).
             runner: ubuntu-latest
-          # TEMP-ANDROID-ONLY: iOS entries commented out (restore with the full rid list).
+          # TEMP-ANDROID-ONLY: restore these iOS includes with the full rid list.
           # - rid: ios-arm64
           #   runner: macos-latest
           # - rid: ios-sim-arm64
@@ -122,10 +119,9 @@ jobs:
             echo "WARNING: /dev/kvm absent — emulator will be un-accelerated"
           fi
 
-      # Android runtime smoke — a KVM-accelerated x86_64 emulator whose API-35 google_apis image has
-      # BUILT-IN arm64 translation (native bridge), so our arm64 artifact runs on it. This is the
-      # standard, fast, hardware-accelerated path (x86_64 + KVM on ubuntu-latest). GATING: real
-      # on-device proof that ffmpeg runs on Android.
+      # Android runtime smoke — KVM-accelerated x86_64 emulator whose API-35 image translates our
+      # arm64 code (native bridge). GATING. Boots in ~40s; arm64 binary runs via translation; the
+      # remaining work is on-device native-lib resolution (see android-run.sh / the handoff).
       - name: Android emulator runtime smoke
         if: matrix.rid == 'android-arm64' && matrix.license == 'lgpl'
         uses: reactivecircus/android-emulator-runner@v2

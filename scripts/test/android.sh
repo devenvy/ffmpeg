@@ -7,6 +7,13 @@
 set -uo pipefail
 DIR="${1:?usage: android.sh <artifact-native-dir>}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# ELF inspection (readelf/nm) must read the Linux ELF .so on ANY test host — but macOS has no GNU
+# readelf and its nm reads Mach-O, not ELF. Put the NDK's llvm-readelf/llvm-nm on PATH first (they
+# read ELF regardless of host); lib.sh resolves READELF/NM from PATH at source time, so this precedes it.
+if [ -n "${ANDROID_NDK_HOME:-}" ]; then
+  _r="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt"; _h="$(ls "$_r" 2>/dev/null | head -1)"
+  [ -n "${_h}" ] && [ -d "${_r}/${_h}/bin" ] && export PATH="${_r}/${_h}/bin:${PATH}"
+fi
 . "${HERE}/lib.sh"
 
 LIBDIR="${DIR}/lib/arm64-v8a"

@@ -115,10 +115,11 @@ jobs:
           echo "host: $(uname -sm)"
           "$ANDROID_HOME/emulator/emulator" -accel-check 2>&1 || echo "(accel-check unavailable until emulator installs)"
 
-      # Android emulator runtime smoke — on the Apple-Silicon macOS runner. arm64-v8a system image
-      # (API 30: arm64-v8a images are limited to certain API levels; our libs are minSdk-28 so they
-      # run fine on 30). HVF acceleration is automatic on macOS if available. GATING: a genuine
-      # on-device failure fails the job — this is the real android runtime proof we've been after.
+      # Android emulator runtime smoke — Apple-Silicon macOS runner, arm64-v8a API-30 image (our
+      # libs are minSdk-28, run fine on 30). VERIFIED: HVF is blocked here ("HV_UNSUPPORTED" — the
+      # runner is itself a VM, nested-virt disallowed), so we force SOFTWARE emulation with
+      # -no-accel. arm64-on-arm64 is same-arch (no cross-arch translation), so software should be
+      # tolerable. Generous timeout. GATING: real on-device proof.
       - name: Android emulator runtime smoke
         if: matrix.rid == 'android-arm64' && matrix.license == 'lgpl'
         uses: reactivecircus/android-emulator-runner@v2
@@ -126,9 +127,9 @@ jobs:
           api-level: 30
           arch: arm64-v8a
           target: google_apis
-          emulator-boot-timeout: 900
+          emulator-boot-timeout: 1800
           disable-animations: true
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
+          emulator-options: -no-window -no-accel -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
           script: |
             export ANDROID_NDK_HOME="${ANDROID_NDK_HOME:-$ANDROID_NDK_LATEST_HOME}"
             bash scripts/test/android-run.sh "artifacts/${BUILD_RID}/native"

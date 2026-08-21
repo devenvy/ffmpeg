@@ -30,7 +30,9 @@ RID="${BUILD_RID:?BUILD_RID is required}"
 LICENSE="${BUILD_LICENSE:-lgpl}"
 
 WORK_DIR="${ROOT_DIR}/.build/${RID}"
+# shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
 SRC_DIR="${WORK_DIR}/src"
+# shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
 PREFIX_DIR="${WORK_DIR}/install"
 OUT_DIR="${ROOT_DIR}/artifacts/${RID}/native"
 

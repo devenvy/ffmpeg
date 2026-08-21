@@ -54,7 +54,13 @@ for RID in "${RIDS[@]}"; do
     BUILD_LICENSE="$LIC"; BUILD_LICENSE_VERSION="$VER"
     ANDROID_NDK_HOME=/tmp; ANDROID_ABI=arm64-v8a; API=28; TOOLCHAIN=/dummy  # /tmp: a real dir so android.sh's NDK check passes (sim never runs the toolchain)
     WORK_DIR=/tmp/sim; DEPS_DIR=/tmp/sim/deps; SRC_DIR=/tmp/sim/src
+    # These are the environment the sourced config scripts read. export (in this isolated
+    # subshell — no leak) both makes that intent explicit and marks them used for shellcheck.
+    export LIC VER ROOT_DIR RID LICENSE BUILD_RID BUILD_LICENSE BUILD_LICENSE_VERSION \
+           ANDROID_NDK_HOME ANDROID_ABI API TOOLCHAIN WORK_DIR DEPS_DIR SRC_DIR
+    # shellcheck source=/dev/null  # don't follow — these config scripts source a dynamic platform file
     source scripts/steps/02_configure.sh >/dev/null 2>&1
+    # shellcheck source=/dev/null
     source scripts/steps/04_select_license.sh >/dev/null 2>&1
     hw=$(printf '%s\n' "${CONFIGURE_FLAGS[@]}" \
          | grep -oE '^--enable-[a-z0-9_-]+' | sed 's/--enable-//' \

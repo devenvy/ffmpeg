@@ -15,6 +15,7 @@ case "${RID}" in
     # so --enable-vulkan actually runs on Metal. Both are bundled into the artifact by 08. This is
     # v3-only — 04_select_license clears BUILD_VULKAN for v2 (MoltenVK is Apache-2.0). Whisper still
     # uses the Metal ggml backend directly; Vulkan is for FFmpeg's GPU filters.
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     BUILD_VULKAN_LOADER=1
     WHISPER_BACKEND="metal"
     NPROC="sysctl -n hw.ncpu"
@@ -52,6 +53,7 @@ case "${RID}" in
       --enable-hwaccel=h264_videotoolbox --enable-hwaccel=hevc_videotoolbox
       --enable-securetransport   # OS-native TLS/https (no dependency)
     )
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     HWACCEL_FEATURES="VideoToolbox"
     # Vulkan via MoltenVK (Vulkan-over-Metal) for parity with macOS — for FFmpeg's Vulkan GPU
     # filters (no Metal equivalent in the filtergraph). v3 only: MoltenVK is Apache-2.0, so
@@ -60,12 +62,19 @@ case "${RID}" in
     # it fails to build for the iOS SDK (loader asm-gen, Error 137) and is unnecessary: on iOS
     # MoltenVK IS the driver and is linked/loaded directly (no ICD-loader indirection). moltenvk.sh
     # provides libMoltenVK for the iOS slice; 08 bundles it as a framework.
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     BUILD_VULKAN=1
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     WHISPER_BACKEND="metal"
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     BUILD_FONTCONFIG=0
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     BUILD_LIBSVTAV1=0  # SVT-AV1 static-archive step fails cross-compiling; AV1 covered by libaom
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     BUILD_LIBWEBP=0    # WebP cmake ships no .pc; image-only codec, not needed for mobile decode
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     NPROC="sysctl -n hw.ncpu"
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     BUILD_TYPE_LABEL="iOS (SDK cross)"
     ;;
 

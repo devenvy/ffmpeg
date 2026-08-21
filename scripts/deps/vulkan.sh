@@ -65,5 +65,6 @@ PKGCONFIG
   echo "Vulkan support enabled (${VULKAN_PC_VERSION})"
 else
   echo "Skipping Vulkan headers (not needed for ${RID})."
+  # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
   VULKAN_STATUS="disabled"
 fi

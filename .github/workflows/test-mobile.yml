@@ -41,7 +41,10 @@ jobs:
         license_version: [3, 2]   # v3 = OpenSSL/Vulkan; v2 = GnuTLS, no Vulkan (App-Store-safe)
         include:
           - rid: android-arm64
-            runner: ubuntu-latest
+            # arm64 Linux runner: the arm64-v8a emulator runs on a native-arch host, so there's
+            # NO foreign-arch translation (the x86 runner had to translate every arm64 instruction,
+            # which never booted). With KVM it's fully native; even without, same-arch is far faster.
+            runner: ubuntu-24.04-arm
           - rid: ios-arm64
             runner: macos-latest
           - rid: ios-sim-arm64
@@ -97,24 +100,25 @@ jobs:
           bash scripts/test/ios-run.sh "${BUILD_RID}" "artifacts/${BUILD_RID}/native"
           xcrun simctl delete "$UDID" || true
 
-      # Android emulator runtime: boot an arm64-v8a emulator and run the smoke test on it —
-      # the deepest, true on-device layer. GATING: a runtime failure now fails the job — we
-      # want real proof ffmpeg RUNS on-device, not just that the libs link. The emulator
-      # action retries boot internally; if nested-KVM flakiness ever resurfaces as a FALSE
-      # failure, add an explicit boot retry here rather than reinstating continue-on-error.
-      # BEST-EFFORT (continue-on-error) — NOT a gate. Our artifact is arm64-v8a, so it needs an
-      # arm64 emulator, and arm64 emulation is only hardware-accelerated on an arm64 HOST. GitHub's
-      # x86 Linux runners report "hardware acceleration is not available" for the arm64 image and
-      # fall back to pure software emulation of a foreign CPU, which does not boot within any
-      # practical timeout (a 20-min timeout still fails). This is a fundamental CI-hardware limit,
-      # not a flake we can tune away. The RELIABLE android gate is the ABI link-check above (proves
-      # the .so is complete, callable, and ships libc++_shared.so). This step still RUNS the on-
-      # device smoke when the emulator happens to come up, giving a real runtime signal, but it
-      # cannot block a release. (A true on-device gate needs an arm64 runner with KVM or a device
-      # farm — out of scope for now.)
-      - name: Android emulator runtime smoke (best-effort)
+      # /dev/kvm exists on the Linux runner but the runner user lacks permission by default, so
+      # the emulator would fall back to un-accelerated software. This udev rule opens it up — the
+      # standard "enable KVM" step (see the android-emulator-runner docs + Android's emulator-
+      # acceleration guide). Required for hardware acceleration on the arm64 host.
+      - name: Enable KVM
         if: matrix.rid == 'android-arm64' && matrix.license == 'lgpl'
-        continue-on-error: true
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          ls -l /dev/kvm || echo "WARNING: /dev/kvm not present on this runner (emulator will be un-accelerated)"
+
+      # Android emulator runtime — GATING, on the arm64 host (ubuntu-24.04-arm): the arm64-v8a
+      # emulator runs same-arch (no foreign-arch translation) and, with the KVM access enabled
+      # above, hardware-accelerated. A genuine on-device runtime failure fails the job. Real proof
+      # ffmpeg RUNS on-device, not just that the libs link.
+      - name: Android emulator runtime smoke
+        if: matrix.rid == 'android-arm64' && matrix.license == 'lgpl'
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 28

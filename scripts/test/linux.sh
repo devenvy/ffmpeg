@@ -29,11 +29,12 @@ case "$RID" in
 esac
 
 # Functional: native if arch matches, else qemu-user if available.
-FFMPEG="${DIR}/ffmpeg"; FFPROBE="${DIR}/ffprobe"
+FFMPEG="${DIR}/ffmpeg"; FFPROBE="${DIR}/ffprobe"; export FFMPEG FFPROBE  # consumed by run_functional (sourced lib.sh)
 export LD_LIBRARY_PATH="${DIR}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 if [ "$(uname -m)" = "$TARCH" ] || { [ "$TARCH" = x86_64 ] && [ "$(uname -m)" = amd64 ]; }; then
   RUNNER=(); info "running functional suite natively"; run_functional
 elif [ -n "$QEMU" ] && command -v "$QEMU" >/dev/null 2>&1; then
+  # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
   RUNNER=("$QEMU" -L /usr/"${TARCH}"-linux-gnu* -E LD_LIBRARY_PATH="${DIR}")
   info "running functional suite under ${QEMU}"; run_functional
 else

@@ -20,11 +20,11 @@ rm -rf MoltenVK
 git clone --depth 1 --branch "${MOLTENVK_VER}" https://github.com/KhronosGroup/MoltenVK.git
 cd MoltenVK || exit 1
 
-# Which platform slice to build + which MoltenVK make target / SDK subdir it lands in.
+# Which MoltenVK make target to build for this RID.
 case "${RID}" in
-  osx-*)         MVK_TARGET=macos;  MVK_PLAT=macOS ;;
-  ios-arm64)     MVK_TARGET=ios;    MVK_PLAT=iOS ;;
-  ios-sim-arm64) MVK_TARGET=iossim; MVK_PLAT=iOS_Simulator ;;
+  osx-*)         MVK_TARGET=macos  ;;
+  ios-arm64)     MVK_TARGET=ios    ;;
+  ios-sim-arm64) MVK_TARGET=iossim ;;
 esac
 ./fetchDependencies "--${MVK_TARGET}"
 make "${MVK_TARGET}"

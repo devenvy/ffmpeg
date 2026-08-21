@@ -64,6 +64,7 @@ case "${RID}" in
     WHISPER_BACKEND="vulkan"
     # See linux-x64: manylinux_2_28 (glibc 2.28) separates libpthread/libdl, so
     # name them for FFmpeg's per-dependency configure link checks (libvpl, ggml).
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     EXTRA_LIBS="-lpthread -ldl"
     # See linux-x64: RHEL gcc-toolset lacks default-PIE, force -fPIC on static deps.
     export CFLAGS="${CFLAGS:+${CFLAGS} }-fPIC"
@@ -73,6 +74,7 @@ case "${RID}" in
 
   linux-armhf)
     # 32-bit ARM (Raspberry Pi 3/4/5 with 32-bit OS) — cross-compiled from x64
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     PKGS=(autoconf automake build-essential cmake curl gperf git libtool meson nasm ninja-build
           patchelf pkg-config xz-utils
           crossbuild-essential-armhf)
@@ -84,6 +86,7 @@ case "${RID}" in
       --enable-v4l2-m2m
     )
     HWACCEL_FEATURES="V4L2-M2M"
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     BUILD_LIBSVTAV1=0  # SVT-AV1 requires 64-bit
     BUILD_VULKAN=1        # FFmpeg Vulkan (header-only + runtime dlopen) — video/filter accel
     WHISPER_BACKEND="cpu" # no dependable 32-bit-ARM GPU path for ggml; CPU-only ASR here
@@ -107,6 +110,7 @@ case "${RID}" in
     # The static dispatch layers dlopen the GPU driver at runtime, so VAAPI/QSV still
     # work when a driver is present. (libstdc++/libgcc_s remain — whisper's C++ runtime,
     # a standard `apk add libstdc++ libgcc` on any musl host.)
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     PKGS_APK=(autoconf automake libtool build-base cmake curl diffutils gperf git linux-headers
               m4 meson nasm ninja patchelf perl pkgconf xz yasm
               glslang shaderc)
@@ -116,19 +120,28 @@ case "${RID}" in
       --enable-cuda --enable-cuvid --enable-nvenc --enable-nvdec --enable-ffnvcodec
       --enable-vaapi --enable-libdrm --enable-libvpl
     )
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     HWACCEL_FEATURES="CUDA NVENC NVDEC VAAPI libdrm QSV"
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     BUILD_NVIDIA=1
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     BUILD_VULKAN=1
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     BUILD_LIBDRM_SOURCE=1
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     BUILD_LIBVA_SOURCE=1
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     BUILD_VPL_SOURCE=1
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     BUILD_VULKAN_LOADER=1
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     WHISPER_BACKEND="vulkan"
     # Force -fPIC on static deps — see linux-armhf. Alpine's gcc is default-PIE, but that
     # doesn't fix the TLS model: GnuTLS random.c's file-static _Thread_local compiles to
     # local-exec (R_X86_64_TPOFF32) and won't link into the shared libav*.so without -fPIC.
     export CFLAGS="${CFLAGS:+${CFLAGS} }-fPIC"
     export CXXFLAGS="${CXXFLAGS:+${CXXFLAGS} }-fPIC"
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     BUILD_TYPE_LABEL="Linux musl (native Alpine)"
     ;;
 

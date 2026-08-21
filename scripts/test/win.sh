@@ -25,12 +25,13 @@ check_config "--enable-d3d11va" "D3D11VA"
 check_tls
 check_license_boundary
 
-FFMPEG="$(ls "${DIR}"/ffmpeg.exe 2>/dev/null)"; FFPROBE="$(ls "${DIR}"/ffprobe.exe 2>/dev/null)"
+FFMPEG="$(ls "${DIR}"/ffmpeg.exe 2>/dev/null)"; FFPROBE="$(ls "${DIR}"/ffprobe.exe 2>/dev/null)"; export FFMPEG FFPROBE  # consumed by run_functional (sourced lib.sh)
 if [[ "${OS:-}" == "Windows_NT" ]]; then
   # On a real Windows runner the .exe runs natively — no Wine, empty RUNNER.
   RUNNER=(); info "running functional suite natively on Windows"; run_functional
 elif command -v wine >/dev/null 2>&1; then
   export WINEDEBUG=-all WINEPREFIX="${WINEPREFIX:-$(mktemp -d)}"
+  # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
   RUNNER=(wine); info "running functional suite under Wine"; run_functional
 else
   skip "functional suite: not on Windows and wine not installed (structural only)"

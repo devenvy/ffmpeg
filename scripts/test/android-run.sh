@@ -14,7 +14,10 @@ command -v adb >/dev/null 2>&1 || { echo "android-run.sh: adb not found" >&2; ex
 LIBDIR="${DIR}/lib/arm64-v8a"
 
 info "Android emulator runtime smoke (${LIBDIR})"
-TCBIN="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin"
+# NDK host toolchain that exists (linux-aarch64 on an arm64 runner, else linux-x86_64).
+_tcroot="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt"
+_tchost="linux-x86_64"; [ -d "${_tcroot}/linux-$(uname -m)" ] && _tchost="linux-$(uname -m)"
+TCBIN="${_tcroot}/${_tchost}/bin"
 check_smoke_link "${TCBIN}/aarch64-linux-android28-clang" "${DIR}/include" /tmp/smoke_android \
   -L "${LIBDIR}" -lavformat -lavcodec -lavfilter -lavutil -lswscale -lswresample || finish
 

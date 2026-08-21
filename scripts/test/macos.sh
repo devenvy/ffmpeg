@@ -25,9 +25,10 @@ check_config "--enable-whisper" "Whisper ASR filter"
 check_tls
 check_license_boundary
 
-FFMPEG="${DIR}/ffmpeg"; FFPROBE="${DIR}/ffprobe"
+FFMPEG="${DIR}/ffmpeg"; FFPROBE="${DIR}/ffprobe"; export FFMPEG FFPROBE  # consumed by run_functional (sourced lib.sh)
 export DYLD_LIBRARY_PATH="${DIR}${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
 if [ "$(uname -s)" = Darwin ] && [ "$(uname -m)" = "$TARCH" ]; then
+  # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
   RUNNER=(); info "running functional suite natively"; run_functional
 else
   skip "functional suite: host is $(uname -s)/$(uname -m), target ${TARCH} (structural only)"

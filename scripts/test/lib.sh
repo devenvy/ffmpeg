@@ -215,10 +215,9 @@ SMOKE_SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/smoke.c"
 # check_smoke_link <cc> <include-dir> <out> <link-args...>
 # Compile+link the smoke program against the artifact. Linking with no undefined
 # references proves the libraries' ABI is complete and self-consistent — a real
-# check well beyond "the .so is the right shape", and it needs no device. On
-# success SMOKE_BIN holds the path, so a caller with an emulator/simulator can
-# then run it. Skips (does not fail) when no suitable compiler is present.
-SMOKE_BIN=""
+# check well beyond "the .so is the right shape", and it needs no device. The caller
+# passes <out> and already knows that path if it wants to run the binary. Skips (does
+# not fail) when no suitable compiler is present.
 check_smoke_link() {
   local cc="$1" incdir="$2" out="$3"; shift 3
   if [ -z "$cc" ] || ! command -v "${cc%% *}" >/dev/null 2>&1; then
@@ -226,7 +225,7 @@ check_smoke_link() {
   fi
   if $cc "$SMOKE_SRC" -I "$incdir" -o "$out" "$@" 2>/tmp/smoke-cc.err; then
     pass "smoke program links against the artifact (ABI complete)"
-    SMOKE_BIN="$out"; return 0
+    return 0
   fi
   local msg; msg="smoke program did not link: $(tail -3 /tmp/smoke-cc.err | tr '\n' ' ')"
   fail "$msg"
@@ -243,7 +242,7 @@ check_smoke_link() {
 # mobile library builds do the same via av_*_iterate in smoke.c.
 _enum() { "${RUNNER[@]}" "$FFMPEG" -hide_banner "$1" 2>/dev/null || true; }
 check_registry() {
-  local list want w
+  local list w
   # kind:flag  →  the list to query + the must-be-present built-ins
   list="$(_enum -decoders)"
   for w in h264 hevc mpeg4 mpeg2video aac mp3 flac pcm_s16le mjpeg vp8 vp9 opus vorbis av1; do
@@ -303,8 +302,8 @@ exercise_tls() {
   # A tiny, highly-available https resource. It's a TEXT file, so after the TLS GET succeeds
   # ffmpeg fails to DEMUX it ("Invalid data found") — that failure PROVES the handshake worked
   # and bytes were transferred. We only truly fail if the https protocol is missing entirely.
-  local url="https://raw.githubusercontent.com/FFmpeg/FFmpeg/master/RELEASE" try out
-  for try in 1 2 3; do
+  local url="https://raw.githubusercontent.com/FFmpeg/FFmpeg/master/RELEASE" out
+  for _ in 1 2 3; do
     out="$("${RUNNER[@]}" "$FFMPEG" -hide_banner -v error -i "$url" -f null - 2>&1)"
     if [ -z "$out" ] || grep -qiE 'Invalid data found|could not find codec|Unknown input format|does not contain any stream|End of file' <<<"$out"; then
       pass "TLS handshake: fetched bytes over https:// (backend negotiates)"; return

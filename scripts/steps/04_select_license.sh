@@ -46,7 +46,9 @@ case "${LICENSE_VERSION}" in
     ;;
   2)
     # (L)GPLv2.1 / GPLv2 — drop the Apache-2.0 deps; no version3.
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     BUILD_VULKAN=0
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     BUILD_VULKAN_LOADER=0
     [[ "${WHISPER_BACKEND}" == "vulkan" ]] && WHISPER_BACKEND="cpu"   # Apple is already metal
     # TLS for v2 on Linux/Android, where OpenSSL (Apache-2.0) can't be used without version3.
@@ -60,6 +62,7 @@ case "${LICENSE_VERSION}" in
     #              Linux/Android therefore ships without https/tls.
     if [[ "${BUILD_OPENSSL:-0}" == "1" ]]; then
       BUILD_OPENSSL=0
+      # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
       [[ "${LICENSE}" == "gpl" ]] && BUILD_GNUTLS=1   # lgpl-2: leave TLS off for LGPLv2.1 purity
     fi
     ;;
@@ -70,6 +73,7 @@ case "${LICENSE_VERSION}" in
 esac
 
 # Human/legal label + the artifact license token (lgplv3/gplv3/lgplv2/gplv2).
+# shellcheck disable=SC2034  # LICENSE_LABEL is consumed by 10_write_legal.sh + the test scripts
 case "${LICENSE}-${LICENSE_VERSION}" in
   gpl-3)  LICENSE_LABEL="GPLv3"    ;;
   gpl-2)  LICENSE_LABEL="GPLv2"    ;;
@@ -86,18 +90,27 @@ esac
 # device slice keeps full parity (incl. VP8/9 for WebRTC). Runs after the
 # license block so it also overrides the GPL x264/x265 enables.
 if [[ "${RID}" == "ios-sim-arm64" ]]; then
+  # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
   BUILD_LIBVPX=0
+  # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
   BUILD_LIBX264=0
+  # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
   BUILD_LIBX265=0
+  # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
   BUILD_LIBKVAZAAR=0
+  # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
   BUILD_LIBOPUS=0
+  # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
   BUILD_LIBAOM=0
   # Drop the freetype-based text/subtitle stack as a unit: libass (and fontconfig)
   # require freetype, so disabling freetype alone would break their configure. The
   # lean testing slice doesn't need subtitle rendering.
+  # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
   BUILD_FREETYPE=0
+  # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
   BUILD_FONTCONFIG=0
-  BUILD_FRIBIDI=0
-  BUILD_HARFBUZZ=0
+  # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
   BUILD_LIBASS=0
+  # (fribidi + harfbuzz are gated on BUILD_LIBASS in their dep scripts, so setting
+  # BUILD_LIBASS=0 already drops them — no separate BUILD_FRIBIDI/BUILD_HARFBUZZ needed.)
 fi

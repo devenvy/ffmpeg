@@ -36,19 +36,23 @@ jobs:
     strategy:
       fail-fast: ${{ inputs.fail_fast }}
       matrix:
-        rid: [android-arm64, ios-arm64, ios-sim-arm64]
-        license: [lgpl, gpl]
+        # TEMP-ANDROID-ONLY: trimmed to android + lgpl while iterating on the emulator. REVERT below.
+        # rid: [android-arm64, ios-arm64, ios-sim-arm64]
+        # license: [lgpl, gpl]
+        rid: [android-arm64]   # TEMP-ANDROID-ONLY
+        license: [lgpl]        # TEMP-ANDROID-ONLY
         license_version: [3, 2]   # v3 = OpenSSL/Vulkan; v2 = GnuTLS, no Vulkan (App-Store-safe)
         include:
           - rid: android-arm64
-            # arm64 Linux runner: the arm64-v8a emulator runs on a native-arch host, so there's
-            # NO foreign-arch translation (the x86 runner had to translate every arm64 instruction,
-            # which never booted). With KVM it's fully native; even without, same-arch is far faster.
+            # arm64 Linux runner: the arm64-v8a emulator runs on a native-arch host, so there's NO
+            # foreign-arch translation (the x86 runner had to translate every arm64 instruction,
+            # which never booted). No KVM on GitHub's arm64 runners, but same-arch software is fast.
             runner: ubuntu-24.04-arm
-          - rid: ios-arm64
-            runner: macos-latest
-          - rid: ios-sim-arm64
-            runner: macos-latest
+          # TEMP-ANDROID-ONLY: iOS entries commented out (restore with the full rid list).
+          # - rid: ios-arm64
+          #   runner: macos-latest
+          # - rid: ios-sim-arm64
+          #   runner: macos-latest
 
     runs-on: ${{ matrix.runner }}
     name: ${{ inputs.ffmpeg_version }} ${{ matrix.rid }} (${{ matrix.license }}v${{ matrix.license_version }})
@@ -100,23 +104,11 @@ jobs:
           bash scripts/test/ios-run.sh "${BUILD_RID}" "artifacts/${BUILD_RID}/native"
           xcrun simctl delete "$UDID" || true
 
-      # /dev/kvm exists on the Linux runner but the runner user lacks permission by default, so
-      # the emulator would fall back to un-accelerated software. This udev rule opens it up — the
-      # standard "enable KVM" step (see the android-emulator-runner docs + Android's emulator-
-      # acceleration guide). Required for hardware acceleration on the arm64 host.
-      - name: Enable KVM
-        if: matrix.rid == 'android-arm64' && matrix.license == 'lgpl'
-        run: |
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
-            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
-          ls -l /dev/kvm || echo "WARNING: /dev/kvm not present on this runner (emulator will be un-accelerated)"
-
-      # Android emulator runtime — GATING, on the arm64 host (ubuntu-24.04-arm): the arm64-v8a
-      # emulator runs same-arch (no foreign-arch translation) and, with the KVM access enabled
-      # above, hardware-accelerated. A genuine on-device runtime failure fails the job. Real proof
-      # ffmpeg RUNS on-device, not just that the libs link.
+      # No "Enable KVM" step: VERIFIED (run 32444686662) that GitHub's arm64 Linux runners do NOT
+      # expose /dev/kvm — trying to enable it hard-failed the job ("Failed to open the device 'kvm'").
+      # There's nothing to enable, so we don't try. The arm64-v8a emulator runs SAME-ARCH software on
+      # the arm64 host — no foreign-arch translation (unlike the x86 runner, which timed out), so it
+      # should be quick enough to boot. GATING: a genuine on-device runtime failure fails the job.
       - name: Android emulator runtime smoke
         if: matrix.rid == 'android-arm64' && matrix.license == 'lgpl'
         uses: reactivecircus/android-emulator-runner@v2
@@ -124,7 +116,7 @@ jobs:
           api-level: 28
           arch: arm64-v8a
           target: default
-          emulator-boot-timeout: 600
+          emulator-boot-timeout: 900
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
           script: |

@@ -23,11 +23,16 @@ _tcroot="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt"
 # NDK ships one host prebuilt dir (linux-x86_64 / linux-aarch64 / darwin-*); pick whichever exists.
 _tchost="$(ls "${_tcroot}" 2>/dev/null | head -1)"
 TCBIN="${_tcroot}/${_tchost}/bin"
+DEST=/data/local/tmp/ffsmoke
+# Embed the on-device lib dir as an RPATH (DT_RUNPATH) in the binary. Under the x86_64 emulator's
+# arm64 native bridge, the translated linker resolves libs by the ELF's own RPATH — it does NOT
+# honor LD_LIBRARY_PATH for a standalone binary (verified: libs present in ${DEST}, LD_LIBRARY_PATH
+# set, still "libavformat.so not found"). RPATH points the linker straight at the pushed .so.
 check_smoke_link "${TCBIN}/aarch64-linux-android28-clang" "${DIR}/include" /tmp/smoke_android \
-  -L "${LIBDIR}" -lavformat -lavcodec -lavfilter -lavutil -lswscale -lswresample || finish
+  -L "${LIBDIR}" -lavformat -lavcodec -lavfilter -lavutil -lswscale -lswresample \
+  -Wl,-rpath,"${DEST}" || finish
 
 adb wait-for-device
-DEST=/data/local/tmp/ffsmoke
 adb shell "rm -rf ${DEST}; mkdir -p ${DEST}" >/dev/null
 for so in "${LIBDIR}"/*.so; do adb push "$so" "${DEST}/" || echo "PUSH FAILED: $so"; done
 adb push /tmp/smoke_android "${DEST}/smoke"

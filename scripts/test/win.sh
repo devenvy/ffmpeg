@@ -11,6 +11,7 @@ info "Windows x64 structural checks (${DIR})"
 for dll in "${DIR}"/avcodec-*.dll "${DIR}"/avformat-*.dll "${DIR}"/avutil-*.dll \
            "${DIR}"/avfilter-*.dll "${DIR}"/swscale-*.dll "${DIR}"/swresample-*.dll; do
   check_arch "$dll" 'PE32\+.*x86-64'
+  check_shared_object "$dll"
 done
 check_arch "${DIR}/ffmpeg.exe" 'PE32\+.*x86-64'
 

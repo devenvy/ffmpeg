@@ -18,6 +18,7 @@ info "Linux structural checks (${RID}, ${DIR})"
 
 for base in avcodec avformat avutil avfilter swscale swresample; do
   check_arch "${DIR}/lib${base}.so" "$ARCH_RE"
+  check_shared_object "${DIR}/lib${base}.so"
 done
 check_core_symbols "${DIR}" so
 load_config_string "${DIR}/libavcodec.so" "${DIR}/libavutil.so"
@@ -38,7 +39,10 @@ elif [ -n "$QEMU" ] && command -v "$QEMU" >/dev/null 2>&1; then
   RUNNER=("$QEMU" -L /usr/"${TARCH}"-linux-gnu* -E LD_LIBRARY_PATH="${DIR}")
   info "running functional suite under ${QEMU}"; run_functional
 else
-  skip "functional suite: host is $(uname -m), target ${TARCH}, and ${QEMU:-qemu} not installed (structural only)"
+  # Never silently downgrade to a structural-only PASS — a cross target we cannot execute is
+  # UNVETTED. 32-bit armhf has no native hosted silicon (arm64 runners are Neoverse-N1, no
+  # AArch32), so it must run under qemu-user; if that is unavailable, FAIL rather than skip.
+  fail "functional suite: cannot execute ${TARCH} target — ${QEMU:-qemu} not available (refusing to skip)"
 fi
 
 finish

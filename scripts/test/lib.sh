@@ -67,6 +67,25 @@ check_arch() {
   else fail "arch mismatch: $(basename "$f") — $(file -L "$f" | sed 's/.*: //')"; fi
 }
 
+# check_shared_object <file>  — a shipped libav* MUST be a shared/dynamic library, never a static
+# archive or a plain executable. This is a LICENSE guard: FFmpeg's libav* are LGPL, and shipping
+# them shared (user-replaceable) is what satisfies the LGPL relink requirement (LGPLv2.1 §6 /
+# LGPLv3 §4) — a static libav* would push relink obligations onto every consumer. The build sets
+# --enable-shared --disable-static (so no .a is even produced), but assert it in the ARTIFACT so a
+# regression to a static build is a red job, not a silent compliance slip.
+check_shared_object() {
+  local f="$1"
+  if [ ! -e "$f" ]; then fail "missing: $f"; return 1; fi
+  # Inspection-only: mirror check_arch — a missing `file` skips, never fails a job.
+  if ! command -v file >/dev/null 2>&1; then skip "shared-object check: 'file' not available"; return 0; fi
+  # ELF DSO -> "shared object"; Mach-O -> "dynamically linked shared library"; PE -> "(DLL)".
+  if file -L "$f" | grep -qiE 'shared object|dynamically linked shared library|\(DLL\)'; then
+    pass "shared library: $(basename "$f")"
+  else
+    fail "NOT a shared library — LGPL requires shared libav*: $(basename "$f") — $(file -L "$f" | sed 's/.*: //')"
+  fi
+}
+
 # check_soname_unversioned <sharedlib>  — SONAME must have no .NN suffix (Android).
 check_soname_unversioned() {
   local f="$1" sn

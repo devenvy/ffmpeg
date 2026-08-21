@@ -16,7 +16,7 @@ info "macOS structural checks (${RID}, ${DIR})"
 
 for base in avcodec avformat avutil avfilter swscale swresample; do
   lib="$(ls "${DIR}"/lib${base}.*.dylib "${DIR}"/lib${base}.dylib 2>/dev/null | head -1)"
-  [ -n "$lib" ] && check_arch "$lib" "$ARCH_RE" || fail "missing lib${base} dylib"
+  if [ -n "$lib" ]; then check_arch "$lib" "$ARCH_RE"; check_shared_object "$lib"; else fail "missing lib${base} dylib"; fi
 done
 check_core_symbols "${DIR}" dylib
 load_config_string "${DIR}/ffmpeg" "$(ls "${DIR}"/libavutil.*.dylib 2>/dev/null | head -1)"

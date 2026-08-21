@@ -17,6 +17,7 @@ for base in avcodec avformat avutil avfilter swscale swresample; do
   [ -e "$bin" ] || { fail "missing lib${base}.framework"; continue; }
   check_arch "$bin" 'Mach-O 64-bit dynamically linked shared library arm64'
   check_symbol "$bin" "${base}_version"
+  check_shared_object "$bin"
 done
 
 # Feature/license from the embedded config (present in each framework's binary).

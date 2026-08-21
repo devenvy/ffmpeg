@@ -115,6 +115,19 @@ jobs:
           fi
           [ -f "$m" ] && echo "WHISPER_MODEL=$m" >> "$GITHUB_ENV" || true
 
+      # linux-armhf is 32-bit ARM (ARMv7): NO hosted runner executes it natively — the arm64
+      # runners are Ampere/Neoverse-N1, which dropped AArch32. So it MUST run under qemu-user.
+      # FFmpeg's third-party deps are static-linked into libav*, so the only dynamic deps are the
+      # base C/C++ runtime — supplied here via the armhf cross-runtime packages (on the amd64
+      # archive; they install under /usr/arm-linux-gnueabihf, exactly where linux.sh points qemu's
+      # -L sysroot). Without this the functional suite now FAILS rather than silently skipping.
+      - name: Set up qemu-user + armhf runtime (functional cross-test)
+        if: matrix.rid == 'linux-armhf'
+        shell: bash
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -q qemu-user libc6-armhf-cross libstdc++6-armhf-cross libgcc-s1-armhf-cross
+
       - name: Test artifact
         shell: bash
         run: |

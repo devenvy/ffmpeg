@@ -24,6 +24,7 @@ for base in avcodec avformat avutil avfilter swscale swresample avdevice; do
   [ -e "$lib" ] || { [ "$base" = avdevice ] && continue; fail "missing lib${base}.so"; continue; }
   check_arch "$lib" 'ELF 64-bit.*ARM aarch64'
   check_soname_unversioned "$lib"
+  check_shared_object "$lib"
 done
 
 check_core_symbols "${LIBDIR}" so

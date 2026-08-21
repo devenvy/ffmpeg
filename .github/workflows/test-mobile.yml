@@ -44,13 +44,12 @@ jobs:
         license_version: [3, 2]   # v3 = OpenSSL/Vulkan; v2 = GnuTLS, no Vulkan (App-Store-safe)
         include:
           - rid: android-arm64
-            # Apple-Silicon macOS runner (arm64): the ONLY GitHub-hosted host where the arm64
-            # emulator both EXISTS (no arm64-Linux emulator binary) and runs SAME-ARCH. HVF gives
-            # hardware acceleration if the runner VM allows it; else same-arch software (still runs,
-            # unlike x86 foreign-arch). Verified dead ends: x86-Linux (foreign arch), arm64-Linux
-            # (no emulator binary + no binder for Waydroid/Redroid). macos-latest = Apple Silicon;
-            # Intel Macs are x86 and would reintroduce the foreign-arch problem.
-            runner: macos-latest
+            # ubuntu-latest (x86_64) + KVM: run a KVM-accelerated x86_64 emulator whose API-35 image
+            # has BUILT-IN arm64 translation (native bridge) — so our arm64 code executes on the fast
+            # x86_64 emulator. This is the standard way arm64 gets tested on GHA. (Earlier dead ends
+            # were all from trying an actual arm64-v8a emulator: foreign-arch on x86, no emulator
+            # binary on arm64-Linux, HVF blocked on macOS. The trick is: don't use an arm64 emulator.)
+            runner: ubuntu-latest
           # TEMP-ANDROID-ONLY: iOS entries commented out (restore with the full rid list).
           # - rid: ios-arm64
           #   runner: macos-latest
@@ -107,29 +106,38 @@ jobs:
           bash scripts/test/ios-run.sh "${BUILD_RID}" "artifacts/${BUILD_RID}/native"
           xcrun simctl delete "$UDID" || true
 
-      # Report the emulator acceleration on the Apple-Silicon runner (HVF or software). Informational.
-      - name: Emulator acceleration status
+      # KVM access for the x86_64 emulator (KVM exists on x86 GitHub runners; the runner user just
+      # needs permission via this udev rule — the standard, documented step). Tolerant: reports if
+      # /dev/kvm is somehow absent instead of hard-failing.
+      - name: Enable KVM
         if: matrix.rid == 'android-arm64' && matrix.license == 'lgpl'
-        continue-on-error: true
         run: |
-          echo "host: $(uname -sm)"
-          "$ANDROID_HOME/emulator/emulator" -accel-check 2>&1 || echo "(accel-check unavailable until emulator installs)"
+          if [ -e /dev/kvm ]; then
+            echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+              | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+            sudo udevadm control --reload-rules
+            sudo udevadm trigger --name-match=kvm || true
+            ls -l /dev/kvm
+          else
+            echo "WARNING: /dev/kvm absent — emulator will be un-accelerated"
+          fi
 
-      # Android emulator runtime smoke — Apple-Silicon macOS runner, arm64-v8a API-30 image (our
-      # libs are minSdk-28, run fine on 30). VERIFIED: HVF is blocked here ("HV_UNSUPPORTED" — the
-      # runner is itself a VM, nested-virt disallowed), so we force SOFTWARE emulation with
-      # -no-accel. arm64-on-arm64 is same-arch (no cross-arch translation), so software should be
-      # tolerable. Generous timeout. GATING: real on-device proof.
+      # Android runtime smoke — a KVM-accelerated x86_64 emulator whose API-35 google_apis image has
+      # BUILT-IN arm64 translation (native bridge), so our arm64 artifact runs on it. This is the
+      # standard, fast, hardware-accelerated path (x86_64 + KVM on ubuntu-latest). GATING: real
+      # on-device proof that ffmpeg runs on Android.
       - name: Android emulator runtime smoke
         if: matrix.rid == 'android-arm64' && matrix.license == 'lgpl'
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 30
-          arch: arm64-v8a
+          api-level: 35
           target: google_apis
-          emulator-boot-timeout: 1800
+          arch: x86_64
+          profile: pixel_5
+          force-avd-creation: false
+          emulator-boot-timeout: 900
           disable-animations: true
-          emulator-options: -no-window -no-accel -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
+          emulator-options: -no-snapshot-load -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
           script: |
             export ANDROID_NDK_HOME="${ANDROID_NDK_HOME:-$ANDROID_NDK_LATEST_HOME}"
             bash scripts/test/android-run.sh "artifacts/${BUILD_RID}/native"

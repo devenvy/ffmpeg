@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
 # Android EMULATOR runtime smoke test — the deeper layer beyond android.sh's
-# structural + link checks. Runs in a CI job that has booted an arm64-v8a
-# emulator: it compiles scripts/test/smoke.c against the built .so, pushes the
-# binary + libraries to the device, and executes them there. This proves the
-# libraries actually load and run on Android — encode/decode, whisper, TLS — not
-# just that they are shaped correctly.
+# structural + link checks. Runs in a CI job that booted a KVM-accelerated x86_64
+# emulator whose API-35 image has built-in arm64 translation (native bridge): it
+# compiles scripts/test/smoke.c against the built arm64 .so, pushes the binary +
+# libraries to the device, and executes the arm64 program there (translated). This
+# proves the libraries actually load and run on Android — encode/decode, whisper,
+# TLS — not just that they are shaped correctly.
+# NOTE: this runs a STANDALONE arm64 executable via `adb shell`. API-35's native
+# bridge translates it; if a future image only translates app-loaded libs, this
+# would need wrapping in an instrumented APK instead.
 set -uo pipefail
 DIR="${1:?usage: android-run.sh <artifact-native-dir>}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

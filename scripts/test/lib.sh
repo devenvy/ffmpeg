@@ -54,6 +54,14 @@ READELF="$(command -v llvm-readelf || command -v readelf || true)"
 
 # --- structural helpers -------------------------------------------------------
 
+# _tool_missing <message>  — a required inspection tool (file/nm) or test input is absent. In CI
+# that is a real failure, never a reason to green-wash a skip (our runners are known-good, so an
+# absence signals a genuine problem); locally (no GITHUB_ACTIONS) fall back to skip so minimal dev
+# shells still run the rest of the suite.
+_tool_missing() {
+  if [ -n "${GITHUB_ACTIONS:-}" ]; then fail "$1"; else skip "$1"; fi
+}
+
 # check_arch <file> <regex>  — `file` output must match regex (arch/format).
 check_arch() {
   local f="$1" re="$2"
@@ -61,7 +69,7 @@ check_arch() {
   # Inspection-only check: if `file` isn't available (e.g. a minimal Windows shell),
   # skip rather than fail — actually running the binary is the primary signal, and a
   # missing inspection tool should never fail a job where execution succeeds.
-  if ! command -v file >/dev/null 2>&1; then skip "arch check: 'file' not available"; return 0; fi
+  if ! command -v file >/dev/null 2>&1; then _tool_missing "arch check: 'file' not available"; return 0; fi
   # -L: follow symlinks (Linux ships libfoo.so -> libfoo.so.NN).
   if file -L "$f" | grep -qE "$re"; then pass "arch ok: $(basename "$f") ($re)"
   else fail "arch mismatch: $(basename "$f") — $(file -L "$f" | sed 's/.*: //')"; fi
@@ -77,7 +85,7 @@ check_shared_object() {
   local f="$1"
   if [ ! -e "$f" ]; then fail "missing: $f"; return 1; fi
   # Inspection-only: mirror check_arch — a missing `file` skips, never fails a job.
-  if ! command -v file >/dev/null 2>&1; then skip "shared-object check: 'file' not available"; return 0; fi
+  if ! command -v file >/dev/null 2>&1; then _tool_missing "shared-object check: 'file' not available"; return 0; fi
   # ELF DSO -> "shared object"; Mach-O -> "dynamically linked shared library"; PE -> "(DLL)".
   if file -L "$f" | grep -qiE 'shared object|dynamically linked shared library|\(DLL\)'; then
     pass "shared library: $(basename "$f")"
@@ -106,6 +114,10 @@ check_symbol() {
   local f="$1" s="$2" syms
   # Inspection-only: if no nm/llvm-nm is present, skip rather than fail — execution
   # (Tier 2) is the real signal; a missing inspection tool must not fail the job.
+  # nm/llvm-nm is present on the Linux/macOS test hosts (so this never skips there); it is absent on
+  # the Windows git-bash host, where nm also can't read PE export tables anyway (that needs objdump).
+  # So a genuine skip here is Windows-only and intentional — DLL exports are covered structurally by
+  # the arch + shared-object + import-lib checks. (A PE-aware export check is a separate follow-up.)
   if [ -z "$NM" ]; then skip "symbol check ($s): no nm/llvm-nm available"; return; fi
   # Match an optional leading underscore: Mach-O (macOS/iOS) prefixes symbols with '_'
   # (e.g. _avcodec_version), ELF does not. A pattern beats `grep -w`, whose word
@@ -344,9 +356,14 @@ exercise_tls() {
 exercise_whisper() {
   local model="${WHISPER_MODEL:-}"
   if [ -z "$model" ] || [ ! -f "$model" ]; then
-    skip "whisper inference: no model (set WHISPER_MODEL to a ggml model to exercise it)"; return
+    # CI fetches the model as a mandatory step, so absence here is a real gap (fail); locally,
+    # skip so a dev without the model can still run the rest of the suite.
+    _tool_missing "whisper inference: WHISPER_MODEL not set/found (CI model fetch is mandatory)"; return
   fi
-  local tmp; tmp="$(mktemp -d)"
+  # Relative, colon-free workspace dir (like the model path): af_whisper's 'destination' is embedded
+  # inside the -af filter string, where MSYS does NOT auto-convert a git-bash /tmp path for the native
+  # Windows .exe (unlike standalone path args). A relative path resolves against cwd on every OS.
+  local tmp; tmp="whisper-out.$$"; mkdir -p "$tmp"
   # A short spoken-like signal isn't needed to prove execution; a tone drives the full graph.
   if "${RUNNER[@]}" "$FFMPEG" -hide_banner -v error -f lavfi -i "sine=frequency=220:duration=2" \
         -af "whisper=model=${model}:language=en:destination=${tmp}/out.txt:queue=1000" \

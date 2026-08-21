@@ -31,7 +31,9 @@ if [ "$(uname -s)" = Darwin ] && [ "$(uname -m)" = "$TARCH" ]; then
   # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
   RUNNER=(); info "running functional suite natively"; run_functional
 else
-  skip "functional suite: host is $(uname -s)/$(uname -m), target ${TARCH} (structural only)"
+  # Never green-wash an unexecuted target: in CI macOS runs on a native Darwin runner, so reaching
+  # here means a real capability gap (wrong host / arch mismatch), which must fail rather than skip.
+  fail "functional suite: cannot execute ${TARCH} target on $(uname -s)/$(uname -m) (refusing to skip)"
 fi
 
 finish

@@ -35,7 +35,9 @@ elif command -v wine >/dev/null 2>&1; then
   # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
   RUNNER=(wine); info "running functional suite under Wine"; run_functional
 else
-  skip "functional suite: not on Windows and wine not installed (structural only)"
+  # Never green-wash an unexecuted target: in CI win-x64 runs on a native Windows runner, so
+  # reaching here (not Windows, no Wine) is a real capability gap that must fail, not skip.
+  fail "functional suite: cannot execute win-x64 target — not on Windows and no Wine (refusing to skip)"
 fi
 
 finish

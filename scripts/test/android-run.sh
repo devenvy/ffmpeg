@@ -29,10 +29,14 @@ check_smoke_link "${TCBIN}/aarch64-linux-android28-clang" "${DIR}/include" /tmp/
 adb wait-for-device
 DEST=/data/local/tmp/ffsmoke
 adb shell "rm -rf ${DEST}; mkdir -p ${DEST}" >/dev/null
-for so in "${LIBDIR}"/*.so; do adb push "$so" "${DEST}/" >/dev/null; done
-adb push /tmp/smoke_android "${DEST}/smoke" >/dev/null
+for so in "${LIBDIR}"/*.so; do adb push "$so" "${DEST}/" || echo "PUSH FAILED: $so"; done
+adb push /tmp/smoke_android "${DEST}/smoke"
 adb shell "chmod 755 ${DEST}/smoke" >/dev/null
-OUT="$(adb shell "cd ${DEST} && LD_LIBRARY_PATH=${DEST} ./smoke; echo EXIT=\$?")"
+echo "--- on-device contents of ${DEST} (diagnostic) ---"
+adb shell "ls -la ${DEST}" || true
+# Run the arm64 binary (translated by the API-35 native bridge). LD_LIBRARY_PATH points the linker
+# at the pushed .so; if the bridge ignores it, fall back to setting it inline in the exec env.
+OUT="$(adb shell "cd ${DEST} && LD_LIBRARY_PATH=${DEST} ./smoke 2>&1; echo EXIT=\$?")"
 echo "$OUT"
 if grep -q "smoke: ALL PASS" <<<"$OUT" && grep -q "EXIT=0" <<<"$OUT"; then
   pass "emulator runtime: encode/decode + whisper + TLS pass on-device"

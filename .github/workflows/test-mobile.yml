@@ -104,13 +104,33 @@ jobs:
           bash scripts/test/ios-run.sh "${BUILD_RID}" "artifacts/${BUILD_RID}/native"
           xcrun simctl delete "$UDID" || true
 
-      # No "Enable KVM" step: VERIFIED (run 32444686662) that GitHub's arm64 Linux runners do NOT
-      # expose /dev/kvm — trying to enable it hard-failed the job ("Failed to open the device 'kvm'").
-      # There's nothing to enable, so we don't try. The arm64-v8a emulator runs SAME-ARCH software on
-      # the arm64 host — no foreign-arch translation (unlike the x86 runner, which timed out), so it
-      # should be quick enough to boot. GATING: a genuine on-device runtime failure fails the job.
-      - name: Android emulator runtime smoke
+      # PROBE (never fails): can this arm64 runner load the `binder` kernel module? That's the
+      # make-or-break for containerized native Android (Waydroid/Redroid) — which would run arm64
+      # Android natively on the host kernel (no emulator binary, no KVM), solving the arm64-Linux
+      # dead-ends. Reports the result; decides whether the Waydroid/Redroid path is real.
+      - name: Probe binder (Waydroid/Redroid viability)
         if: matrix.rid == 'android-arm64' && matrix.license == 'lgpl'
+        continue-on-error: true
+        run: |
+          set -x
+          uname -a
+          sudo modprobe binder_linux devices="binder,hwbinder,vndbinder" 2>&1 \
+            || sudo modprobe binder_linux 2>&1 || sudo modprobe binder 2>&1 || echo "modprobe binder: FAILED"
+          ls -l /dev/binder* 2>/dev/null || echo "no /dev/binder* nodes"
+          sudo mkdir -p /dev/binderfs && sudo mount -t binder binder /dev/binderfs 2>&1 && ls -l /dev/binderfs \
+            || echo "binderfs mount: FAILED"
+          lsmod | grep -i binder || echo "binder not in lsmod"
+          find "/lib/modules/$(uname -r)" -name 'binder*' 2>/dev/null || echo "no binder module file present"
+          dpkg -l | grep -i linux-modules-extra || echo "linux-modules-extra not installed"
+          echo "BINDER PROBE DONE"
+
+      # NOTE: the Android SDK emulator is NOT published for arm64 Linux ("Failed to find package
+      # 'emulator'"), so this step CANNOT work on ubuntu-24.04-arm — kept best-effort while we
+      # evaluate the Waydroid/Redroid path (probe above). Real android runtime gating will come
+      # from Waydroid/Redroid (if binder loads) or a macOS/self-hosted runner.
+      - name: Android emulator runtime smoke (best-effort — no emulator binary on arm64 Linux)
+        if: matrix.rid == 'android-arm64' && matrix.license == 'lgpl'
+        continue-on-error: true
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 28

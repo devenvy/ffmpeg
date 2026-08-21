@@ -44,10 +44,13 @@ jobs:
         license_version: [3, 2]   # v3 = OpenSSL/Vulkan; v2 = GnuTLS, no Vulkan (App-Store-safe)
         include:
           - rid: android-arm64
-            # arm64 Linux runner: the arm64-v8a emulator runs on a native-arch host, so there's NO
-            # foreign-arch translation (the x86 runner had to translate every arm64 instruction,
-            # which never booted). No KVM on GitHub's arm64 runners, but same-arch software is fast.
-            runner: ubuntu-24.04-arm
+            # Apple-Silicon macOS runner (arm64): the ONLY GitHub-hosted host where the arm64
+            # emulator both EXISTS (no arm64-Linux emulator binary) and runs SAME-ARCH. HVF gives
+            # hardware acceleration if the runner VM allows it; else same-arch software (still runs,
+            # unlike x86 foreign-arch). Verified dead ends: x86-Linux (foreign arch), arm64-Linux
+            # (no emulator binary + no binder for Waydroid/Redroid). macos-latest = Apple Silicon;
+            # Intel Macs are x86 and would reintroduce the foreign-arch problem.
+            runner: macos-latest
           # TEMP-ANDROID-ONLY: iOS entries commented out (restore with the full rid list).
           # - rid: ios-arm64
           #   runner: macos-latest
@@ -104,38 +107,25 @@ jobs:
           bash scripts/test/ios-run.sh "${BUILD_RID}" "artifacts/${BUILD_RID}/native"
           xcrun simctl delete "$UDID" || true
 
-      # PROBE (never fails): can this arm64 runner load the `binder` kernel module? That's the
-      # make-or-break for containerized native Android (Waydroid/Redroid) — which would run arm64
-      # Android natively on the host kernel (no emulator binary, no KVM), solving the arm64-Linux
-      # dead-ends. Reports the result; decides whether the Waydroid/Redroid path is real.
-      - name: Probe binder (Waydroid/Redroid viability)
+      # Report the emulator acceleration on the Apple-Silicon runner (HVF or software). Informational.
+      - name: Emulator acceleration status
         if: matrix.rid == 'android-arm64' && matrix.license == 'lgpl'
         continue-on-error: true
         run: |
-          set -x
-          uname -a
-          sudo modprobe binder_linux devices="binder,hwbinder,vndbinder" 2>&1 \
-            || sudo modprobe binder_linux 2>&1 || sudo modprobe binder 2>&1 || echo "modprobe binder: FAILED"
-          ls -l /dev/binder* 2>/dev/null || echo "no /dev/binder* nodes"
-          sudo mkdir -p /dev/binderfs && sudo mount -t binder binder /dev/binderfs 2>&1 && ls -l /dev/binderfs \
-            || echo "binderfs mount: FAILED"
-          lsmod | grep -i binder || echo "binder not in lsmod"
-          find "/lib/modules/$(uname -r)" -name 'binder*' 2>/dev/null || echo "no binder module file present"
-          dpkg -l | grep -i linux-modules-extra || echo "linux-modules-extra not installed"
-          echo "BINDER PROBE DONE"
+          echo "host: $(uname -sm)"
+          "$ANDROID_HOME/emulator/emulator" -accel-check 2>&1 || echo "(accel-check unavailable until emulator installs)"
 
-      # NOTE: the Android SDK emulator is NOT published for arm64 Linux ("Failed to find package
-      # 'emulator'"), so this step CANNOT work on ubuntu-24.04-arm — kept best-effort while we
-      # evaluate the Waydroid/Redroid path (probe above). Real android runtime gating will come
-      # from Waydroid/Redroid (if binder loads) or a macOS/self-hosted runner.
-      - name: Android emulator runtime smoke (best-effort — no emulator binary on arm64 Linux)
+      # Android emulator runtime smoke — on the Apple-Silicon macOS runner. arm64-v8a system image
+      # (API 30: arm64-v8a images are limited to certain API levels; our libs are minSdk-28 so they
+      # run fine on 30). HVF acceleration is automatic on macOS if available. GATING: a genuine
+      # on-device failure fails the job — this is the real android runtime proof we've been after.
+      - name: Android emulator runtime smoke
         if: matrix.rid == 'android-arm64' && matrix.license == 'lgpl'
-        continue-on-error: true
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 28
+          api-level: 30
           arch: arm64-v8a
-          target: default
+          target: google_apis
           emulator-boot-timeout: 900
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot

@@ -16,7 +16,8 @@ LIBDIR="${DIR}/lib/arm64-v8a"
 info "Android emulator runtime smoke (${LIBDIR})"
 # NDK host toolchain that exists (linux-aarch64 on an arm64 runner, else linux-x86_64).
 _tcroot="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt"
-_tchost="linux-x86_64"; [ -d "${_tcroot}/linux-$(uname -m)" ] && _tchost="linux-$(uname -m)"
+# NDK ships one host prebuilt dir (linux-x86_64 / linux-aarch64 / darwin-*); pick whichever exists.
+_tchost="$(ls "${_tcroot}" 2>/dev/null | head -1)"
 TCBIN="${_tcroot}/${_tchost}/bin"
 check_smoke_link "${TCBIN}/aarch64-linux-android28-clang" "${DIR}/include" /tmp/smoke_android \
   -L "${LIBDIR}" -lavformat -lavcodec -lavfilter -lavutil -lswscale -lswresample || finish

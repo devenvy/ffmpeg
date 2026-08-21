@@ -28,7 +28,9 @@ case "${RID}" in
     # Pick the NDK host toolchain that actually exists: linux-aarch64 on an arm64 runner,
     # linux-x86_64 on an x86 runner (the build runs on x86; the emulator TEST may run on arm64).
     _tcroot="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt"
-    _tchost="linux-x86_64"; [ -d "${_tcroot}/linux-$(uname -m)" ] && _tchost="linux-$(uname -m)"
+    # The NDK ships exactly one host prebuilt dir — linux-x86_64 / linux-aarch64 / darwin-x86_64
+    # etc. Pick whichever is present so this works on any build/test host (x86 Linux, arm Linux, mac).
+    _tchost="$(ls "${_tcroot}" 2>/dev/null | head -1)"
     TOOLCHAIN="${_tcroot}/${_tchost}"
     ANDROID_TRIPLE=aarch64-linux-android
     # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script

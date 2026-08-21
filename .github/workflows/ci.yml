@@ -90,9 +90,7 @@ jobs:
   # destabilise the fast desktop execution checks.
   test-matrix:
     needs: [resolve, build-matrix]
-    # TEMP-ANDROID-ONLY: desktop tests skipped while iterating on the android emulator (no desktop
-    # artifacts are built). Restore to: needs.resolve.outputs.any == 'true'
-    if: false
+    if: needs.resolve.outputs.any == 'true'
     strategy:
       fail-fast: false
       matrix:

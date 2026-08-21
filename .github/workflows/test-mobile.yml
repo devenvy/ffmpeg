@@ -36,10 +36,8 @@ jobs:
     strategy:
       fail-fast: ${{ inputs.fail_fast }}
       matrix:
-        # TEMP-ANDROID-ONLY: trimmed to android+lgpl for fast emulator iteration. Restore to:
-        #   rid: [android-arm64, ios-arm64, ios-sim-arm64]   license: [lgpl, gpl]  + the iOS includes.
-        rid: [android-arm64]   # TEMP-ANDROID-ONLY
-        license: [lgpl]        # TEMP-ANDROID-ONLY
+        rid: [android-arm64, ios-arm64, ios-sim-arm64]
+        license: [lgpl, gpl]
         license_version: [3, 2]   # v3 = OpenSSL/Vulkan; v2 = GnuTLS, no Vulkan (App-Store-safe)
         include:
           - rid: android-arm64
@@ -47,11 +45,10 @@ jobs:
             # arm64 code via the native bridge (an actual arm64-v8a emulator has no accel on any
             # hosted runner: foreign-arch on x86, no emulator binary on arm64-Linux, HVF blocked on mac).
             runner: ubuntu-latest
-          # TEMP-ANDROID-ONLY: restore these iOS includes with the full rid list.
-          # - rid: ios-arm64
-          #   runner: macos-latest
-          # - rid: ios-sim-arm64
-          #   runner: macos-latest
+          - rid: ios-arm64
+            runner: macos-latest
+          - rid: ios-sim-arm64
+            runner: macos-latest
 
     runs-on: ${{ matrix.runner }}
     name: ${{ inputs.ffmpeg_version }} ${{ matrix.rid }} (${{ matrix.license }}v${{ matrix.license_version }})

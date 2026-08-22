@@ -112,13 +112,10 @@ check_soname_unversioned() {
 # symbol lands in nm's output). Same pattern as run_functional below.
 check_symbol() {
   local f="$1" s="$2" syms
-  # Inspection-only: if no nm/llvm-nm is present, skip rather than fail — execution
-  # (Tier 2) is the real signal; a missing inspection tool must not fail the job.
-  # nm/llvm-nm is present on the Linux/macOS test hosts (so this never skips there); it is absent on
-  # the Windows git-bash host, where nm also can't read PE export tables anyway (that needs objdump).
-  # So a genuine skip here is Windows-only and intentional — DLL exports are covered structurally by
-  # the arch + shared-object + import-lib checks. (A PE-aware export check is a separate follow-up.)
-  if [ -z "$NM" ]; then skip "symbol check ($s): no nm/llvm-nm available"; return; fi
+  # nm/llvm-nm reads ELF/Mach-O symbol tables and is present on the Linux/macOS test hosts (so this
+  # never skips there). It is NOT used for Windows PE DLLs — those export tables are verified by
+  # check_pe_export (nm can't read them). So a skip here would only happen off-CI on a bare host.
+  if [ -z "$NM" ]; then _tool_missing "symbol check ($s): no nm/llvm-nm available"; return; fi
   # Match an optional leading underscore: Mach-O (macOS/iOS) prefixes symbols with '_'
   # (e.g. _avcodec_version), ELF does not. A pattern beats `grep -w`, whose word
   # boundary treats the leading '_' as part of the token and misses it.
@@ -129,6 +126,29 @@ check_symbol() {
     pass "symbol: $(basename "$f") exports $s"
   else
     fail "symbol: $(basename "$f") missing $s"
+  fi
+}
+
+# check_pe_export <dll> <symbol>  — verify a Windows PE DLL exports <symbol>. nm/llvm-nm read the
+# symbol table, NOT the PE export table, so they can't see DLL exports; use a PE-aware reader instead:
+# llvm-readobj (--coff-exports), objdump (-p), or dumpbin (-exports) — whichever the runner has.
+# Fails (in CI) if none is available, rather than leaving Windows exports unverified.
+check_pe_export() {
+  local f="$1" s="$2" out=""
+  if [ ! -e "$f" ]; then fail "missing: $f"; return 1; fi
+  if command -v llvm-readobj >/dev/null 2>&1; then
+    out="$(llvm-readobj --coff-exports "$f" 2>/dev/null)"
+  elif command -v objdump >/dev/null 2>&1; then
+    out="$(objdump -p "$f" 2>/dev/null)"          # prints the Export Address Table (names)
+  elif command -v dumpbin >/dev/null 2>&1; then
+    out="$(dumpbin -exports "$f" 2>/dev/null)"     # '-exports' (not '/') avoids MSYS path-mangling
+  else
+    _tool_missing "PE export check ($s): no llvm-readobj/objdump/dumpbin available"; return
+  fi
+  if grep -qwE "$s" <<<"$out"; then
+    pass "export: $(basename "$f") exports $s"
+  else
+    fail "export: $(basename "$f") missing $s"
   fi
 }
 
@@ -365,19 +385,23 @@ exercise_whisper() {
   # Windows .exe (unlike standalone path args). A relative path resolves against cwd on every OS.
   local tmp; tmp="whisper-out.$$"; mkdir -p "$tmp"
   # A short spoken-like signal isn't needed to prove execution; a tone drives the full graph.
-  # af_whisper runs ggml CPU inference, which exhibits RARE nondeterministic segfaults on the Windows
-  # runner (an upstream ggml threading quirk — confirmed by a clean re-run of the same artifact).
-  # Retry a few times so an intermittent crash doesn't red the pipeline; a DETERMINISTIC failure
-  # (bad model, missing filter, real bug) still fails every attempt and is NOT masked, and each retry
-  # is logged so the flakiness stays visible rather than hidden.
-  local attempt rc=1
+  # OBSERVED: af_whisper's ggml CPU inference intermittently segfaults on the Windows runner — a
+  # re-run of the *same artifact* passed, so it is nondeterministic, not a build defect. ggml/
+  # whisper CPU-inference crashes on Windows are a documented class (ggml-org/whisper.cpp #2172,
+  # #2175, #2178), though those reports are mostly deterministic (AVX/alignment); our exact
+  # intermittent variant isn't pinned to one issue. Retry so an intermittent crash doesn't red the
+  # pipeline; a DETERMINISTIC failure (bad model, missing filter, real bug) still fails every
+  # attempt and is NOT masked, and each attempt logs its exit code + stderr for diagnosis.
+  local attempt rc=1 out ec
   for attempt in 1 2 3; do
-    if "${RUNNER[@]}" "$FFMPEG" -hide_banner -v error -f lavfi -i "sine=frequency=220:duration=2" \
+    out="$("${RUNNER[@]}" "$FFMPEG" -hide_banner -v error -f lavfi -i "sine=frequency=220:duration=2" \
           -af "whisper=model=${model}:language=en:destination=${tmp}/out.txt:queue=1000" \
-          -f null - >/dev/null 2>&1 && [ -e "${tmp}/out.txt" ]; then
-      rc=0; break
-    fi
-    info "whisper inference: attempt ${attempt}/3 did not complete (ggml nondeterminism); retrying if attempts remain"
+          -f null - 2>&1)"
+    ec=$?
+    if [ "$ec" -eq 0 ] && [ -e "${tmp}/out.txt" ]; then rc=0; break; fi
+    # Capture EVIDENCE on each failed attempt so an intermittent crash is diagnosable from the log
+    # (exit 139 = SIGSEGV; ffmpeg/ggml stderr names the faulting op) rather than a black box.
+    info "whisper inference: attempt ${attempt}/3 failed (exit ${ec}) — $(printf '%s' "$out" | tr '\n' ' ' | tail -c 300)"
     rm -f "${tmp}/out.txt"
   done
   if [ "$rc" -eq 0 ]; then

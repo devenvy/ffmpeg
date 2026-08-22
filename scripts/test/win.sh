@@ -5,13 +5,18 @@
 set -uo pipefail
 DIR="${1:?usage: win.sh <artifact-native-dir>}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# llvm-readobj reads PE export tables (nm cannot) and ships with the preinstalled LLVM on the
+# Windows runner; put it on PATH so check_pe_export can verify DLL exports. No-op elsewhere.
+[ -d "/c/Program Files/LLVM/bin" ] && export PATH="/c/Program Files/LLVM/bin:${PATH}"
 . "${HERE}/lib.sh"
 info "Windows x64 structural checks (${DIR})"
 
-for dll in "${DIR}"/avcodec-*.dll "${DIR}"/avformat-*.dll "${DIR}"/avutil-*.dll \
-           "${DIR}"/avfilter-*.dll "${DIR}"/swscale-*.dll "${DIR}"/swresample-*.dll; do
+for base in avcodec avformat avutil avfilter swscale swresample; do
+  dll="$(ls "${DIR}/${base}"-*.dll 2>/dev/null | head -1)"
+  [ -n "$dll" ] || { fail "missing ${base}-*.dll"; continue; }
   check_arch "$dll" 'PE32\+.*x86-64'
   check_shared_object "$dll"
+  check_pe_export "$dll" "${base}_version"   # verify the DLL's export table (not just the file type)
 done
 check_arch "${DIR}/ffmpeg.exe" 'PE32\+.*x86-64'
 

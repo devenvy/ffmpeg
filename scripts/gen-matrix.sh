@@ -52,7 +52,11 @@ for RID in "${RIDS[@]}"; do
     LIC="${CELL%v*}"; VER="${CELL##*v}"          # gplv3 -> LIC=gpl VER=3
     ROOT_DIR="${ROOT_DIR}"; RID="$RID"; LICENSE="$LIC"; BUILD_RID="$RID"
     BUILD_LICENSE="$LIC"; BUILD_LICENSE_VERSION="$VER"
-    ANDROID_NDK_HOME=/tmp; ANDROID_ABI=arm64-v8a; API=28; TOOLCHAIN=/dummy  # /tmp: a real dir so android.sh's NDK check passes (sim never runs the toolchain)
+    # Use the runner's REAL NDK (same resolution as the build: ANDROID_NDK_HOME or the
+    # preinstalled ANDROID_NDK_LATEST_HOME). android.sh looks up the toolchain host dir
+    # (ls "$NDK/toolchains/llvm/prebuilt"), which fails under set -e if the NDK is a bare stub —
+    # so a dummy dir isn't enough. /tmp remains only as a last-resort fallback where no NDK exists.
+    ANDROID_NDK_HOME="${ANDROID_NDK_HOME:-${ANDROID_NDK_LATEST_HOME:-/tmp}}"; ANDROID_ABI=arm64-v8a; API=28; TOOLCHAIN=/dummy
     WORK_DIR=/tmp/sim; DEPS_DIR=/tmp/sim/deps; SRC_DIR=/tmp/sim/src
     # These are the environment the sourced config scripts read. export (in this isolated
     # subshell — no leak) both makes that intent explicit and marks them used for shellcheck.

@@ -1,0 +1,148 @@
+name: Test (mobile)
+
+# Android/iOS tests against the artifacts from build.yml — kept SEPARATE from the
+# desktop test workflow because the mobile setup (NDK/Xcode toolchains, arm64
+# emulator boot, iOS simulator via simctl) is slow and comparatively fragile, and
+# shouldn't gate or destabilise the fast desktop execution checks.
+#
+# Two layers, mirroring how these link-only artifacts are consumed:
+#   1. ABI link-check — compile the smoke program against the built libraries
+#      (toolchain present on the runner); proves no undefined symbols. Runs for
+#      every RID x license.
+#   2. Runtime — actually execute on an arm64 emulator (Android) / simulator (iOS).
+#      Runtime is license-independent, so it runs once per platform (lgpl).
+# Chained after build.yml by ci.yml and release.yml.
+
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+    inputs:
+      ffmpeg_version:
+        required: true
+        type: string
+      ref:
+        required: false
+        type: string
+        default: ""
+      fail_fast:
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  test:
+    strategy:
+      fail-fast: ${{ inputs.fail_fast }}
+      matrix:
+        rid: [android-arm64, ios-arm64, ios-sim-arm64]
+        license: [lgpl, gpl]
+        license_version: [3, 2]   # v3 = OpenSSL/Vulkan; v2 = GnuTLS, no Vulkan (App-Store-safe)
+        include:
+          - rid: android-arm64
+            # x86_64 emulator on ubuntu-latest, KVM-accelerated; its API-35 image translates our
+            # arm64 code via the native bridge (an actual arm64-v8a emulator has no accel on any
+            # hosted runner: foreign-arch on x86, no emulator binary on arm64-Linux, HVF blocked on mac).
+            runner: ubuntu-latest
+          - rid: ios-arm64
+            runner: macos-latest
+          - rid: ios-sim-arm64
+            runner: macos-latest
+
+    runs-on: ${{ matrix.runner }}
+    name: ${{ inputs.ffmpeg_version }} ${{ matrix.rid }} (${{ matrix.license }}v${{ matrix.license_version }})
+
+    env:
+      BUILD_RID: ${{ matrix.rid }}
+      VARIANT: ${{ inputs.ffmpeg_version }}-${{ matrix.rid }}-${{ matrix.license }}v${{ matrix.license_version }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.VARIANT }}
+          path: artifacts/${{ matrix.rid }}/native
+
+      # ABI link-check: compile the smoke program against the built libraries. The
+      # NDK (Ubuntu) / Xcode (macOS) toolchain is present on the runner, so this
+      # proves the libraries have no undefined symbols.
+      - name: ABI link-check
+        shell: bash
+        run: |
+          chmod +x scripts/test.sh scripts/test/*.sh
+          if [[ "${BUILD_RID}" == android-* ]]; then
+            export ANDROID_NDK_HOME="${ANDROID_NDK_HOME:-$ANDROID_NDK_LATEST_HOME}"
+          fi
+          bash scripts/test.sh "${BUILD_RID}" "artifacts/${BUILD_RID}/native"
+
+      # iOS simulator runtime: the simulator slice is an arm64 binary, so it runs
+      # natively on the Apple-Silicon runner (no emulation) — a true execution of
+      # encode/decode + whisper + TLS. GATING now: iOS is dynamic, so ios-run.sh links
+      # cleanly against the dylibs and a genuine runtime failure fails the job.
+      - name: iOS simulator runtime smoke
+        if: matrix.rid == 'ios-sim-arm64' && matrix.license == 'lgpl'
+        shell: bash
+        run: |
+          # Pick an available iOS runtime AND an iPhone from THAT runtime's own
+          # supportedDeviceTypes — picking device and runtime independently can yield an
+          # incompatible pair, which simctl rejects with "Incompatible device" (403).
+          PAIR="$(xcrun simctl list runtimes -j | python3 -c 'import json,sys; rts=[r for r in json.load(sys.stdin)["runtimes"] if r["name"].startswith("iOS") and r.get("isAvailable") and r.get("supportedDeviceTypes")]; r=rts[-1]; iph=[d for d in r["supportedDeviceTypes"] if "iPhone" in d["name"]] or r["supportedDeviceTypes"]; print(r["identifier"], iph[-1]["identifier"])')"
+          RT="${PAIR% *}"; DEV="${PAIR#* }"
+          echo "Using runtime=$RT device=$DEV"
+          UDID="$(xcrun simctl create ff-smoke "$DEV" "$RT")"
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID"
+          bash scripts/test/ios-run.sh "${BUILD_RID}" "artifacts/${BUILD_RID}/native"
+          xcrun simctl delete "$UDID" || true
+
+      # KVM access for the x86_64 emulator (KVM exists on x86 GitHub runners; the runner user just
+      # needs permission via this udev rule — the standard, documented step). Tolerant: reports if
+      # /dev/kvm is somehow absent instead of hard-failing.
+      - name: Enable KVM
+        if: matrix.rid == 'android-arm64' && matrix.license == 'lgpl'
+        run: |
+          if [ -e /dev/kvm ]; then
+            echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+              | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+            sudo udevadm control --reload-rules
+            sudo udevadm trigger --name-match=kvm || true
+            ls -l /dev/kvm
+          else
+            echo "WARNING: /dev/kvm absent — emulator will be un-accelerated"
+          fi
+
+      # Android runtime smoke — KVM-accelerated x86_64 emulator whose API-35 image translates our
+      # arm64 code (native bridge). GATING. Boots in ~40s; arm64 binary runs via translation; the
+      # remaining work is on-device native-lib resolution (see android-run.sh / the handoff).
+      - name: Android emulator runtime smoke
+        if: matrix.rid == 'android-arm64' && matrix.license == 'lgpl'
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_5
+          force-avd-creation: false
+          emulator-boot-timeout: 900
+          disable-animations: true
+          emulator-options: -no-snapshot-load -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
+          script: |
+            export ANDROID_NDK_HOME="${ANDROID_NDK_HOME:-$ANDROID_NDK_LATEST_HOME}"
+            bash scripts/test/android-run.sh "artifacts/${BUILD_RID}/native"
+
+  # Gate job — single required status check for branch protection.
+  all-mobile-tests:
+    if: always()
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          if [[ "${{ needs.test.result }}" != "success" ]]; then
+            echo "One or more mobile test jobs failed"
+            exit 1
+          fi

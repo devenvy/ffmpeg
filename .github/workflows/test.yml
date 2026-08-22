@@ -1,0 +1,151 @@
+name: Test (desktop)
+
+# Desktop/server execution tests against the artifacts from build.yml: download
+# each variant and RUN it (version, filter/decoder/protocol enumeration incl.
+# https/tls, an encode->decode round-trip) on a runner where the target executes
+# natively — Linux on Linux, Windows on Windows, macOS on macOS. Mobile (Android/
+# iOS) is deliberately a SEPARATE workflow (test-mobile.yml): its emulator/simulator
+# setup is slow and fiddly and shouldn't gate or destabilise these fast checks.
+# Chained after build.yml by ci.yml and release.yml.
+
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+    inputs:
+      ffmpeg_version:
+        required: true
+        type: string
+      ref:
+        required: false
+        type: string
+        default: ""
+      fail_fast:
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  test:
+    strategy:
+      fail-fast: ${{ inputs.fail_fast }}
+      matrix:
+        rid: [linux-x64, linux-arm64, linux-armhf, linux-musl-x64, win-x64, osx-x64, osx-arm64]
+        license: [lgpl, gpl]
+        license_version: [3, 2]   # v3 = OpenSSL/Vulkan; v2 = GnuTLS, no Vulkan (App-Store-safe)
+        include:
+          # Tests run where the target executes natively. The glibc Linux builds test
+          # on the PLAIN Ubuntu runner (not the manylinux build container) — running
+          # the low-glibc-floor binary on the runner's newer glibc also proves
+          # portability. Windows tests run on a real Windows runner (native .exe, no
+          # Wine).
+          - rid: linux-x64
+            runner: ubuntu-latest
+          - rid: linux-arm64
+            runner: ubuntu-24.04-arm
+          - rid: linux-armhf
+            runner: ubuntu-latest
+          - rid: linux-musl-x64
+            runner: ubuntu-latest
+            container: alpine:latest
+          - rid: win-x64
+            runner: windows-latest
+          - rid: osx-x64
+            runner: macos-15-intel
+          - rid: osx-arm64
+            runner: macos-latest
+
+    runs-on: ${{ matrix.runner }}
+    container: ${{ matrix.container || '' }}
+    name: ${{ inputs.ffmpeg_version }} ${{ matrix.rid }} (${{ matrix.license }}v${{ matrix.license_version }})
+
+    env:
+      BUILD_RID: ${{ matrix.rid }}
+      VARIANT: ${{ inputs.ffmpeg_version }}-${{ matrix.rid }}-${{ matrix.license }}v${{ matrix.license_version }}
+
+    steps:
+      - name: Bootstrap Alpine container
+        if: matrix.rid == 'linux-musl-x64'
+        # file: arch check. binutils: nm for symbol checks. libstdc++/libgcc: whisper's
+        # C++ runtime, which the (shared) libav* link — a standard runtime dep present on
+        # any real musl host (`apk add libstdc++ libgcc`), not something we can avoid.
+        # curl: fetch the (now mandatory) whisper model — Alpine has no curl by default, and
+        # its absence previously made the model download silently fail (whisper skipped).
+        run: apk add --no-cache bash git file binutils libstdc++ libgcc curl
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.VARIANT }}
+          path: artifacts/${{ matrix.rid }}/native
+
+      - name: Restore executable bits
+        shell: bash
+        run: |
+          # actions/upload-artifact does not preserve the executable bit, so the
+          # downloaded ffmpeg/ffprobe come back non-executable. Restore them.
+          for exe in ffmpeg ffprobe ffmpeg.exe ffprobe.exe; do
+            f="artifacts/${BUILD_RID}/native/${exe}"
+            [ -f "$f" ] && chmod +x "$f" || true
+          done
+
+      # Cache a tiny GGML Whisper model so the test runs a REAL af_whisper CPU inference (not just a
+      # filter-registered check). Stored in the workspace (relative path — works uniformly on every
+      # OS incl. the native Windows .exe, unlike a git-bash ~/ path) and cached across runs.
+      - name: Cache Whisper model
+        id: whisper-cache
+        uses: actions/cache@v4
+        with:
+          path: whisper-model/ggml-tiny.en.bin
+          key: whisper-ggml-tiny-en-v1
+      # Mandatory, not best-effort: the inference is a gating test, so a failed fetch must fail the
+      # job (loud) rather than silently drop the check. Cache + retries keep transient HF blips rare.
+      - name: Fetch Whisper model (mandatory)
+        shell: bash
+        run: |
+          m="whisper-model/ggml-tiny.en.bin"
+          mkdir -p whisper-model
+          if [ ! -f "$m" ]; then
+            curl -fsSL --retry 5 --retry-delay 5 --retry-all-errors \
+              "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.en.bin" -o "$m"
+          fi
+          # Pass a RELATIVE, colon-free path: the test runs from the workspace (run_functional never
+          # cd's), so ffmpeg resolves it against cwd on every OS — and unlike an absolute Windows path
+          # it has no drive-letter ':' to collide with af_whisper's option separator in the filtergraph.
+          echo "WHISPER_MODEL=$m" >> "$GITHUB_ENV"
+
+      # linux-armhf is 32-bit ARM (ARMv7): NO hosted runner executes it natively — the arm64
+      # runners are Ampere/Neoverse-N1, which dropped AArch32. So it MUST run under qemu-user.
+      # FFmpeg's third-party deps are static-linked into libav*, so the only dynamic deps are the
+      # base C/C++ runtime — supplied here via the armhf cross-runtime packages (on the amd64
+      # archive; they install under /usr/arm-linux-gnueabihf, exactly where linux.sh points qemu's
+      # -L sysroot). Without this the functional suite now FAILS rather than silently skipping.
+      - name: Set up qemu-user + armhf runtime (functional cross-test)
+        if: matrix.rid == 'linux-armhf'
+        shell: bash
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -q qemu-user libc6-armhf-cross libstdc++6-armhf-cross libgcc-s1-armhf-cross
+
+      - name: Test artifact
+        shell: bash
+        run: |
+          chmod +x scripts/test.sh scripts/test/*.sh
+          bash scripts/test.sh "${BUILD_RID}" "artifacts/${BUILD_RID}/native"
+
+  # Gate job — single required status check for branch protection.
+  all-tests:
+    if: always()
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          if [[ "${{ needs.test.result }}" != "success" ]]; then
+            echo "One or more desktop test jobs failed"
+            exit 1
+          fi

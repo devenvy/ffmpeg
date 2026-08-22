@@ -1,0 +1,291 @@
+name: Release
+
+permissions:
+  contents: write
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - versions.txt          # a version bump/add → release just that line
+      - 'scripts/**'          # any build-recipe change (incl. a dep-lib fix) → all lines
+      - '!scripts/test/**'    # ...except test-only changes, which don't affect artifacts
+  workflow_dispatch:
+    inputs:
+      versions:
+        description: "Space-separated versions to (re)build, or 'all'. Default: all tracked."
+        required: false
+        default: "all"
+
+concurrency:
+  group: release
+  cancel-in-progress: false  # never cancel a release mid-flight
+
+jobs:
+  # Decide which version lines to (re)build this run, and compute each one's
+  # next {version}.{build} tag. A push that only edits versions.txt builds just
+  # the added/changed lines; a scripts/build.sh change (or a manual run) rebuilds
+  # every tracked line.
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      builds: ${{ steps.plan.outputs.builds }}      # JSON: [{version, tag}]
+      versions: ${{ steps.plan.outputs.versions }}  # JSON: [version]
+      any: ${{ steps.plan.outputs.any }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # full history for tag lookup
+
+      - id: plan
+        env:
+          EVENT: ${{ github.event_name }}
+          DISPATCH_VERSIONS: ${{ inputs.versions }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          mapfile -t TRACKED < <(grep -vE '^[[:space:]]*(#|$)' versions.txt | tr -d '[:space:]' | sed '/^$/d')
+
+          BUILD_ALL=false
+          SEL=()
+          if [[ "${EVENT}" == "workflow_dispatch" ]]; then
+            if [[ -z "${DISPATCH_VERSIONS}" || "${DISPATCH_VERSIONS}" == "all" ]]; then
+              BUILD_ALL=true
+            else
+              read -ra SEL <<< "${DISPATCH_VERSIONS}"
+            fi
+          else
+            # First push / unknown base, or ANY build-recipe change (a scripts/ file
+            # other than tests — build.sh, a step, or a dep-lib pin bump) → rebuild
+            # every tracked line, since the recipe applies to all of them. A push that
+            # only edits versions.txt falls through to the per-line diff below.
+            if [[ -z "${BEFORE}" || "${BEFORE}" =~ ^0+$ ]] || ! git rev-parse -q --verify "${BEFORE}^{commit}" >/dev/null; then
+              BUILD_ALL=true
+            elif git diff --name-only "${BEFORE}" HEAD | grep -E '^scripts/' | grep -qv '^scripts/test/'; then
+              BUILD_ALL=true
+            else
+              if git cat-file -e "${BEFORE}:versions.txt" 2>/dev/null; then
+                mapfile -t PREV < <(git show "${BEFORE}:versions.txt" | grep -vE '^[[:space:]]*(#|$)' | tr -d '[:space:]' | sed '/^$/d')
+              else
+                PREV=()
+              fi
+              for v in "${TRACKED[@]}"; do
+                found=false
+                for p in "${PREV[@]:-}"; do [[ "$v" == "$p" ]] && found=true && break; done
+                $found || SEL+=("$v")
+              done
+            fi
+          fi
+          $BUILD_ALL && SEL=("${TRACKED[@]}")
+
+          BUILDS='[]'; VERSIONS='[]'
+          for v in "${SEL[@]:-}"; do
+            [[ -z "$v" ]] && continue
+            IFS='.' read -ra P <<< "$v"
+            while [[ ${#P[@]} -lt 3 ]]; do P+=("0"); done
+            BASE="${P[0]}.${P[1]}.${P[2]}"
+            LAST=$(git tag --list "${BASE}.*" --sort=-v:refname | head -1)
+            if [[ -n "$LAST" ]]; then NEXT=$(( ${LAST##*.} + 1 )); else NEXT=0; fi
+            TAG="${BASE}.${NEXT}"
+            BUILDS=$(jq -c --arg v "$v" --arg t "$TAG" '. + [{version:$v, tag:$t}]' <<< "$BUILDS")
+            VERSIONS=$(jq -c --arg v "$v" '. + [$v]' <<< "$VERSIONS")
+            echo "Will build ${v} -> ${TAG}"
+          done
+          ANY=$([[ $(jq 'length' <<< "$VERSIONS") -gt 0 ]] && echo true || echo false)
+          {
+            echo "builds=${BUILDS}"
+            echo "versions=${VERSIONS}"
+            echo "any=${ANY}"
+          } >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: prepare
+    if: needs.prepare.outputs.any == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        version: ${{ fromJson(needs.prepare.outputs.versions) }}
+    uses: ./.github/workflows/build.yml
+    with:
+      ffmpeg_version: ${{ matrix.version }}
+
+  # Tests gate the release: a failing test blocks the tag/publish below. Desktop and
+  # mobile are separate workflows (mobile's emulator/simulator setup is isolated).
+  test:
+    needs: [prepare, build]
+    if: needs.prepare.outputs.any == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        version: ${{ fromJson(needs.prepare.outputs.versions) }}
+    uses: ./.github/workflows/test.yml
+    with:
+      ffmpeg_version: ${{ matrix.version }}
+
+  test-mobile:
+    needs: [prepare, build]
+    if: needs.prepare.outputs.any == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        version: ${{ fromJson(needs.prepare.outputs.versions) }}
+    uses: ./.github/workflows/test-mobile.yml
+    with:
+      ffmpeg_version: ${{ matrix.version }}
+
+  # One tag + GitHub Release per version line.
+  release:
+    needs: [prepare, build, test, test-mobile]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        build: ${{ fromJson(needs.prepare.outputs.builds) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Create tag and release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${{ matrix.build.version }}"
+          TAG="${{ matrix.build.tag }}"
+          # Only the HIGHEST tracked version line gets GitHub's "Latest" badge. A
+          # maintenance release on an older line (e.g. 8.1.3 published after 9.0 already
+          # exists) must NOT become "Latest" — otherwise it steals the badge from the
+          # newest major. GitHub's default (--latest omitted) would mis-assign this by
+          # recency, so we set it explicitly per release.
+          HIGHEST="$(grep -vE '^[[:space:]]*(#|$)' versions.txt | tr -d '[:space:]' | sed '/^$/d' | sort -V | tail -1)"
+          if [[ "${VERSION}" == "${HIGHEST}" ]]; then MARK_LATEST=true; else MARK_LATEST=false; fi
+          echo "Highest tracked line: ${HIGHEST} — mark ${VERSION} as latest: ${MARK_LATEST}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "${TAG}"
+          git push origin "${TAG}"
+          gh release create "${TAG}" \
+            --title "FFmpeg ${VERSION} (build ${TAG##*.})" \
+            --generate-notes \
+            --latest="${MARK_LATEST}"
+
+  publish:
+    needs: [prepare, build, test, test-mobile, release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    strategy:
+      matrix:
+        build: ${{ fromJson(needs.prepare.outputs.builds) }}
+        rid: [linux-x64, linux-arm64, linux-armhf, linux-musl-x64, win-x64, osx-x64, osx-arm64, android-arm64]
+        license: [lgpl, gpl]
+        license_version: [3, 2]   # → license token {license}v{series}: lgplv3/gplv3/lgplv2/gplv2
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.build.version }}-${{ matrix.rid }}-${{ matrix.license }}v${{ matrix.license_version }}
+          path: artifacts/${{ matrix.rid }}-${{ matrix.license }}v${{ matrix.license_version }}
+
+      - name: Create release tarballs (runtime + optional dev)
+        run: |
+          VERSION="${{ matrix.build.version }}"
+          VARIANT="${{ matrix.rid }}-${{ matrix.license }}v${{ matrix.license_version }}"
+          SRC="artifacts/${VARIANT}"
+          RUN="/tmp/run"; DEV="/tmp/dev"
+          rm -rf "${RUN}" "${DEV}" && mkdir -p "${RUN}"
+          # Runtime tarball = binaries + shared libraries + legal ONLY. Dev files
+          # (headers, and Windows import libs) go in a separate -dev tarball so the
+          # runtime download stays lean. Android/iOS are link-only artifacts and
+          # keep their headers in the main tarball (handled below / in publish-ios).
+          case "${VARIANT}" in
+            win-*)
+              cp "${SRC}"/*.dll "${SRC}"/*.exe "${RUN}/"
+              mkdir -p "${DEV}/include" "${DEV}/lib"
+              cp -r "${SRC}/include/." "${DEV}/include/"
+              cp -r "${SRC}/lib/."     "${DEV}/lib/"   # MSVC .lib import libraries
+              ;;
+            osx-*)
+              cp "${SRC}"/*.dylib "${SRC}/ffmpeg" "${SRC}/ffprobe" "${RUN}/"
+              mkdir -p "${DEV}/include"; cp -r "${SRC}/include/." "${DEV}/include/"
+              ;;
+            android-*)
+              # Link-only: headers + libs belong together, no runtime/dev split.
+              mkdir -p "${RUN}/include" "${RUN}/lib"
+              cp -r "${SRC}/include/." "${RUN}/include/"
+              cp -r "${SRC}/lib/."     "${RUN}/lib/"
+              ;;
+            *)  # linux-*
+              cp "${SRC}"/*.so* "${SRC}/ffmpeg" "${SRC}/ffprobe" "${RUN}/"
+              mkdir -p "${DEV}/include"; cp -r "${SRC}/include/." "${DEV}/include/"
+              ;;
+          esac
+          if [ -d "${SRC}/legal" ]; then
+            cp -r "${SRC}/legal" "${RUN}/legal"
+            [ -d "${DEV}" ] && [ -n "$(ls -A "${DEV}" 2>/dev/null)" ] && cp -r "${SRC}/legal" "${DEV}/legal"
+          fi
+          tar -czf "ffmpeg-${VERSION}-${VARIANT}.tar.gz" -C "${RUN}" .
+          if [ -n "$(ls -A "${DEV}" 2>/dev/null)" ]; then
+            tar -czf "ffmpeg-${VERSION}-${VARIANT}-dev.tar.gz" -C "${DEV}" .
+          fi
+
+      - name: Upload release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${{ matrix.build.version }}"
+          VARIANT="${{ matrix.rid }}-${{ matrix.license }}v${{ matrix.license_version }}"
+          gh release upload "${{ matrix.build.tag }}" \
+            "ffmpeg-${VERSION}-${VARIANT}.tar.gz" --clobber --repo "${{ github.repository }}"
+          if [ -f "ffmpeg-${VERSION}-${VARIANT}-dev.tar.gz" ]; then
+            gh release upload "${{ matrix.build.tag }}" \
+              "ffmpeg-${VERSION}-${VARIANT}-dev.tar.gz" --clobber --repo "${{ github.repository }}"
+          fi
+
+  publish-ios:
+    needs: [prepare, build, test, test-mobile, release]
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    strategy:
+      matrix:
+        build: ${{ fromJson(needs.prepare.outputs.builds) }}
+        license: [lgpl, gpl]
+        license_version: [3, 2]   # ios v2 = LGPLv2.1/GPLv2 (App-Store-safe): no version3
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.build.version }}-ios-arm64-${{ matrix.license }}v${{ matrix.license_version }}
+          path: artifacts/ios-arm64
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.build.version }}-ios-sim-arm64-${{ matrix.license }}v${{ matrix.license_version }}
+          path: artifacts/ios-sim-arm64
+
+      - name: Assemble xcframeworks
+        run: |
+          VERSION="${{ matrix.build.version }}"
+          rm -rf bundle && mkdir -p bundle
+          # One .xcframework per libav* library, each bundling the device + simulator .framework.
+          # These are dynamic frameworks (iOS is --enable-shared); Xcode embeds + signs them in
+          # the consuming app. Dynamic linking is what makes the lgplv2 build LGPLv2.1-compliant
+          # (the end user can relink). Headers travel inside each .framework/Headers.
+          for fwpath in artifacts/ios-arm64/frameworks/*.framework; do
+            name="$(basename "${fwpath}" .framework)"
+            xcodebuild -create-xcframework \
+              -framework "artifacts/ios-arm64/frameworks/${name}.framework" \
+              -framework "artifacts/ios-sim-arm64/frameworks/${name}.framework" \
+              -output "bundle/${name}.xcframework"
+          done
+          # MoltenVK ICD (v3 Vulkan cells): point VK_ICD_FILENAMES at it in the consuming app.
+          [ -f artifacts/ios-arm64/frameworks/MoltenVK_icd.json ] \
+            && cp artifacts/ios-arm64/frameworks/MoltenVK_icd.json bundle/
+          cp -r artifacts/ios-arm64/legal bundle/legal
+          tar -czf "ffmpeg-${VERSION}-ios-${{ matrix.license }}v${{ matrix.license_version }}.tar.gz" -C bundle .
+
+      - name: Upload release asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "${{ matrix.build.tag }}" \
+            "ffmpeg-${{ matrix.build.version }}-ios-${{ matrix.license }}v${{ matrix.license_version }}.tar.gz" \
+            --clobber \
+            --repo "${{ github.repository }}"

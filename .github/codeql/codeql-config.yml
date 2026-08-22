@@ -1,0 +1,14 @@
+name: "CodeQL config (flexplay-ffmpeg builder)"
+
+# This repo is a BUILDER of stock upstream FFmpeg + libraries — it does not vendor,
+# modify, or compile in any upstream source of its own. Upstream code is cloned into
+# the (git-ignored, ephemeral) .build/ tree only at workflow run time and is never
+# committed. We scan our OWN code only; upstream CVEs are upstream's to triage.
+#
+# C/C++ analysis runs in build-mode: none (see codeql.yml), which scans the C source
+# committed to the repo — currently scripts/test/smoke.c and any future test
+# programs — WITHOUT building. Nothing is compiled, so upstream is never cloned or
+# analyzed. paths-ignore is a belt-and-suspenders guard: if a build ever runs under
+# CodeQL, the ephemeral upstream build tree is excluded from results.
+paths-ignore:
+  - '.build/**'

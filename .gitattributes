@@ -1,0 +1,8 @@
+# Enforce LF line endings for all text files (Linux build system)
+* text=auto eol=lf
+
+# Shell scripts must be LF
+*.sh text eol=lf
+
+# Explicitly binary
+*.tar.gz binary

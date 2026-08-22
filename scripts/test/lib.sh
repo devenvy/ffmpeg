@@ -384,15 +384,17 @@ exercise_whisper() {
   # Windows .exe (unlike standalone path args). A relative path resolves against cwd on every OS.
   local tmp; tmp="whisper-out.$$"; mkdir -p "$tmp"
   # A short spoken-like signal isn't needed to prove execution; a tone drives the full graph.
-  # NOTE: af_whisper's ggml CPU inference has intermittently SEGFAULTED on the Windows runner
-  # (~1 in 15 runs observed; a same-artifact re-run passed, so it's nondeterministic — not a build
-  # defect). It is NOT yet mapped to a specific upstream issue. We run ONCE and, on failure, FAIL
-  # LOUD with the exit code + captured stderr — NO retry masking — so the flake is visible and
-  # diagnosable and can be re-run manually. (exit 139 = SIGSEGV; -v verbose stderr shows how far
-  # ggml got / which op faulted before the crash.)
+  # NOTE: on SOME Windows runner instances, af_whisper SIGSEGVs during process TEARDOWN *after* the
+  # inference completes successfully (verified: ffmpeg prints "Exiting with exit code 0" before the
+  # crash). It's an upstream ggml/whisper teardown fault — NOT our harness (af_whisper inference is
+  # synchronous, no thread we manage) and NOT the binary (0 crashes in ~300 local runs of the same
+  # artifact; some runners are 0/60, others hit it — a runner/CPU lottery). Exact faulting op not yet
+  # pinned (needs a debugger on a crashing runner — a later task). We run ONCE and FAIL LOUD on any
+  # nonzero exit — no retry, no masking — capturing exit code + stderr (exit 139 = SIGSEGV). Re-run
+  # the job if a bad runner trips it. (queue uses the 3s default — a DURATION; our clip is 2s.)
   local out ec
   out="$("${RUNNER[@]}" "$FFMPEG" -hide_banner -v verbose -f lavfi -i "sine=frequency=220:duration=2" \
-        -af "whisper=model=${model}:language=en:destination=${tmp}/out.txt:queue=1000" \
+        -af "whisper=model=${model}:language=en:destination=${tmp}/out.txt" \
         -f null - 2>&1)"
   ec=$?
   if [ "$ec" -eq 0 ] && [ -e "${tmp}/out.txt" ]; then

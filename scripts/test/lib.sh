@@ -346,26 +346,25 @@ check_registry() {
 
 # --- real TLS handshake -------------------------------------------------------
 # Prove the TLS backend actually NEGOTIATES, not just that the protocol is listed. Fetch a
-# tiny well-known HTTPS resource; retry to ride out transient network blips. Only for builds
-# that HAVE a TLS backend (lgplv2 on Linux/Android has none — check_tls covers that case).
+# tiny well-known HTTPS resource. Only for builds that HAVE a TLS backend (lgplv2 on Linux/Android
+# has none — check_tls covers that case). Single attempt, no retry: a transient network blip
+# surfaces as a visible [SKIP] (it is a runner-network issue, not a TLS-backend defect) rather than
+# being masked by re-running — re-run the job manually if a blip trips it.
 exercise_tls() {
   build_has_tls || { info "TLS handshake: build has no TLS backend (lgplv2) — skipping (correct-absence checked separately)"; return; }
   # A tiny, highly-available https resource. It's a TEXT file, so after the TLS GET succeeds
   # ffmpeg fails to DEMUX it ("Invalid data found") — that failure PROVES the handshake worked
   # and bytes were transferred. We only truly fail if the https protocol is missing entirely.
   local url="https://raw.githubusercontent.com/FFmpeg/FFmpeg/master/RELEASE" out
-  for _ in 1 2 3; do
-    out="$("${RUNNER[@]}" "$FFMPEG" -hide_banner -v error -i "$url" -f null - 2>&1)"
-    if [ -z "$out" ] || grep -qiE 'Invalid data found|could not find codec|Unknown input format|does not contain any stream|End of file' <<<"$out"; then
-      pass "TLS handshake: fetched bytes over https:// (backend negotiates)"; return
-    fi
-    case "$out" in
-      *"Protocol not found"*|*"Unknown protocol"*)
-        fail "TLS handshake: https unavailable — TLS backend not wired ($out)"; return ;;
-    esac
-    sleep 3
-  done
-  skip "TLS handshake: incomplete after retries (runner network/cert, not a TLS-backend defect): $(tr '\n' ' ' <<<"$out" | cut -c1-160)"
+  out="$("${RUNNER[@]}" "$FFMPEG" -hide_banner -v error -i "$url" -f null - 2>&1)"
+  if [ -z "$out" ] || grep -qiE 'Invalid data found|could not find codec|Unknown input format|does not contain any stream|End of file' <<<"$out"; then
+    pass "TLS handshake: fetched bytes over https:// (backend negotiates)"; return
+  fi
+  case "$out" in
+    *"Protocol not found"*|*"Unknown protocol"*)
+      fail "TLS handshake: https unavailable — TLS backend not wired ($out)"; return ;;
+  esac
+  skip "TLS handshake: incomplete (runner network/cert, not a TLS-backend defect): $(tr '\n' ' ' <<<"$out" | cut -c1-160)"
 }
 
 # --- whisper CPU inference ----------------------------------------------------
@@ -385,29 +384,21 @@ exercise_whisper() {
   # Windows .exe (unlike standalone path args). A relative path resolves against cwd on every OS.
   local tmp; tmp="whisper-out.$$"; mkdir -p "$tmp"
   # A short spoken-like signal isn't needed to prove execution; a tone drives the full graph.
-  # OBSERVED: af_whisper's ggml CPU inference intermittently segfaults on the Windows runner — a
-  # re-run of the *same artifact* passed, so it is nondeterministic, not a build defect. ggml/
-  # whisper CPU-inference crashes on Windows are a documented class (ggml-org/whisper.cpp #2172,
-  # #2175, #2178), though those reports are mostly deterministic (AVX/alignment); our exact
-  # intermittent variant isn't pinned to one issue. Retry so an intermittent crash doesn't red the
-  # pipeline; a DETERMINISTIC failure (bad model, missing filter, real bug) still fails every
-  # attempt and is NOT masked, and each attempt logs its exit code + stderr for diagnosis.
-  local attempt rc=1 out ec
-  for attempt in 1 2 3; do
-    out="$("${RUNNER[@]}" "$FFMPEG" -hide_banner -v error -f lavfi -i "sine=frequency=220:duration=2" \
-          -af "whisper=model=${model}:language=en:destination=${tmp}/out.txt:queue=1000" \
-          -f null - 2>&1)"
-    ec=$?
-    if [ "$ec" -eq 0 ] && [ -e "${tmp}/out.txt" ]; then rc=0; break; fi
-    # Capture EVIDENCE on each failed attempt so an intermittent crash is diagnosable from the log
-    # (exit 139 = SIGSEGV; ffmpeg/ggml stderr names the faulting op) rather than a black box.
-    info "whisper inference: attempt ${attempt}/3 failed (exit ${ec}) — $(printf '%s' "$out" | tr '\n' ' ' | tail -c 300)"
-    rm -f "${tmp}/out.txt"
-  done
-  if [ "$rc" -eq 0 ]; then
-    pass "whisper inference: af_whisper ran a CPU forward pass to completion (attempt ${attempt}/3)"
+  # NOTE: af_whisper's ggml CPU inference has intermittently SEGFAULTED on the Windows runner
+  # (~1 in 15 runs observed; a same-artifact re-run passed, so it's nondeterministic — not a build
+  # defect). It is NOT yet mapped to a specific upstream issue. We run ONCE and, on failure, FAIL
+  # LOUD with the exit code + captured stderr — NO retry masking — so the flake is visible and
+  # diagnosable and can be re-run manually. (exit 139 = SIGSEGV; -v verbose stderr shows how far
+  # ggml got / which op faulted before the crash.)
+  local out ec
+  out="$("${RUNNER[@]}" "$FFMPEG" -hide_banner -v verbose -f lavfi -i "sine=frequency=220:duration=2" \
+        -af "whisper=model=${model}:language=en:destination=${tmp}/out.txt:queue=1000" \
+        -f null - 2>&1)"
+  ec=$?
+  if [ "$ec" -eq 0 ] && [ -e "${tmp}/out.txt" ]; then
+    pass "whisper inference: af_whisper ran a CPU forward pass to completion"
   else
-    fail "whisper inference: af_whisper failed to run with a model (3/3 attempts)"
+    fail "whisper inference: af_whisper did not complete (exit ${ec}) — $(printf '%s' "$out" | tr '\n' ' ' | tail -c 400)"
   fi
   rm -rf "$tmp"
 }

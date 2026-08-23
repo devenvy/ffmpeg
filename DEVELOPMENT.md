@@ -297,8 +297,103 @@ Two build-mechanics notes that aren't about coverage:
   **Windows/Apple** are unaffected by the v2/v3 split: Windows uses OS-native **SChannel** and
   Apple **SecureTransport** in every cell, with no dependency. (`--disable-autodetect` is set, so
   each backend is requested explicitly.) See [License version](#lgpl-vs-gpl).
-- **x265** is pinned to **3.6** (4.0+ has broken ARM NEON intrinsics) and built with
-  `-DENABLE_ASSEMBLY=OFF` under the NDK/iOS toolchains, where its aarch64 asm won't assemble.
+- **x265** tracks the latest release on x86, but is **held at 3.6 on the ARM64 targets** (4.0+
+  ships broken aarch64 NEON intrinsics) via a per-platform ledger override — see
+  [Dependency versions](#dependency-versions). It also builds with `-DENABLE_ASSEMBLY=OFF` under
+  the NDK/iOS toolchains, where its aarch64 asm won't assemble.
+
+## Dependency versions
+
+Every third-party library's version is pinned in one file — **[`deps.json`](deps.json)**, the
+dependency ledger — not scattered across the `scripts/deps/*.sh` build scripts. The scripts read
+it through a small loader and clone each dep at the pinned ref. (Design record:
+[docs/superpowers/specs/2026-08-22-dependency-ledger-design.md](docs/superpowers/specs/2026-08-22-dependency-ledger-design.md).)
+
+### The ledger — `deps.json`
+
+Two blocks:
+
+- **`defaults`** — one entry per dependency: an `origin` (clone URL) plus exactly one ref
+  (`tag`, `branch`, or `commit`), and, for the Renovate-tracked deps, a `datasource` (+ optional
+  `registryUrl`). This is the version every build uses unless an override says otherwise.
+- **`overrides.<major>`** — per-FFmpeg-major holds (`"8"`, `"9"`). List a dep here only when it
+  must differ from its default for that line. Each override carries a required **`reason`**, plus:
+  - an optional **`issue`** — present ⇒ a *temporary blocker* to revisit (the linked issue is the
+    reminder to drop the hold); absent ⇒ a *permanent compat fact* (e.g. "8.x's configure caps
+    this lib at 3.x").
+  - an optional **`platforms`** array — scopes the hold to specific RIDs. Without it the hold
+    covers every platform on that major; with it, only the listed RIDs use the override and every
+    other platform falls through to the default.
+
+Example — x265 tracks latest everywhere except the ARM64 targets, held at 3.6 because x265 4.0+
+has broken aarch64 NEON intrinsics:
+
+```jsonc
+"overrides": {
+  "9": {
+    "x265": {
+      "origin": "https://bitbucket.org/multicoreware/x265_git.git",
+      "tag": "3.6",
+      "reason": "x265 4.0+ ships broken aarch64 NEON intrinsics in intrapred-prim.cpp …",
+      "issue": 6,
+      "platforms": ["linux-arm64", "osx-arm64", "ios-arm64", "ios-sim-arm64", "android-arm64"]
+    }
+  }
+}
+```
+
+### How the build resolves a version
+
+Each `scripts/deps/<name>.sh` calls the loader in [`scripts/deps/lib.sh`](scripts/deps/lib.sh)
+instead of hardcoding a clone:
+
+- `clone_dep <name> <dir>` — resolve, `git clone`, and checkout the ref.
+- `dep_version <name>` — just the resolved ref string (used by the tarball deps and to stamp
+  `.pc` files).
+
+Resolution precedence: **`overrides[FFMPEG_MAJOR][name]`** (when it applies to this `BUILD_RID`)
+**else `defaults[name]`**. A platform-scoped override applies only when the build's RID is in its
+`platforms` list. The loader fails the build loudly if a dep is missing from the ledger,
+malformed, or `jq` is unavailable — a mis-resolved dependency must stop the build, not silently
+clone the wrong thing. `bash scripts/deps/ledger-validate.sh` checks the ledger's shape
+(origin + exactly one ref; every override has a reason; `platforms` are known RIDs).
+
+### Bumping a dependency
+
+- **Automatically:** self-hosted **Renovate**
+  ([`.github/workflows/renovate.yml`](.github/workflows/renovate.yml) + [`renovate.json`](renovate.json))
+  watches each `defaults` entry's upstream weekly and opens a `chore(deps):` PR when a newer tag
+  appears. Its regex manager is scoped to the **`defaults` block only** — it never edits an
+  override, a commit pin (x264, amf), or a tarball dep (gmp, libmp3lame). CI builds that bump
+  against every FFmpeg line before it can merge.
+- **By hand:** edit the `tag`/`commit` in `deps.json`, run `bash scripts/deps/ledger-validate.sh`,
+  regenerate the matrices (`bash scripts/gen-matrix.sh`), and open a PR.
+
+### When a bump breaks a build
+
+CI validates a bump across all platforms and licenses. A red build is one of two kinds — fix it at
+the right layer:
+
+1. **Build-tooling drift** — the dep's own build interface changed (a renamed meson option, a new
+   minimum toolchain, dropped configure flags). **Fix the `scripts/deps/<name>.sh` build script**
+   (or the toolchain in `scripts/steps/03_install_packages.sh`) and keep the dep at latest. This is
+   the common case and needs no override.
+2. **FFmpeg-version or platform incompatibility** — a line or an arch genuinely can't consume the
+   new version. **Add an override** (`overrides.<major>`, with `platforms` if it's arch-specific),
+   a `reason`, and an `issue` if it's a blocker. If the script must then build *both* the new and
+   the held version, gate that one flag on `dep_version <name>` rather than duplicating the script.
+
+Remove a hold when its blocker is fixed upstream: delete the override entry (the linked issue is
+the reminder), let CI build the default across that line, and if green the hold is gone.
+
+### The coverage matrix stays in sync
+
+The per-cell matrices in `docs/matrix/` carry a **Version** column sourced from the ledger,
+resolved per FFmpeg major and RID. When a platform-scoped override makes a dep's version differ
+across platforms, the matrix shows each version in its cell instead of a check. Because the
+matrices depend on `deps.json`, the `docs-matrix` CI job regenerates them and fails on drift — so a
+dependency bump updates the docs too, not just an FFmpeg change. Never hand-edit the matrices; run
+`bash scripts/gen-matrix.sh`.
 
 ## Roadmap
 

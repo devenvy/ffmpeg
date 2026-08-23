@@ -1,45 +1,241 @@
 {
   "defaults": {
-    "dav1d":      { "origin": "https://code.videolan.org/videolan/dav1d.git",        "tag": "1.4.3",  "datasource": "gitlab-tags", "registryUrl": "https://code.videolan.org" },
-    "fribidi":    { "origin": "https://github.com/fribidi/fribidi.git",              "tag": "v1.0.16", "datasource": "github-tags" },
-    "harfbuzz":   { "origin": "https://github.com/harfbuzz/harfbuzz.git",            "tag": "8.5.0",   "datasource": "github-tags" },
-    "kvazaar":    { "origin": "https://github.com/ultravideo/kvazaar.git",           "tag": "v2.3.1",  "datasource": "github-tags" },
-    "libass":     { "origin": "https://github.com/libass/libass.git",               "tag": "0.17.3",  "datasource": "github-tags" },
-    "libdrm":     { "origin": "https://gitlab.freedesktop.org/mesa/drm.git",         "tag": "libdrm-2.4.123", "datasource": "gitlab-tags", "registryUrl": "https://gitlab.freedesktop.org" },
-    "libogg":     { "origin": "https://github.com/xiph/ogg.git",                     "tag": "v1.3.5",  "datasource": "github-tags" },
-    "libva":      { "origin": "https://github.com/intel/libva.git",                 "tag": "2.22.0",  "datasource": "github-tags" },
-    "libvorbis":  { "origin": "https://github.com/xiph/vorbis.git",                 "tag": "v1.3.7",  "datasource": "github-tags" },
-    "libvpx":     { "origin": "https://chromium.googlesource.com/webm/libvpx.git",  "tag": "v1.14.1", "datasource": "git-refs" },
-    "x265":       { "origin": "https://bitbucket.org/multicoreware/x265_git.git",   "tag": "3.6",     "datasource": "bitbucket-tags", "registryUrl": "https://bitbucket.org" },
-    "moltenvk":   { "origin": "https://github.com/KhronosGroup/MoltenVK.git",       "tag": "v1.2.11", "datasource": "github-tags" },
-    "openh264":   { "origin": "https://github.com/cisco/openh264.git",             "tag": "v2.4.1",  "datasource": "github-tags" },
-    "openssl":    { "origin": "https://github.com/openssl/openssl.git",            "tag": "openssl-3.5.1", "datasource": "github-tags" },
-    "whisper":    { "origin": "https://github.com/ggml-org/whisper.cpp.git",       "tag": "v1.8.6",  "datasource": "github-tags" },
-    "zimg":       { "origin": "https://github.com/sekrit-twc/zimg.git",            "tag": "release-3.0.5", "datasource": "github-tags" },
-    "zlib":       { "origin": "https://github.com/madler/zlib.git",               "tag": "v1.3.1",  "datasource": "github-tags" },
-
-    "gmp":        { "origin": "https://ftp.gnu.org/gnu/gmp/gmp-6.3.0.tar.xz", "tag": "6.3.0", "reason": "gmp.sh downloads a GNU tarball (GMP_VER=6.3.0) via dep_version, not git; no canonical git mirror with a matching v6.3.0 tag was found (checked github.com/alisw/GMP and git.savannah.gnu.org/git/gmp — neither has it), so origin/tag here describe the tarball, not a clonable git ref; tag is the bare tarball-filename version." },
-    "gnutls":     { "origin": "https://gitlab.com/gnutls/gnutls.git",             "tag": "3.8.6",   "datasource": "gitlab-tags", "registryUrl": "https://gitlab.com" },
-    "nettle":     { "origin": "https://git.lysator.liu.se/nettle/nettle.git",     "tag": "3.10", "datasource": "git-refs", "reason": "nettle.sh downloads a GNU tarball (NETTLE_VER=3.10) built via dep_version, not git clone_dep (nettle's git tag has no pre-generated ./configure); tag is the bare tarball-filename version, not the git tag (which is nettle_3.10_release_20240616)." },
-    "libtasn1":   { "origin": "https://gitlab.com/gnutls/libtasn1.git",           "tag": "4.19.0", "datasource": "gitlab-tags", "registryUrl": "https://gitlab.com", "reason": "libtasn1.sh downloads a GNU tarball (TASN1_VER=4.19.0) built via dep_version, not git clone_dep (libtasn1's git tag has no pre-generated ./configure); tag is the bare tarball-filename version, not the git tag (which is v4.19.0)." },
-    "libexpat":   { "origin": "https://github.com/libexpat/libexpat.git",         "tag": "R_2_6_2", "datasource": "github-tags" },
-    "fontconfig": { "origin": "https://gitlab.freedesktop.org/fontconfig/fontconfig.git", "tag": "2.15.0", "datasource": "gitlab-tags", "registryUrl": "https://gitlab.freedesktop.org" },
-    "libpng":     { "origin": "https://github.com/pnggroup/libpng.git",           "tag": "v1.6.43", "datasource": "github-tags" },
-    "freetype":   { "origin": "https://gitlab.freedesktop.org/freetype/freetype.git", "tag": "VER-2-13-3", "datasource": "gitlab-tags", "registryUrl": "https://gitlab.freedesktop.org" },
-
-    "amf":        { "origin": "https://github.com/GPUOpen-LibrariesAndSDKs/AMF.git", "branch": "master", "datasource": "github-tags", "reason": "TODO pin — currently floats HEAD (amf.sh has no --branch)" },
-    "aom":        { "origin": "https://aomedia.googlesource.com/aom", "tag": "v3.9.1", "datasource": "git-refs" },
-    "libmp3lame": { "origin": "https://downloads.sourceforge.net/project/lame/lame/3.100/lame-3.100.tar.gz", "tag": "3.100", "reason": "libmp3lame.sh downloads a SourceForge tarball (lame-3.100.tar.gz) via dep_version, not git; no verified git mirror carries a matching RELEASE__3_100-style tag (checked github.com/rbrito/lame — closest is lame3_100_with_psymodel_v3_99_5, not exact), so this entry cannot be faithfully expressed as a clonable ref; tag is the bare tarball-filename version." },
-    "libvpl":     { "origin": "https://github.com/intel/libvpl.git",              "branch": "main", "datasource": "github-tags", "reason": "TODO pin — currently floats HEAD (libvpl.sh has no --branch)" },
-    "libwebp":    { "origin": "https://chromium.googlesource.com/webm/libwebp.git","tag": "v1.4.0", "datasource": "git-refs" },
-    "nv-codec":   { "origin": "https://github.com/FFmpeg/nv-codec-headers.git",   "branch": "master", "datasource": "github-tags", "reason": "TODO pin — currently floats HEAD (nv-codec.sh has no --branch)" },
-    "opus":       { "origin": "https://github.com/xiph/opus.git",                 "tag": "v1.5.2", "datasource": "github-tags" },
-    "soxr":       { "origin": "https://github.com/dofuuz/soxr.git",               "tag": "0.1.3", "datasource": "github-tags" },
-    "svtav1":     { "origin": "https://gitlab.com/AOMediaCodec/SVT-AV1.git",      "tag": "v2.2.0", "datasource": "gitlab-tags", "registryUrl": "https://gitlab.com" },
-    "x264":       { "origin": "https://code.videolan.org/videolan/x264.git",      "branch": "stable", "datasource": "git-refs", "reason": "x264 publishes no release tags; tracks stable — pin a reviewed commit in bump task" },
-    "vulkan-headers": { "origin": "https://github.com/KhronosGroup/Vulkan-Headers.git", "branch": "main", "datasource": "github-tags", "reason": "TODO pin — currently floats HEAD (vulkan.sh has no --branch)" },
-    "vulkan-loader":  { "origin": "https://github.com/KhronosGroup/Vulkan-Loader.git",  "branch": "main", "datasource": "github-tags", "reason": "TODO pin — currently floats HEAD (vulkan.sh has no --branch)" },
-    "spirv-headers":  { "origin": "https://github.com/KhronosGroup/SPIRV-Headers.git",  "branch": "main", "datasource": "github-tags", "reason": "TODO pin — currently floats HEAD (whisper.sh has no --branch)" }
+    "dav1d": {
+      "origin": "https://code.videolan.org/videolan/dav1d.git",
+      "tag": "1.5.4",
+      "datasource": "gitlab-tags",
+      "registryUrl": "https://code.videolan.org"
+    },
+    "fribidi": {
+      "origin": "https://github.com/fribidi/fribidi.git",
+      "tag": "v1.0.16",
+      "datasource": "github-tags"
+    },
+    "harfbuzz": {
+      "origin": "https://github.com/harfbuzz/harfbuzz.git",
+      "tag": "14.3.1",
+      "datasource": "github-tags"
+    },
+    "kvazaar": {
+      "origin": "https://github.com/ultravideo/kvazaar.git",
+      "tag": "v2.3.2",
+      "datasource": "github-tags"
+    },
+    "libass": {
+      "origin": "https://github.com/libass/libass.git",
+      "tag": "0.17.5",
+      "datasource": "github-tags"
+    },
+    "libdrm": {
+      "origin": "https://gitlab.freedesktop.org/mesa/drm.git",
+      "tag": "libdrm-2.4.134",
+      "datasource": "gitlab-tags",
+      "registryUrl": "https://gitlab.freedesktop.org"
+    },
+    "libogg": {
+      "origin": "https://github.com/xiph/ogg.git",
+      "tag": "v1.3.6",
+      "datasource": "github-tags"
+    },
+    "libva": {
+      "origin": "https://github.com/intel/libva.git",
+      "tag": "2.24.1",
+      "datasource": "github-tags"
+    },
+    "libvorbis": {
+      "origin": "https://github.com/xiph/vorbis.git",
+      "tag": "v1.3.7",
+      "datasource": "github-tags"
+    },
+    "libvpx": {
+      "origin": "https://chromium.googlesource.com/webm/libvpx.git",
+      "tag": "v1.16.0",
+      "datasource": "git-refs"
+    },
+    "x265": {
+      "origin": "https://bitbucket.org/multicoreware/x265_git.git",
+      "tag": "4.2",
+      "datasource": "bitbucket-tags",
+      "registryUrl": "https://bitbucket.org"
+    },
+    "moltenvk": {
+      "origin": "https://github.com/KhronosGroup/MoltenVK.git",
+      "tag": "v1.4.2",
+      "datasource": "github-tags"
+    },
+    "openh264": {
+      "origin": "https://github.com/cisco/openh264.git",
+      "tag": "v2.6.0",
+      "datasource": "github-tags"
+    },
+    "openssl": {
+      "origin": "https://github.com/openssl/openssl.git",
+      "tag": "openssl-3.5.7",
+      "datasource": "github-tags"
+    },
+    "whisper": {
+      "origin": "https://github.com/ggml-org/whisper.cpp.git",
+      "tag": "v1.9.3",
+      "datasource": "github-tags"
+    },
+    "zimg": {
+      "origin": "https://github.com/sekrit-twc/zimg.git",
+      "tag": "release-3.0.6",
+      "datasource": "github-tags"
+    },
+    "zlib": {
+      "origin": "https://github.com/madler/zlib.git",
+      "tag": "v1.3.2",
+      "datasource": "github-tags"
+    },
+    "gmp": {
+      "origin": "https://ftp.gnu.org/gnu/gmp/gmp-6.3.0.tar.xz",
+      "tag": "6.3.0",
+      "reason": "gmp.sh downloads a GNU tarball (GMP_VER=6.3.0) via dep_version, not git; no canonical git mirror with a matching v6.3.0 tag was found (checked github.com/alisw/GMP and git.savannah.gnu.org/git/gmp — neither has it), so origin/tag here describe the tarball, not a clonable git ref; tag is the bare tarball-filename version. 6.3.0 (2023-07-30) remains the latest stable GMP release as of 2026-08."
+    },
+    "gnutls": {
+      "origin": "https://gitlab.com/gnutls/gnutls.git",
+      "tag": "3.8.13",
+      "datasource": "gitlab-tags",
+      "registryUrl": "https://gitlab.com"
+    },
+    "nettle": {
+      "origin": "https://git.lysator.liu.se/nettle/nettle.git",
+      "tag": "4.0",
+      "datasource": "git-refs",
+      "reason": "nettle.sh downloads a GNU tarball (NETTLE_VER=4.0) built via dep_version, not git clone_dep (nettle git tag has no pre-generated ./configure); tag is the bare tarball-filename version, not the git tag (which is nettle_4.0_release_20260205)."
+    },
+    "libtasn1": {
+      "origin": "https://gitlab.com/gnutls/libtasn1.git",
+      "tag": "4.21.0",
+      "datasource": "gitlab-tags",
+      "registryUrl": "https://gitlab.com",
+      "reason": "libtasn1.sh downloads a GNU tarball (TASN1_VER=4.21.0) built via dep_version, not git clone_dep (libtasn1's git tag has no pre-generated ./configure); tag is the bare tarball-filename version, not the git tag (which is v4.21.0)."
+    },
+    "libexpat": {
+      "origin": "https://github.com/libexpat/libexpat.git",
+      "tag": "R_2_8_3",
+      "datasource": "github-tags"
+    },
+    "fontconfig": {
+      "origin": "https://gitlab.freedesktop.org/fontconfig/fontconfig.git",
+      "tag": "2.18.3",
+      "datasource": "gitlab-tags",
+      "registryUrl": "https://gitlab.freedesktop.org"
+    },
+    "libpng": {
+      "origin": "https://github.com/pnggroup/libpng.git",
+      "tag": "v1.6.58",
+      "datasource": "github-tags"
+    },
+    "freetype": {
+      "origin": "https://gitlab.freedesktop.org/freetype/freetype.git",
+      "tag": "VER-2-14-3",
+      "datasource": "gitlab-tags",
+      "registryUrl": "https://gitlab.freedesktop.org"
+    },
+    "amf": {
+      "origin": "https://github.com/GPUOpen-LibrariesAndSDKs/AMF.git",
+      "tag": "v1.4.36",
+      "datasource": "github-tags"
+    },
+    "aom": {
+      "origin": "https://aomedia.googlesource.com/aom",
+      "tag": "v3.14.1",
+      "datasource": "git-refs"
+    },
+    "libmp3lame": {
+      "origin": "https://downloads.sourceforge.net/project/lame/lame/3.100/lame-3.100.tar.gz",
+      "tag": "3.100",
+      "reason": "libmp3lame.sh downloads a SourceForge tarball (lame-3.100.tar.gz) via dep_version, not git; no verified git mirror carries a matching RELEASE__3_100-style tag (checked github.com/rbrito/lame — closest is lame3_100_with_psymodel_v3_99_5, not exact), so this entry cannot be faithfully expressed as a clonable ref; tag is the bare tarball-filename version. 3.100 (2017-10-13) remains the latest stable LAME release as of 2026-08."
+    },
+    "libvpl": {
+      "origin": "https://github.com/intel/libvpl.git",
+      "tag": "v2.17.0",
+      "datasource": "github-tags"
+    },
+    "libwebp": {
+      "origin": "https://chromium.googlesource.com/webm/libwebp.git",
+      "tag": "v1.6.0",
+      "datasource": "git-refs"
+    },
+    "nv-codec": {
+      "origin": "https://github.com/FFmpeg/nv-codec-headers.git",
+      "tag": "n13.1.15.0",
+      "datasource": "github-tags"
+    },
+    "opus": {
+      "origin": "https://github.com/xiph/opus.git",
+      "tag": "v1.6.1",
+      "datasource": "github-tags"
+    },
+    "soxr": {
+      "origin": "https://github.com/dofuuz/soxr.git",
+      "tag": "0.1.3",
+      "datasource": "github-tags"
+    },
+    "svtav1": {
+      "origin": "https://gitlab.com/AOMediaCodec/SVT-AV1.git",
+      "tag": "v4.2.0",
+      "datasource": "gitlab-tags",
+      "registryUrl": "https://gitlab.com"
+    },
+    "x264": {
+      "origin": "https://code.videolan.org/videolan/x264.git",
+      "commit": "b35605ace3ddf7c1a5d67a2eb553f034aef41d55",
+      "datasource": "git-refs",
+      "reason": "x264 has no release tags; pinned reviewed stable HEAD"
+    },
+    "vulkan-headers": {
+      "origin": "https://github.com/KhronosGroup/Vulkan-Headers.git",
+      "tag": "vulkan-sdk-1.4.357.0",
+      "datasource": "github-tags"
+    },
+    "vulkan-loader": {
+      "origin": "https://github.com/KhronosGroup/Vulkan-Loader.git",
+      "tag": "vulkan-sdk-1.4.357.0",
+      "datasource": "github-tags"
+    },
+    "spirv-headers": {
+      "origin": "https://github.com/KhronosGroup/SPIRV-Headers.git",
+      "tag": "vulkan-sdk-1.4.357.0",
+      "datasource": "github-tags"
+    }
   },
-  "overrides": { "8": {}, "9": {} }
+  "overrides": {
+    "8": {
+      "x265": {
+        "origin": "https://bitbucket.org/multicoreware/x265_git.git",
+        "tag": "3.6",
+        "datasource": "bitbucket-tags",
+        "registryUrl": "https://bitbucket.org",
+        "reason": "x265 4.0+ ships broken aarch64 NEON intrinsics in intrapred-prim.cpp (bitbucket #937, HandBrake #3652, vcpkg #46880); held at 3.6 on native ARM64 targets. Other arches take the default. Remove when upstream fixes the aarch64 NEON build.",
+        "issue": 6,
+        "platforms": [
+          "linux-arm64",
+          "osx-arm64",
+          "ios-arm64",
+          "ios-sim-arm64",
+          "android-arm64"
+        ]
+      }
+    },
+    "9": {
+      "x265": {
+        "origin": "https://bitbucket.org/multicoreware/x265_git.git",
+        "tag": "3.6",
+        "datasource": "bitbucket-tags",
+        "registryUrl": "https://bitbucket.org",
+        "reason": "x265 4.0+ ships broken aarch64 NEON intrinsics in intrapred-prim.cpp (bitbucket #937, HandBrake #3652, vcpkg #46880); held at 3.6 on native ARM64 targets. Other arches take the default. Remove when upstream fixes the aarch64 NEON build.",
+        "issue": 6,
+        "platforms": [
+          "linux-arm64",
+          "osx-arm64",
+          "ios-arm64",
+          "ios-sim-arm64",
+          "android-arm64"
+        ]
+      }
+    }
+  }
 }

@@ -68,11 +68,20 @@ case "${RID}" in
       # Building on a normal glibc host (e.g. local Ubuntu) — use apt like the others.
       sudo apt-get update
       sudo apt-get install -y --no-install-recommends "${PKGS[@]}" jq
+      # meson >= 1.11 for fontconfig 2.18+ (apt meson is older) — see the note in *) below.
+      sudo python3 -m pip install --break-system-packages --upgrade meson ninja \
+        || sudo python3 -m pip install --upgrade meson ninja
     fi
     ;;
   *)
     sudo apt-get update
     sudo apt-get install -y --no-install-recommends "${PKGS[@]}" jq
+    # fontconfig 2.18+ (and other newer Meson projects) require meson >= 1.11; the distro's
+    # apt meson is older (Ubuntu 24.04 ships 1.3.2). Pull a current meson/ninja from PyPI —
+    # same approach the manylinux path uses. PEP-668 marks the system env externally-managed
+    # on newer Ubuntu, so allow the override, with a plain-pip fallback for older hosts.
+    sudo python3 -m pip install --break-system-packages --upgrade meson ninja \
+      || sudo python3 -m pip install --upgrade meson ninja
     ;;
 esac
 else

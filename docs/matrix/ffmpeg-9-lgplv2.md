@@ -139,14 +139,14 @@ _15 of 22 built._
 
 | Feature | Version | lin-x64 | lin-a64 | lin-hf | musl | win | osx-x64 | osx-a64 | android | ios | ios-sim |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| AMF (AMD) | v1.4.36 | n/a | n/a | n/a | n/a | ✓ | n/a | n/a | n/a | n/a | n/a |
+| AMF (AMD) | v1.4.35 | n/a | n/a | n/a | n/a | ✓ | n/a | n/a | n/a | n/a | n/a |
 | AudioToolbox |  | n/a | n/a | n/a | n/a | n/a | ✓ | ✓ | n/a | n/a | n/a |
 | CUDA |  | ✓ | ✓ | — | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a |
 | CUVID (NVIDIA decode) |  | ✓ | ✓ | — | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a |
 | D3D11VA |  | n/a | n/a | n/a | n/a | ✓ | n/a | n/a | n/a | n/a | n/a |
 | DXVA2 |  | n/a | n/a | n/a | n/a | ✓ | n/a | n/a | n/a | n/a | n/a |
 | ffnvcodec headers | n13.1.15.0 | ✓ | ✓ | — | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a |
-| libdrm | libdrm-2.4.134 | ✓ | ✓ | — | ✓ | n/a | n/a | n/a | n/a | n/a | n/a |
+| libdrm |  | ✓ | ✓ | — | ✓ | n/a | n/a | n/a | n/a | n/a | n/a |
 | MediaFoundation |  | n/a | n/a | n/a | n/a | ✓ | n/a | n/a | n/a | n/a | n/a |
 | NVDEC (NVIDIA decode) |  | ✓ | ✓ | — | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a |
 | NVENC (NVIDIA encode) |  | ✓ | ✓ | — | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a |

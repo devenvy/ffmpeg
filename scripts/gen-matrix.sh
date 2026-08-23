@@ -119,21 +119,24 @@ for line in open("scripts/steps/06_build_libraries.sh"):
     m = re.match(r'\s*\.\s+"\$\{D\}/([a-z0-9_-]+)\.sh"', line)
     if m: active.add(m.group(1))
 tok_build = {}; tok_uncond = set(); tok_dep = {}
-for f in glob.glob("scripts/deps/*.sh"):
+for f in sorted(glob.glob("scripts/deps/*.sh")):   # sorted -> deterministic token ownership across hosts
     name = os.path.basename(f)[:-3]
     if name not in active: continue
-    txt = open(f).read()
-    g = re.search(r'\$\{(BUILD_[A-Z0-9_]+)\}', txt)
+    # Strip comments first: a commented-out --enable / clone_dep must never be mistaken for a
+    # real flag or ledger association (e.g. moltenvk.sh's doc comment mentioning --enable-vulkan
+    # would otherwise hijack the "vulkan" key away from vulkan-headers.sh).
+    code = "\n".join(re.sub(r'#.*', '', ln) for ln in open(f).read().splitlines())
+    g = re.search(r'\$\{(BUILD_[A-Z0-9_]+)\}', code)
     # the ledger key this script pulls (clone_dep/build_cmake_dep/dep_version/dep_source KEY) —
     # used to look up the pinned version in deps.json. The FFmpeg --enable token often differs
     # from the ledger key (e.g. --enable-vaapi comes from libva.sh -> key "libva").
-    km = re.search(r'\b(?:clone_dep|build_cmake_dep|dep_version|dep_source)\s+([a-z0-9][a-z0-9_-]*)', txt)
+    km = re.search(r'\b(?:clone_dep|build_cmake_dep|dep_version|dep_source)\s+([a-z0-9][a-z0-9_-]*)', code)
     key = km.group(1) if km else None
-    for tok in re.findall(r'--enable-([a-z0-9_-]+)', txt):
+    for tok in re.findall(r'--enable-([a-z0-9_-]+)', code):
         t = tok.replace("-", "_")
         if g: tok_build[t] = g.group(1)
         else: tok_uncond.add(t)
-        if key: tok_dep[t] = key
+        if key: tok_dep.setdefault(t, key)   # first (sorted-order) owner wins, not "last file the glob visited"
 # hwaccel/header rows whose version comes from a ledger header package that is enabled in
 # 02_configure (not via a deps/*.sh --enable), so the scan above can't associate them.
 tok_dep.setdefault("vulkan", "vulkan-headers")

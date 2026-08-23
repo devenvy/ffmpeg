@@ -218,6 +218,16 @@
           "ios-sim-arm64",
           "android-arm64"
         ]
+      },
+      "amf": {
+        "origin": "https://github.com/GPUOpen-LibrariesAndSDKs/AMF.git",
+        "tag": "v1.4.35",
+        "datasource": "github-tags",
+        "reason": "amf v1.4.36 DisplayCapture.h has a bare extern \"C\" with no __cplusplus guard, which breaks C compilation of FFmpeg's vsrc_amf.c under mingw-w64. Held at v1.4.35 on win-x64 (the only RID that builds AMF headers). Remove when upstream guards the header.",
+        "issue": 7,
+        "platforms": [
+          "win-x64"
+        ]
       }
     },
     "9": {
@@ -234,6 +244,16 @@
           "ios-arm64",
           "ios-sim-arm64",
           "android-arm64"
+        ]
+      },
+      "amf": {
+        "origin": "https://github.com/GPUOpen-LibrariesAndSDKs/AMF.git",
+        "tag": "v1.4.35",
+        "datasource": "github-tags",
+        "reason": "amf v1.4.36 DisplayCapture.h has a bare extern \"C\" with no __cplusplus guard, which breaks C compilation of FFmpeg's vsrc_amf.c under mingw-w64. Held at v1.4.35 on win-x64 (the only RID that builds AMF headers). Remove when upstream guards the header.",
+        "issue": 7,
+        "platforms": [
+          "win-x64"
         ]
       }
     }

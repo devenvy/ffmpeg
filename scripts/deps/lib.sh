@@ -14,8 +14,10 @@ dep_source() {
   command -v jq >/dev/null 2>&1 || { echo "dep_source: jq not found (build prerequisite)" >&2; return 2; }
   [ -f "${ledger}" ] || { echo "dep_source: ledger not found: ${ledger}" >&2; return 2; }
   entry="$(jq -c --arg m "${major}" --arg n "${name}" \
-            '(.defaults[$n] * (.overrides[$m][$n] // {})) // empty' "${ledger}")" || return 2
+            '(.overrides[$m][$n] // .defaults[$n]) // empty' "${ledger}")" || return 2
   [ -n "${entry}" ] || { echo "dep_source: '${name}' not in ledger (defaults or overrides.${major})" >&2; return 2; }
+  local nrefs; nrefs="$(jq -r '[.tag,.branch,.commit]|map(select(.!=null))|length' <<<"${entry}")"
+  [ "${nrefs}" = "1" ] || { echo "dep_source: '${name}' malformed (need exactly one of tag/branch/commit, found ${nrefs})" >&2; return 2; }
   origin="$(jq -r '.origin // empty' <<<"${entry}")"
   reftype="$(jq -r 'to_entries | map(select(.key=="tag" or .key=="branch" or .key=="commit")) | .[0].key // empty' <<<"${entry}")"
   refval="$(jq -r --arg k "${reftype}" '.[$k] // empty' <<<"${entry}")"
@@ -26,8 +28,9 @@ dep_source() {
 
 # clone_dep <name> <destdir> -> shallow clone + checkout the resolved ref
 clone_dep() {
-  local name="$1" dest="$2" origin reftype refval
-  IFS=$'\t' read -r origin reftype refval < <(dep_source "${name}") || return $?
+  local name="$1" dest="$2" origin reftype refval out
+  out="$(dep_source "${name}")" || return $?
+  IFS=$'\t' read -r origin reftype refval <<<"${out}"
   echo "clone_dep: ${name} <- ${origin} @ ${reftype}:${refval}"
   case "${reftype}" in
     tag|branch) git clone --depth 1 --branch "${refval}" "${origin}" "${dest}" ;;

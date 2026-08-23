@@ -30,6 +30,7 @@ jobs:
         shell: bash
         run: |
           bash scripts/deps/ledger-test.sh
+          bash scripts/deps/ledger-validate-test.sh
           bash scripts/deps/ledger-validate.sh
 
       # Our dep scripts are SOURCED by build.sh and share its environment, so many

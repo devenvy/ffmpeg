@@ -69,6 +69,28 @@ jobs:
           } >> "$GITHUB_OUTPUT"
           echo "Building: ${VERSIONS}"
 
+  # Keep the committed build-coverage matrices (docs/matrix/) in lockstep with what we
+  # actually build. They are generated from FFmpeg's configure + the build scripts + the
+  # dependency ledger (deps.json), so a DEP BUMP, a versions.txt change, or a build-script
+  # edit must regenerate them — not just an FFmpeg change. This job regenerates and fails if
+  # the committed files drifted; the fix is `bash scripts/gen-matrix.sh` + commit. Cheap
+  # (~1 min), so it runs on every PR. SELECT THIS as a required check alongside build/test.
+  docs-matrix:
+    runs-on: ubuntu-latest   # ANDROID_NDK_LATEST_HOME is preinstalled here (the android sim needs it)
+    steps:
+      - uses: actions/checkout@v4
+      - name: Regenerate coverage matrices and fail on drift
+        run: |
+          set -euo pipefail
+          bash scripts/gen-matrix.sh
+          if ! git diff --quiet -- docs/matrix; then
+            echo "::error::docs/matrix is stale — run 'bash scripts/gen-matrix.sh' and commit the result (a dependency bump in deps.json changes these files too)."
+            git diff --stat -- docs/matrix
+            git --no-pager diff -- docs/matrix | head -300
+            exit 1
+          fi
+          echo "Coverage matrices are up to date."
+
   # The matrix-caller jobs (one reusable-workflow call, fanned out per version × RID ×
   # license). Their individual matrix checks surface as "build-matrix / …", "test-matrix / …"
   # — you do NOT select those in branch protection; select the aggregate `build`/`test` gates

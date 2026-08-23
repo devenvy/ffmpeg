@@ -8,13 +8,20 @@ _ledger_path() { printf '%s' "${LEDGER:-${ROOT_DIR}/deps.json}"; }
 _ffmpeg_major() { printf '%s' "${FFMPEG_VERSION%%.*}"; }
 
 # dep_source <name> -> "<origin>\t<tag|branch|commit>\t<refval>"
+# Resolution precedence: overrides[major][name] wins over defaults[name] — but a
+# platform-scoped override (one carrying a "platforms" list) applies ONLY when the
+# build's BUILD_RID is in that list; on any other RID it falls through to the default.
+# An override without "platforms" applies to every RID for that FFmpeg major.
 dep_source() {
-  local name="$1" ledger major entry origin reftype refval
-  ledger="$(_ledger_path)"; major="$(_ffmpeg_major)"
+  local name="$1" ledger major rid entry origin reftype refval
+  ledger="$(_ledger_path)"; major="$(_ffmpeg_major)"; rid="${BUILD_RID:-}"
   command -v jq >/dev/null 2>&1 || { echo "dep_source: jq not found (build prerequisite)" >&2; return 2; }
   [ -f "${ledger}" ] || { echo "dep_source: ledger not found: ${ledger}" >&2; return 2; }
-  entry="$(jq -c --arg m "${major}" --arg n "${name}" \
-            '(.overrides[$m][$n] // .defaults[$n]) // empty' "${ledger}")" || return 2
+  entry="$(jq -c --arg m "${major}" --arg n "${name}" --arg r "${rid}" '
+            (.overrides[$m][$n]) as $ov
+            | (if ($ov != null) and (($ov.platforms == null) or ($ov.platforms | index($r)))
+               then $ov else .defaults[$n] end)
+            // empty' "${ledger}")" || return 2
   [ -n "${entry}" ] || { echo "dep_source: '${name}' not in ledger (defaults or overrides.${major})" >&2; return 2; }
   local nrefs; nrefs="$(jq -r '[.tag,.branch,.commit]|map(select(.!=null))|length' <<<"${entry}")"
   [ "${nrefs}" = "1" ] || { echo "dep_source: '${name}' malformed (need exactly one of tag/branch/commit, found ${nrefs})" >&2; return 2; }

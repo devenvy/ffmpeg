@@ -25,4 +25,17 @@ if ! noreason="$(jq -r '(.overrides // {}) | to_entries[] | .value | to_entries[
   echo "ledger-validate: reason check errored (jq)" >&2; exit 1
 fi
 if [ -n "${noreason}" ]; then echo "ledger-validate: overrides missing reason: ${noreason}" >&2; exit 1; fi
+
+# A platform-scoped override's "platforms" (optional) must be a non-empty array of known RIDs.
+if ! badplat="$(jq -r '
+  ["linux-x64","linux-arm64","linux-armhf","linux-musl-x64","win-x64",
+   "osx-x64","osx-arm64","android-arm64","ios-arm64","ios-sim-arm64"] as $rids
+  | (.overrides // {}) | to_entries[] | .value | to_entries[]
+  | .key as $k | .value.platforms as $p
+  | select($p != null)
+  | select(($p | type != "array") or ($p | length == 0) or ($p | any(. as $x | $rids | index($x) | not)))
+  | $k' "${LEDGER}")"; then
+  echo "ledger-validate: platforms check errored (jq)" >&2; exit 1
+fi
+if [ -n "${badplat}" ]; then echo "ledger-validate: overrides with bad platforms (must be a non-empty array of known RIDs): ${badplat}" >&2; exit 1; fi
 echo "ledger-validate: OK"

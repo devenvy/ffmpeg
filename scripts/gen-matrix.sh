@@ -118,16 +118,47 @@ active = set()
 for line in open("scripts/steps/06_build_libraries.sh"):
     m = re.match(r'\s*\.\s+"\$\{D\}/([a-z0-9_-]+)\.sh"', line)
     if m: active.add(m.group(1))
-tok_build = {}; tok_uncond = set()
+tok_build = {}; tok_uncond = set(); tok_dep = {}
 for f in glob.glob("scripts/deps/*.sh"):
     name = os.path.basename(f)[:-3]
     if name not in active: continue
     txt = open(f).read()
     g = re.search(r'\$\{(BUILD_[A-Z0-9_]+)\}', txt)
+    # the ledger key this script pulls (clone_dep/build_cmake_dep/dep_version/dep_source KEY) —
+    # used to look up the pinned version in deps.json. The FFmpeg --enable token often differs
+    # from the ledger key (e.g. --enable-vaapi comes from libva.sh -> key "libva").
+    km = re.search(r'\b(?:clone_dep|build_cmake_dep|dep_version|dep_source)\s+([a-z0-9][a-z0-9_-]*)', txt)
+    key = km.group(1) if km else None
     for tok in re.findall(r'--enable-([a-z0-9_-]+)', txt):
         t = tok.replace("-", "_")
         if g: tok_build[t] = g.group(1)
         else: tok_uncond.add(t)
+        if key: tok_dep[t] = key
+# hwaccel/header rows whose version comes from a ledger header package that is enabled in
+# 02_configure (not via a deps/*.sh --enable), so the scan above can't associate them.
+tok_dep.setdefault("vulkan", "vulkan-headers")
+tok_dep.setdefault("ffnvcodec", "nv-codec")
+tok_dep.setdefault("amf", "amf")
+tok_dep.setdefault("vaapi", "libva")     # VAAPI hwaccel is enabled in 02_configure; the lib is libva
+tok_dep.setdefault("libvpl", "libvpl")   # QSV (oneVPL) dispatcher
+
+# --- Ledger (deps.json): the exact pinned ref per dep, resolved override-else-default -----
+import json as _json
+DEPS = _json.load(open("deps.json"))
+def dep_ref(key, major, rid=None):
+    """The upstream ref this build pins for <key> on FFmpeg <major> / <rid>. An override wins over
+    the default, but a platform-scoped override (with a "platforms" list) applies only on its RIDs."""
+    if not key: return ""
+    ov = (DEPS.get("overrides", {}).get(str(major), {}) or {}).get(key)
+    if ov is not None and (ov.get("platforms") is None or (rid in (ov.get("platforms") or []))):
+        d = ov
+    else:
+        d = DEPS.get("defaults", {}).get(key)
+    if not d: return ""
+    if d.get("tag"):    return d["tag"]
+    if d.get("branch"): return "branch:" + d["branch"]
+    if d.get("commit"): return d["commit"][:9]
+    return ""
 
 def enabled(tok, rid, cid):
     t = tok.replace("-", "_")
@@ -281,6 +312,7 @@ def render(version, conf, cid):
     """Return (markdown, universe_set, gpl_set) for one FFmpeg version + license CELL
     (cid is one of gplv3 / gplv2 / lgplv3 / lgplv2)."""
     fam = "gpl" if cid.startswith("gpl") else "lgpl"
+    major = version.split(".")[0]   # ledger overrides are keyed by FFmpeg major
     LABEL = {"gplv3":"GPLv3","gplv2":"GPLv2","lgplv3":"LGPLv3","lgplv2":"LGPLv2.1"}[cid]
     hw  = parse_list(conf, "HWACCEL_AUTODETECT_LIBRARY_LIST") + parse_list(conf, "HWACCEL_LIBRARY_LIST")
     ext = parse_list(conf, "EXTERNAL_LIBRARY_LIST")
@@ -312,7 +344,7 @@ def render(version, conf, cid):
         if tok in FN_REF:
             disp += f"[^{FN_REF[tok]}]"; used_fn.add(FN_REF[tok])
         cells = [cell(tok, r) for r in RIDS]
-        buckets[cat].append((not ("✓" in cells), base.lower(), disp, cells))
+        buckets[cat].append((not ("✓" in cells), base.lower(), disp, cells, tok))
     for key in buckets: buckets[key].sort()
 
     L = []
@@ -324,6 +356,13 @@ def render(version, conf, cid):
     if fam == "lgpl":
         legend += " · **✗** can't be included: GPL / conflicting license (use the GPL build instead)"
     L.append(legend + "\n")
+    L.append("_The **Version** column is the exact upstream ref this build pins for that library — read "
+             "from the ledger (`deps.json`), resolved for this FFmpeg major (an `overrides.<major>` hold "
+             "wins over the default). It is the ref `clone_dep` checks out, so it is what actually "
+             "compiles. Blank = an FFmpeg-internal or OS-native feature with no pinned dependency, or a "
+             "row not built in this cell. A dep held back only for this line shows its held ref here and "
+             "so differs from the sibling major's file; if a dep ever needed a different version per "
+             "platform, the version would move into the per-platform cells instead._\n")
     L.append("_Always-on built-in decoders (H.264/H.265/VP8/VP9 decode, AAC, PCM, …) are compiled "
              "into every build and not listed. The iOS-simulator slice is lean — a library present "
              "on the iOS device slice but dropped there shows n/a._\n")
@@ -332,16 +371,30 @@ def render(version, conf, cid):
              f"(gpl) vs kvazaar (lgpl), and in the Apache-2.0 dependencies: **v3** links OpenSSL TLS "
              f"+ Vulkan, while **v2** uses GnuTLS (gpl) or NO TLS (lgpl) and drops Vulkan (Whisper → "
              f"CPU). Every cell ships DYNAMIC libraries — iOS as a dynamic-framework `.xcframework`._\n")
-    hdr = "| Feature | " + " | ".join(SHORT[r] for r in RIDS) + " |"
-    sep = "|" + "---|"*(len(RIDS)+1)
+    hdr = "| Feature | Version | " + " | ".join(SHORT[r] for r in RIDS) + " |"
+    sep = "|" + "---|"*(len(RIDS)+2)
     for key, title in TITLES:
         rows = buckets[key]
         if not rows: continue
         nb = sum(1 for r in rows if not r[0])
         L.append(f"\n### {title}  \n_{nb} of {len(rows)} built._\n")
         L.append(hdr); L.append(sep)
-        for _, _, disp, cells in rows:
-            L.append(f"| {disp} | " + " | ".join(cells) + " |")
+        for _, _, disp, cells, tok in rows:
+            # the pinned dep version we build (ledger, resolved per platform). Blank when the row is
+            # an FFmpeg-internal / OS-native feature, or not built in this cell (nothing to pin).
+            key = tok_dep.get(tok.replace("-", "_"), "")
+            pv = {i: dep_ref(key, major, RIDS[i]) for i, c in enumerate(cells) if c == "✓"}
+            uniq = sorted({v for v in pv.values() if v})
+            if len(uniq) <= 1:
+                ver = uniq[0] if uniq else ""
+                out_cells = cells
+            else:
+                # a platform-scoped override makes the version differ across platforms: put each
+                # version in its own cell (in place of ✓) so the divergence shows where it happens
+                ver = "per-platform ↓"
+                out_cells = [(pv[i] or cells[i]) if cells[i] == "✓" else cells[i]
+                             for i in range(len(cells))]
+            L.append(f"| {disp} | {ver} | " + " | ".join(out_cells) + " |")
     if used_fn:
         L.append("")   # GitHub auto-numbers footnotes by first reference order
         for k in ["tls", "d3d12", "svtav1", "webp", "fontconfig"]:
@@ -373,7 +426,9 @@ idx.append("Every library FFmpeg supports × every platform, **✓** where this 
            "per **maintained FFmpeg major** and per **license variant** — the gpl and lgpl builds "
            "differ (gpl has x264/x265; lgpl has kvazaar). Markers: **✓** built · **—** not built "
            "(a choice) · **✗** (lgpl) can't include for license reasons · **n/a** not applicable on "
-           "the platform.\n")
+           "the platform. Each cell file also carries a **Version** column — the exact upstream ref "
+           "each built library is pinned to in the ledger (`deps.json`), resolved for that FFmpeg "
+           "major — so a dep bump changes these files, not just an FFmpeg change.\n")
 idx.append("**Four cells per FFmpeg major** — `gplv3` · `gplv2` · `lgplv3` · `lgplv2`. Family: gpl "
            "has x264/x265, lgpl has kvazaar (no x264/x265). Version: **v3** links the Apache-2.0 deps "
            "(OpenSSL TLS + Vulkan); **v2** (App-Store-safe) uses GnuTLS (gpl) or **no TLS** (lgpl) and "

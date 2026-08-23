@@ -58,5 +58,27 @@ JSON
 LEDGER="${FIX}/no-reason.json" bash "${VALIDATE}" >/dev/null 2>&1
 check "override missing reason fails" "$?" 1
 
+# VALID: platform-scoped override with known RIDs.
+cat > "${FIX}/plat-ok.json" <<'JSON'
+{ "defaults": { "x265": { "origin": "https://example.test/x265.git", "tag": "4.2" } },
+  "overrides": { "9": { "x265": { "origin": "https://example.test/x265.git", "tag": "3.6", "reason": "arm64 neon", "platforms": ["linux-arm64", "osx-arm64"] } } } }
+JSON
+LEDGER="${FIX}/plat-ok.json" bash "${VALIDATE}" >/dev/null 2>&1
+check "platform-scoped override passes" "$?" 0
+
+# Override with an unknown RID in platforms.
+cat > "${FIX}/plat-bad.json" <<'JSON'
+{ "defaults": {}, "overrides": { "9": { "x265": { "origin": "https://example.test/x265.git", "tag": "3.6", "reason": "x", "platforms": ["linux-arm64", "sparc-64"] } } } }
+JSON
+LEDGER="${FIX}/plat-bad.json" bash "${VALIDATE}" >/dev/null 2>&1
+check "unknown RID in platforms fails" "$?" 1
+
+# Override with an empty platforms array.
+cat > "${FIX}/plat-empty.json" <<'JSON'
+{ "defaults": {}, "overrides": { "9": { "x265": { "origin": "https://example.test/x265.git", "tag": "3.6", "reason": "x", "platforms": [] } } } }
+JSON
+LEDGER="${FIX}/plat-empty.json" bash "${VALIDATE}" >/dev/null 2>&1
+check "empty platforms array fails" "$?" 1
+
 echo "Passed: ${pass}  Failed: ${fail}"
 [ "${fail}" -eq 0 ]

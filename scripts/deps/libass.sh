@@ -16,7 +16,7 @@ cd libass || exit 1
 FC_OPT="-Dfontconfig=disabled"
 [[ "${BUILD_FONTCONFIG}" == "1" ]] && FC_OPT="-Dfontconfig=enabled"
 ASS_ARGS=(--prefix="${DEPS_DIR}" --libdir=lib --default-library=static
-          --buildtype=release "${FC_OPT}" -Dtest=false)
+          --buildtype=release "${FC_OPT}" -Dtest=disabled)
 # Windows/Apple provide DirectWrite/CoreText; Linux uses fontconfig. Android has
 # none, so let libass build without a system font provider (fonts are supplied
 # explicitly at runtime).

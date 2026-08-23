@@ -39,6 +39,7 @@ case "${WHISPER_BACKEND}" in
     case "${RID}" in
       win-x64|android-arm64|linux-musl-x64|linux-x64|linux-arm64)
         [ -d "${DEPS_DIR}/include/vulkan" ] || {
+          rm -rf "${WORK_DIR}/Vulkan-Headers-ggml"   # clone_dep git-clones into this dir; clear a stale one (retry/re-run) so the clone can't abort under set -e
           clone_dep vulkan-headers "${WORK_DIR}/Vulkan-Headers-ggml"
           cp -r "${WORK_DIR}/Vulkan-Headers-ggml/include/vulkan" "${DEPS_DIR}/include/"
           cp -r "${WORK_DIR}/Vulkan-Headers-ggml/include/vk_video" "${DEPS_DIR}/include/" 2>/dev/null || true

@@ -9,3 +9,16 @@ Every library FFmpeg supports × every platform, **✓** where this repo builds 
 ## Matrices
 
 - **FFmpeg 8**: [GPLv3](ffmpeg-8-gplv3.md) · [GPLv2](ffmpeg-8-gplv2.md) · [LGPLv3](ffmpeg-8-lgplv3.md) · [LGPLv2.1](ffmpeg-8-lgplv2.md)
+- **FFmpeg 9**: [GPLv3](ffmpeg-9-gplv3.md) · [GPLv2](ffmpeg-9-gplv2.md) · [LGPLv3](ffmpeg-9-lgplv3.md) · [LGPLv2.1](ffmpeg-9-lgplv2.md)
+
+## Library support by FFmpeg version
+
+_Libraries FFmpeg added or removed between the maintained versions — check here to see which version you need for a given library. Libraries present in every maintained version are omitted._
+
+| Library | FFmpeg 8 | FFmpeg 9 |
+|---|---|---|
+| CELT — audio (legacy) | ✓ | — |
+| glslang — shader compile | ✓ | — |
+| libonnxruntime | — | ✓ |
+| OpenMAX IL | ✓ | — |
+| shaderc — shader compile | ✓ | — |

@@ -5,7 +5,7 @@ set -euo pipefail
 # to CONFIGURE_FLAGS where applicable). Not a standalone script.
 
 if [[ "${BUILD_FREETYPE}" == "1" ]]; then
-  build_cmake_dep libpng https://github.com/pnggroup/libpng.git v1.6.43 \
+  build_cmake_dep libpng \
     -DPNG_SHARED=OFF -DPNG_STATIC=ON -DPNG_TESTS=OFF -DPNG_TOOLS=OFF
   echo "libpng built (freetype dependency)."
 else

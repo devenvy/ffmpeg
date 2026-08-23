@@ -14,7 +14,7 @@ if [[ "${WHISPER_BACKEND}" == "vulkan" ]]; then
       # (headers + cmake config) into DEPS_DIR and point find_package straight at the
       # installed config dir (avoids cross-toolchain find-root-path issues).
       rm -rf "${WORK_DIR}/SPIRV-Headers-ggml"
-      git clone --depth 1 https://github.com/KhronosGroup/SPIRV-Headers.git "${WORK_DIR}/SPIRV-Headers-ggml"
+      clone_dep spirv-headers "${WORK_DIR}/SPIRV-Headers-ggml"
       cmake -S "${WORK_DIR}/SPIRV-Headers-ggml" -B "${WORK_DIR}/SPIRV-Headers-ggml/build" \
         -DCMAKE_INSTALL_PREFIX="${DEPS_DIR}"
       cmake --install "${WORK_DIR}/SPIRV-Headers-ggml/build"

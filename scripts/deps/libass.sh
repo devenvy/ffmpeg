@@ -9,7 +9,7 @@ set -euo pipefail
 echo "Building libass (static)..."
 cd "${WORK_DIR}" || exit 1
 rm -rf libass
-git clone --depth 1 --branch 0.17.3 https://github.com/libass/libass.git
+clone_dep libass "${WORK_DIR}/libass"
 cd libass || exit 1
 # fontconfig is only built where the platform uses it (off on Windows/mobile,
 # which fall back to DirectWrite/CoreText or an explicit fontfile=).

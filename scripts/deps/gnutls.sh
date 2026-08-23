@@ -9,14 +9,19 @@ set -euo pipefail
 
 [[ "${BUILD_GNUTLS}" == "1" ]] || return 0
 
-GNUTLS_VER=3.8.6
-echo "Building GnuTLS ${GNUTLS_VER} (static)..."
+# GnuTLS's git tag has no pre-generated ./configure (release tarballs are autoreconf'd/
+# gnulib-bootstrapped before upload; a raw git checkout is not) — bootstrapping from git
+# needs network access to fetch gnulib and is a materially different, more fragile build
+# than the vetted release tarball, so this stays a tarball fetch. Version comes from the
+# ledger (via dep_version), not a hardcoded string.
+gnutls_ver="$(dep_version gnutls)"
+echo "Building GnuTLS ${gnutls_ver} (static)..."
 cd "${WORK_DIR}" || exit 1
-rm -rf "gnutls-${GNUTLS_VER}"
+rm -rf "gnutls-${gnutls_ver}"
 curl -fsSL --retry 3 --retry-delay 5 --retry-connrefused --connect-timeout 30 \
-  "https://www.gnupg.org/ftp/gcrypt/gnutls/v3.8/gnutls-${GNUTLS_VER}.tar.xz" -o gnutls.tar.xz
+  "https://www.gnupg.org/ftp/gcrypt/gnutls/v3.8/gnutls-${gnutls_ver}.tar.xz" -o gnutls.tar.xz
 tar -xf gnutls.tar.xz
-cd "gnutls-${GNUTLS_VER}" || exit 1
+cd "gnutls-${gnutls_ver}" || exit 1
 # nettle/hogweed/libtasn1 are found via pkg-config (PKG_CONFIG_PATH=${DEPS_DIR}/lib/
 # pkgconfig, set in 05). GMP has no .pc, so point at it explicitly. The many --without-*
 # flags drop optional deps we don't ship (p11-kit, idn, tpm, zlib/brotli/zstd) and the

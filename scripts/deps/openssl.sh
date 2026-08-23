@@ -8,20 +8,16 @@ set -euo pipefail
 
 [[ "${BUILD_OPENSSL}" == "1" ]] || { echo "Skipping OpenSSL (native TLS backend on ${RID})."; return 0; }
 
-OPENSSL_VER=3.5.1
-echo "Building OpenSSL ${OPENSSL_VER} (static)..."
+echo "Building OpenSSL (static)..."
 cd "${WORK_DIR}" || exit 1
-rm -rf "openssl-${OPENSSL_VER}"
-curl -fsSL --retry 3 --retry-delay 5 --retry-connrefused --connect-timeout 30 \
-  "https://github.com/openssl/openssl/releases/download/openssl-${OPENSSL_VER}/openssl-${OPENSSL_VER}.tar.gz" \
-  -o openssl.tar.gz
-tar -xf openssl.tar.gz
+rm -rf openssl
+clone_dep openssl "${WORK_DIR}/openssl"
 
 # OpenSSL drives its own toolchain (Configure target + CROSS_COMPILE / NDK env),
 # not autotools --host. Do the whole configure/build in a subshell so those env
 # changes never leak into the deps built after this one.
 (
-  cd "openssl-${OPENSSL_VER}" || exit 1
+  cd openssl || exit 1
   # Static libs, PIC (they link into FFmpeg's shared objects), no apps/tests/docs.
   OSSL_OPTS=(no-shared no-apps no-tests no-docs -fPIC
              --prefix="${DEPS_DIR}" --openssldir="${DEPS_DIR}/ssl" --libdir=lib)

@@ -7,14 +7,17 @@ set -euo pipefail
 
 [[ "${BUILD_GNUTLS}" == "1" ]] || return 0
 
-NETTLE_VER=3.10
-echo "Building nettle ${NETTLE_VER} (static, GnuTLS chain)..."
+# Like GnuTLS, nettle's git tag has no pre-generated ./configure (GNU release tarballs
+# are bootstrapped before upload; a raw git checkout is not) — stays a tarball fetch.
+# Version comes from the ledger (via dep_version), not a hardcoded string.
+nettle_ver="$(dep_version nettle)"
+echo "Building nettle ${nettle_ver} (static, GnuTLS chain)..."
 cd "${WORK_DIR}" || exit 1
-rm -rf "nettle-${NETTLE_VER}"
+rm -rf "nettle-${nettle_ver}"
 curl -fsSL --retry 3 --retry-delay 5 --retry-connrefused --connect-timeout 30 \
-  "https://ftp.gnu.org/gnu/nettle/nettle-${NETTLE_VER}.tar.gz" -o nettle.tar.gz
+  "https://ftp.gnu.org/gnu/nettle/nettle-${nettle_ver}.tar.gz" -o nettle.tar.gz
 tar -xf nettle.tar.gz
-cd "nettle-${NETTLE_VER}" || exit 1
+cd "nettle-${nettle_ver}" || exit 1
 # Finds GMP (built just before) via the explicit include/lib paths. PIC comes from the
 # exported CFLAGS (-fPIC on the manylinux builds; default elsewhere).
 NETTLE_ARGS=(--prefix="${DEPS_DIR}" --libdir="${DEPS_DIR}/lib"

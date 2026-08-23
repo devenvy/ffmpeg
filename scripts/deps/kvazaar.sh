@@ -10,7 +10,7 @@ set -euo pipefail
 echo "Building kvazaar (static)..."
 cd "${WORK_DIR}" || exit 1
 rm -rf kvazaar
-git clone --depth 1 --branch v2.3.1 https://github.com/ultravideo/kvazaar.git
+clone_dep kvazaar "${WORK_DIR}/kvazaar"
 cd kvazaar || exit 1
 ./autogen.sh
 KVZ_ARGS=(--prefix="${DEPS_DIR}" --libdir="${DEPS_DIR}/lib"

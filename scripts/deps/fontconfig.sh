@@ -8,7 +8,7 @@ if [[ "${BUILD_FONTCONFIG}" == "1" ]]; then
   echo "Building fontconfig (static)..."
   cd "${WORK_DIR}" || exit 1
   rm -rf fontconfig
-  git clone --depth 1 --branch 2.15.0 https://gitlab.freedesktop.org/fontconfig/fontconfig.git
+  clone_dep fontconfig "${WORK_DIR}/fontconfig"
   cd fontconfig || exit 1
 
   FC_ARGS=(

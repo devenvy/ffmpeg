@@ -5,7 +5,7 @@ set -euo pipefail
 # to CONFIGURE_FLAGS where applicable). Not a standalone script.
 
 if [[ "${BUILD_FREETYPE}" == "1" ]]; then
-  build_cmake_dep freetype https://gitlab.freedesktop.org/freetype/freetype.git VER-2-13-3 \
+  build_cmake_dep freetype \
     -DFT_DISABLE_HARFBUZZ=ON -DFT_DISABLE_BZIP2=ON -DFT_DISABLE_BROTLI=ON
   CONFIGURE_FLAGS+=(--enable-libfreetype)
   echo "freetype (text rendering) enabled."

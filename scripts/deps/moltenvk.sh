@@ -13,11 +13,10 @@ set -euo pipefail
 case "${RID}" in osx-*|ios-*) : ;; *) return 0 ;; esac
 [[ "${BUILD_VULKAN}" == "1" ]] || return 0
 
-MOLTENVK_VER=v1.2.11
-echo "Building MoltenVK ${MOLTENVK_VER} (Vulkan-over-Metal) for ${RID}..."
+echo "Building MoltenVK (Vulkan-over-Metal) for ${RID}..."
 cd "${WORK_DIR}" || exit 1
 rm -rf MoltenVK
-git clone --depth 1 --branch "${MOLTENVK_VER}" https://github.com/KhronosGroup/MoltenVK.git
+clone_dep moltenvk "${WORK_DIR}/MoltenVK"
 cd MoltenVK || exit 1
 
 # Which MoltenVK make target to build for this RID.

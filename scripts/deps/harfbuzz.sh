@@ -9,7 +9,7 @@ set -euo pipefail
 echo "Building harfbuzz (static)..."
 cd "${WORK_DIR}" || exit 1
 rm -rf harfbuzz
-git clone --depth 1 --branch 8.5.0 https://github.com/harfbuzz/harfbuzz.git
+clone_dep harfbuzz "${WORK_DIR}/harfbuzz"
 cd harfbuzz || exit 1
 HB_ARGS=(--prefix="${DEPS_DIR}" --libdir=lib --default-library=static
          --buildtype=release

@@ -20,7 +20,7 @@ if [[ "${BUILD_LIBX265}" == "1" ]]; then
   # x265 4.0+ has broken aarch64 NEON intrinsics (intrapred-prim.cpp):
   # https://github.com/HandBrake/HandBrake/issues/3652
   # https://github.com/microsoft/vcpkg/issues/46880
-  git clone --depth 1 --branch 3.6 https://bitbucket.org/multicoreware/x265_git.git
+  clone_dep x265 "${WORK_DIR}/x265_git"
   cd x265_git || exit 1
 
   # Apply upstream fix for CMake 4.x: change cmake_policy OLD → NEW
@@ -68,7 +68,7 @@ includedir=\${prefix}/include
 
 Name: x265
 Description: H.265/HEVC video encoder
-Version: 3.6
+Version: $(dep_version x265)
 Libs: -L\${libdir} -lx265
 Libs.private: ${X265_PRIVATE_LIBS}
 Cflags: -I\${includedir}

@@ -9,7 +9,7 @@ if [[ "${BUILD_VULKAN}" == "1" ]]; then
   echo "Installing Vulkan-Headers..."
   cd "${WORK_DIR}" || exit 1
   rm -rf Vulkan-Headers
-  git clone --depth 1 https://github.com/KhronosGroup/Vulkan-Headers.git
+  clone_dep vulkan-headers "${WORK_DIR}/Vulkan-Headers"
   cp -r Vulkan-Headers/include/vulkan "${DEPS_DIR}/include/"
   cp -r Vulkan-Headers/include/vk_video "${DEPS_DIR}/include/"
 

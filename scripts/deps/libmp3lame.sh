@@ -6,13 +6,14 @@ set -euo pipefail
 
 [[ "${BUILD_LIBMP3LAME}" == "1" ]] || { echo "Skipping libmp3lame (not needed for ${RID})."; return 0; }
 
-echo "Building libmp3lame (static)..."
+lame_ver="$(dep_version libmp3lame)"
+echo "Building libmp3lame ${lame_ver} (static)..."
 cd "${WORK_DIR}" || exit 1
-rm -rf lame-3.100
+rm -rf "lame-${lame_ver}"
 curl -fsSL --retry 3 --retry-delay 5 --retry-connrefused --connect-timeout 30 \
-  "https://downloads.sourceforge.net/project/lame/lame/3.100/lame-3.100.tar.gz" -o lame.tar.gz
+  "https://downloads.sourceforge.net/project/lame/lame/${lame_ver}/lame-${lame_ver}.tar.gz" -o lame.tar.gz
 tar -xf lame.tar.gz
-cd lame-3.100 || exit 1
+cd "lame-${lame_ver}" || exit 1
 # LAME 3.100 exports lame_init_old in its symbol file but no longer defines it,
 # which breaks the link on strict toolchains. Drop it. Use -i.bak (an explicit backup
 # suffix): BSD/macOS sed requires an argument after -i, whereas GNU's bare `sed -i`

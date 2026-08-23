@@ -38,3 +38,10 @@ clone_dep() {
     *)          echo "clone_dep: bad reftype '${reftype}'" >&2; return 2 ;;
   esac
 }
+
+# dep_version <name> -> prints the resolved ref value only (tag/branch/commit string)
+dep_version() {
+  local origin reftype refval
+  IFS=$'\t' read -r origin reftype refval < <(dep_source "$1") || return $?
+  printf '%s\n' "${refval}"
+}

@@ -9,7 +9,7 @@ if [[ "${BUILD_FONTCONFIG}" == "1" ]]; then
   echo "Building libexpat (static)..."
   cd "${WORK_DIR}" || exit 1
   rm -rf libexpat
-  git clone --depth 1 --branch R_2_6_2 https://github.com/libexpat/libexpat.git
+  clone_dep libexpat "${WORK_DIR}/libexpat"
   cd libexpat/expat || exit 1
   cmake -B build \
     -DCMAKE_INSTALL_PREFIX="${DEPS_DIR}" \

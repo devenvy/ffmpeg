@@ -7,14 +7,14 @@ set -euo pipefail
 
 [[ "${BUILD_GNUTLS}" == "1" ]] || return 0
 
-GMP_VER=6.3.0
-echo "Building GMP ${GMP_VER} (static, GnuTLS chain)..."
+gmp_ver="$(dep_version gmp)"
+echo "Building GMP ${gmp_ver} (static, GnuTLS chain)..."
 cd "${WORK_DIR}" || exit 1
-rm -rf "gmp-${GMP_VER}"
+rm -rf "gmp-${gmp_ver}"
 curl -fsSL --retry 3 --retry-delay 5 --retry-connrefused --connect-timeout 30 \
-  "https://ftp.gnu.org/gnu/gmp/gmp-${GMP_VER}.tar.xz" -o gmp.tar.xz
+  "https://ftp.gnu.org/gnu/gmp/gmp-${gmp_ver}.tar.xz" -o gmp.tar.xz
 tar -xf gmp.tar.xz
-cd "gmp-${GMP_VER}" || exit 1
+cd "gmp-${gmp_ver}" || exit 1
 GMP_ARGS=(--prefix="${DEPS_DIR}" --libdir="${DEPS_DIR}/lib"
           --disable-shared --enable-static --with-pic --enable-cxx=no)
 [ -n "${CROSS_HOST:-}" ] && GMP_ARGS+=(--host="${CROSS_HOST}")   # cross triple resolved in 02_configure

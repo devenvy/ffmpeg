@@ -46,6 +46,7 @@ mkdir -p "${WORK_DIR}" "${OUT_DIR}"
 
 # Shared helpers (cmake wrapper, build_cmake_dep) used by the build steps.
 . "${ROOT_DIR}/scripts/lib.sh"
+. "${ROOT_DIR}/scripts/deps/lib.sh"
 
 ############################################
 # Build

@@ -18,7 +18,7 @@ if [[ "${BUILD_VULKAN}" == "1" && "${BUILD_VULKAN_LOADER:-0}" == "1" ]]; then
   cmake -S Vulkan-Headers -B Vulkan-Headers/build -DCMAKE_INSTALL_PREFIX="${DEPS_DIR}" >/dev/null
   cmake --install Vulkan-Headers/build >/dev/null
   rm -rf Vulkan-Loader
-  git clone --depth 1 https://github.com/KhronosGroup/Vulkan-Loader.git
+  clone_dep vulkan-loader "${WORK_DIR}/Vulkan-Loader"
   cmake -S Vulkan-Loader -B Vulkan-Loader/build \
     -DCMAKE_INSTALL_PREFIX="${DEPS_DIR}" -DVULKAN_HEADERS_INSTALL_DIR="${DEPS_DIR}" \
     -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=OFF \

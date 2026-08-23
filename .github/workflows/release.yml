@@ -45,7 +45,7 @@ jobs:
           BEFORE: ${{ github.event.before }}
         run: |
           set -euo pipefail
-          mapfile -t TRACKED < <(grep -vE '^[[:space:]]*(#|$)' versions.txt | tr -d '[:space:]' | sed '/^$/d')
+          mapfile -t TRACKED < <(grep -vE '^[[:space:]]*(#|$)' versions.txt | sed 's/[[:space:]]//g;/^$/d')
 
           BUILD_ALL=false
           SEL=()
@@ -66,7 +66,7 @@ jobs:
               BUILD_ALL=true
             else
               if git cat-file -e "${BEFORE}:versions.txt" 2>/dev/null; then
-                mapfile -t PREV < <(git show "${BEFORE}:versions.txt" | grep -vE '^[[:space:]]*(#|$)' | tr -d '[:space:]' | sed '/^$/d')
+                mapfile -t PREV < <(git show "${BEFORE}:versions.txt" | grep -vE '^[[:space:]]*(#|$)' | sed 's/[[:space:]]//g;/^$/d')
               else
                 PREV=()
               fi
@@ -156,7 +156,7 @@ jobs:
           # exists) must NOT become "Latest" — otherwise it steals the badge from the
           # newest major. GitHub's default (--latest omitted) would mis-assign this by
           # recency, so we set it explicitly per release.
-          HIGHEST="$(grep -vE '^[[:space:]]*(#|$)' versions.txt | tr -d '[:space:]' | sed '/^$/d' | sort -V | tail -1)"
+          HIGHEST="$(grep -vE '^[[:space:]]*(#|$)' versions.txt | sed 's/[[:space:]]//g;/^$/d' | sort -V | tail -1)"
           if [[ "${VERSION}" == "${HIGHEST}" ]]; then MARK_LATEST=true; else MARK_LATEST=false; fi
           echo "Highest tracked line: ${HIGHEST} — mark ${VERSION} as latest: ${MARK_LATEST}"
           git config user.name "github-actions[bot]"

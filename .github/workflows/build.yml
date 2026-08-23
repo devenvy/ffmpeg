@@ -70,7 +70,7 @@ jobs:
     steps:
       - name: Bootstrap Alpine container
         if: matrix.container
-        run: apk add --no-cache bash git file   # 'file' is needed by the test script
+        run: apk add --no-cache bash git file jq   # 'file' is needed by the test script; 'jq' by the dep loader
 
       - uses: actions/checkout@v4
         with:

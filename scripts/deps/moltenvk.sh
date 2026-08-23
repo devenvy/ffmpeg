@@ -4,7 +4,7 @@ set -euo pipefail
 # what makes FFmpeg's --enable-vulkan GPU filters (scale_vulkan, gblur_vulkan, …) run on Metal —
 # there is no Metal equivalent in FFmpeg's filtergraph. Built for BOTH macOS and iOS (v3 only —
 # Apache-2.0 is cleared for the v2 App-Store cells by 04_select_license). Pairs with the
-# Vulkan-Loader from vulkan.sh. SOURCED by scripts/build.sh. Not standalone.
+# Vulkan-Loader from vulkan-loader.sh. SOURCED by scripts/build.sh. Not standalone.
 #
 # NOTE: MoltenVK does not reliably publish prebuilt binaries per release, so we build it from
 # source on the macOS runner (Xcode present). fetchDependencies + `make` output paths have

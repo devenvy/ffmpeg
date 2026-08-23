@@ -43,15 +43,11 @@ case "${WHISPER_BACKEND}" in
           cp -r "${WORK_DIR}/Vulkan-Headers-ggml/include/vulkan" "${DEPS_DIR}/include/"
           cp -r "${WORK_DIR}/Vulkan-Headers-ggml/include/vk_video" "${DEPS_DIR}/include/" 2>/dev/null || true
         }
-        # ggml-vulkan does find_package(SPIRV-Headers) (CONFIG mode), so it needs
-        # SPIRV-HeadersConfig.cmake — not just the headers. Install SPIRV-Headers properly
-        # (headers + cmake config) into DEPS_DIR and point find_package straight at the
-        # installed config dir (avoids cross-toolchain find-root-path issues).
-        rm -rf "${WORK_DIR}/SPIRV-Headers-ggml"
-        git clone --depth 1 https://github.com/KhronosGroup/SPIRV-Headers.git "${WORK_DIR}/SPIRV-Headers-ggml"
-        cmake -S "${WORK_DIR}/SPIRV-Headers-ggml" -B "${WORK_DIR}/SPIRV-Headers-ggml/build" \
-          -DCMAKE_INSTALL_PREFIX="${DEPS_DIR}"
-        cmake --install "${WORK_DIR}/SPIRV-Headers-ggml/build"
+        # SPIRV-Headers (headers + cmake config) are installed into DEPS_DIR by
+        # deps/spirv-headers.sh, sourced before this script in 06_build_libraries.sh.
+        # ggml-vulkan does find_package(SPIRV-Headers) (CONFIG mode), so point it
+        # straight at the installed config dir (avoids cross-toolchain
+        # find-root-path issues).
         SPIRV_HEADERS_CFG="$(dirname "$(find "${DEPS_DIR}" -iname 'spirv-headers*config.cmake' 2>/dev/null | head -1)")"
         WHISPER_CMAKE+=(-DVulkan_INCLUDE_DIR="${DEPS_DIR}/include"
                         -DSPIRV-Headers_DIR="${SPIRV_HEADERS_CFG}")
@@ -74,9 +70,10 @@ case "${WHISPER_BACKEND}" in
         WHISPER_SYS_LIBS="-lvulkan -lc++ -lm"
         ;;
       linux-x64|linux-arm64)
-        # Link OUR bundled libc-only Vulkan loader (built by vulkan.sh), not the
-        # system one — so the artifact has no external libvulkan dependency. Headers
-        # come from DEPS_DIR (vulkan.sh); SPIRV-Headers from the system package.
+        # Link OUR bundled libc-only Vulkan loader (built by vulkan-loader.sh), not
+        # the system one — so the artifact has no external libvulkan dependency.
+        # Headers come from DEPS_DIR (vulkan-headers.sh); SPIRV-Headers from the
+        # system package.
         WHISPER_CMAKE+=(-DVulkan_INCLUDE_DIR="${DEPS_DIR}/include"
                         -DVulkan_LIBRARY="${DEPS_DIR}/lib/libvulkan.so")
         ;;

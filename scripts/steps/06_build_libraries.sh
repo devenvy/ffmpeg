@@ -24,9 +24,11 @@ D="${ROOT_DIR}/scripts/deps"
 . "${D}/kvazaar.sh"      # H.265 software encoder (BSD — LGPL builds too)
 . "${D}/dav1d.sh"        # fast AV1 decoder
 . "${D}/zlib.sh"         # zlib compression
+. "${D}/libpng.sh"       # PNG image support (freetype dependency)
 . "${D}/freetype.sh"     # text rendering (drawtext)
 . "${D}/fribidi.sh"      # bidirectional text (libass dependency)
 . "${D}/harfbuzz.sh"     # text shaping (libass dependency)
+. "${D}/libexpat.sh"     # XML parser (fontconfig dependency)
 . "${D}/fontconfig.sh"   # system font discovery
 . "${D}/libass.sh"       # SSA/ASS subtitle rendering
 . "${D}/libogg.sh"       # Ogg container (libvorbis dependency)
@@ -46,9 +48,11 @@ D="${ROOT_DIR}/scripts/deps"
 . "${D}/nettle.sh"       #   crypto (nettle/hogweed; needs GMP)
 . "${D}/libtasn1.sh"     #   ASN.1
 . "${D}/gnutls.sh"       #   GnuTLS (needs the three above; appends --enable-gnutls)
-. "${D}/vulkan.sh"       # Vulkan headers + (glibc Linux / macOS) a loader to bundle
-. "${D}/moltenvk.sh"     # MoltenVK Vulkan-over-Metal ICD (v3 macOS only; pairs with the loader)
-. "${D}/whisper.sh"      # whisper.cpp — af_whisper ASR (links the Vulkan loader above)
+. "${D}/vulkan-headers.sh"  # Vulkan headers (FFmpeg hwaccel/filters + whisper's ggml backend)
+. "${D}/vulkan-loader.sh"   # (glibc Linux / macOS) libc-only loader to bundle — needs headers above
+. "${D}/moltenvk.sh"        # MoltenVK Vulkan-over-Metal ICD (v3 macOS only; pairs with the loader)
+. "${D}/spirv-headers.sh"   # SPIRV-Headers for whisper's ggml-vulkan backend (mingw/NDK/musl/linux)
+. "${D}/whisper.sh"         # whisper.cpp — af_whisper ASR (links the Vulkan loader above)
 
 # Ensure deps dirs are in compiler/linker search paths
 EXTRA_CFLAGS="${EXTRA_CFLAGS:+${EXTRA_CFLAGS} }-I${DEPS_DIR}/include"

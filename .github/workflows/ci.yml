@@ -25,7 +25,7 @@ jobs:
       versions: ${{ steps.v.outputs.versions }}
       any: ${{ steps.v.outputs.any }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0   # need the base commit to diff the PR against
       - id: v
@@ -64,7 +64,7 @@ jobs:
   docs-matrix:
     runs-on: ubuntu-latest   # ANDROID_NDK_LATEST_HOME is preinstalled here (the android sim needs it)
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Regenerate coverage matrices and fail on drift
         run: |
           set -euo pipefail

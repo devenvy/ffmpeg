@@ -34,7 +34,7 @@ jobs:
       versions: ${{ steps.plan.outputs.versions }}  # JSON: [version]
       any: ${{ steps.plan.outputs.any }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0  # full history for tag lookup
 
@@ -128,7 +128,7 @@ jobs:
       matrix:
         build: ${{ fromJson(needs.prepare.outputs.builds) }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Create tag and release
@@ -166,7 +166,7 @@ jobs:
         license: [lgpl, gpl]
         license_version: [3, 2]   # → license token {license}v{series}: lgplv3/gplv3/lgplv2/gplv2
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: ${{ matrix.build.version }}-${{ matrix.rid }}-${{ matrix.license }}v${{ matrix.license_version }}
           path: artifacts/${{ matrix.rid }}-${{ matrix.license }}v${{ matrix.license_version }}
@@ -237,11 +237,11 @@ jobs:
         license: [lgpl, gpl]
         license_version: [3, 2]   # ios v2 = LGPLv2.1/GPLv2 (App-Store-safe): no version3
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: ${{ matrix.build.version }}-ios-arm64-${{ matrix.license }}v${{ matrix.license_version }}
           path: artifacts/ios-arm64
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: ${{ matrix.build.version }}-ios-sim-arm64-${{ matrix.license }}v${{ matrix.license_version }}
           path: artifacts/ios-sim-arm64

@@ -20,7 +20,7 @@ jobs:
       GH_TOKEN: ${{ secrets.UPDATE_PR_TOKEN }}
       UPSTREAM: https://git.ffmpeg.org/ffmpeg.git
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
 

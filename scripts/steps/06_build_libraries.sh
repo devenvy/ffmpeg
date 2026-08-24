@@ -35,8 +35,7 @@ D="${ROOT_DIR}/scripts/deps"
 . "${D}/libvorbis.sh"    # Vorbis audio
 . "${D}/opus.sh"         # Opus audio
 . "${D}/libmp3lame.sh"   # MP3 audio encoder
-# . "${D}/soxr.sh"       # high-quality resampling — deferred: FFmpeg's direct
-#                        # -lsoxr check needs -lm link-ordering; swresample covers it
+. "${D}/soxr.sh"         # high-quality audio resampling (soxr backend for aresample)
 . "${D}/aom.sh"          # AV1 reference encoder/decoder (libaom)
 . "${D}/svtav1.sh"       # fast AV1 encoder (SVT-AV1)
 . "${D}/libwebp.sh"      # WebP image

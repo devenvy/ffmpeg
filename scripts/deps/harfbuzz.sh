@@ -21,3 +21,5 @@ meson setup build "${HB_ARGS[@]}"
 meson compile -C build -j "$(${NPROC})"
 meson install -C build
 echo "harfbuzz built (libass dependency)."
+CONFIGURE_FLAGS+=(--enable-libharfbuzz)
+echo "libharfbuzz (drawtext text shaping) enabled."

@@ -18,3 +18,5 @@ meson setup build "${FRIBIDI_ARGS[@]}"
 meson compile -C build -j "$(${NPROC})"
 meson install -C build
 echo "fribidi built (libass dependency)."
+CONFIGURE_FLAGS+=(--enable-libfribidi)
+echo "libfribidi (drawtext bidirectional text) enabled."

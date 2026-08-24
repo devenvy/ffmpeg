@@ -2,7 +2,8 @@
 set -euo pipefail
 # harfbuzz — text shaping engine (MIT); a libass dependency. Uses freetype
 # (built earlier). SOURCED by scripts/build.sh (uses MESON_CROSS_FILE for cross
-# targets). No FFmpeg --enable flag of its own. Not a standalone script.
+# targets). Also enables FFmpeg's --enable-libharfbuzz (drawtext text shaping).
+# Not a standalone script.
 
 [[ "${BUILD_LIBASS}" == "1" ]] || return 0
 

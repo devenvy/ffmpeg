@@ -114,8 +114,12 @@ where the Vulkan stack is built), inside `scripts/platform/<family>.sh` — neve
 `lgplv2`/`v2` or on platforms without Vulkan. Pin in `deps.json`. Append
 `--enable-libplacebo`. **This task starts with a local spike** to prove the
 meson build + shader-compiler dependency on the `linux-x64` Vulkan cell before
-wiring the gating; if the shader-compiler chain proves too invasive, libplacebo
-splits back out to its own PR (the other four still ship). Risk: high.
+wiring the gating — de-risking libplacebo early rather than at the end. **All or
+nothing:** this PR ships all five libraries fully working or it does not merge.
+If the spike surfaces a genuine blocker (shader-compiler chain too invasive, or
+an unresolvable FFmpeg 8-vs-9 API conflict), we **stop and decide with the user**
+— we do not merge a partial libplacebo, a stub, or the other four without it.
+Risk: high.
 
 ## Testing
 
@@ -135,7 +139,8 @@ splits back out to its own PR (the other four still ship). Risk: high.
 ## Risks / open questions
 
 1. **libplacebo shader compiler** — biggest unknown; resolved by the Task-5 spike.
-   Fallback: split libplacebo to its own PR.
+   All-or-nothing: on a genuine blocker, stop and decide with the user — no
+   partial merge, no shipping the other four without it.
 2. **fribidi/harfbuzz flag names** — confirm exact `--enable-*` spelling against
    FFmpeg 8/9 `configure --help` in Task 1/2 (cheap).
 3. **soxr `-lm`** — a known, bounded link-order fix; the deferral note is the repro.

@@ -78,10 +78,10 @@ jobs:
             git checkout -f "${GITHUB_REF_NAME:-main}"
           }
 
-          # Point-release bumps (a newer release within the major) are handled by Renovate now (renovate.json's
-          # deps.json's .ffmpeg list manager), grouped with the library bumps into one PR. This workflow only
-          # does what Renovate can't — compute the highest tracked major, then (below) add a NEW
-          # major as a parallel line when one appears upstream.
+          # Newer releases within a tracked major are handled by Renovate now (its deps.json .ffmpeg
+          # manager), grouped with the library bumps into one PR. This workflow only does what
+          # Renovate can't — compute the highest tracked major, then (below) add a NEW major as a
+          # parallel line when one appears upstream.
           MAX_MAJOR=0
           for v in "${TRACKED[@]}"; do major="${v%%.*}"; (( major > MAX_MAJOR )) && MAX_MAJOR="$major"; done
 
@@ -102,7 +102,7 @@ jobs:
               '.packageRules += [{"matchPackageNames":["https://github.com/FFmpeg/FFmpeg.git"],"matchCurrentVersion":$re,"allowedVersions":$re}]' \
               renovate.json > rn.tmp && mv rn.tmp renovate.json
             open_pr "auto/ffmpeg-${NEWEST}" "Add FFmpeg ${NEWEST} (new major line)" \
-              "Automated: FFmpeg ${NEWEST} is a new major series upstream. This PR adds it to the ledger (\`deps.json\` \`.ffmpeg\`) plus a Renovate per-series rule so its point releases are tracked from here on. Major bumps can change library sonames and configure flags, and a new major often supports new libraries worth enabling — treat this as a starting point: the CI build on this PR is the check, and you may extend it with new \`deps/\` + configure flags before merging. Existing lines keep releasing independently.$(coverage_note "${NEWEST}")"
+              "Automated: FFmpeg ${NEWEST} is a new major series upstream. This PR adds it to the ledger (\`deps.json\` \`.ffmpeg\`) plus a per-major Renovate rule so newer releases within it are tracked from here on. Major bumps can change library sonames and configure flags, and a new major often supports new libraries worth enabling — treat this as a starting point: the CI build on this PR is the check, and you may extend it with new \`deps/\` + configure flags before merging. Existing lines keep releasing independently.$(coverage_note "${NEWEST}")"
             git checkout -f deps.json renovate.json
           fi
 

@@ -31,8 +31,8 @@ check() { # <label> <got> <want>
 
 FFMPEG_VERSION=9.0.1 got="$(dep_source x265)";   check "9 default x265 (no RID)"  "$got" "$(printf 'https://example.test/x265.git\ttag\t4.0')"
 FFMPEG_VERSION=8.1.2 got="$(dep_source x265)";   check "8 override (version-wide) switches ref type" "$got" "$(printf 'https://example.test/x265.git\tbranch\tstable-8')"
-FFMPEG_VERSION=9.0.1 BUILD_RID=linux-arm64 got="$(dep_source x265)"; check "platform override applies on a listed RID" "$got" "$(printf 'https://example.test/x265.git\ttag\t3.6')"
-FFMPEG_VERSION=9.0.1 BUILD_RID=linux-x64  got="$(dep_source x265)"; check "platform override skipped off-list -> default" "$got" "$(printf 'https://example.test/x265.git\ttag\t4.0')"
+got="$(FFMPEG_VERSION=9.0.1 BUILD_RID=linux-arm64 dep_source x265)"; check "platform override applies on a listed RID" "$got" "$(printf 'https://example.test/x265.git\ttag\t3.6')"
+got="$(FFMPEG_VERSION=9.0.1 BUILD_RID=linux-x64  dep_source x265)"; check "platform override skipped off-list -> default" "$got" "$(printf 'https://example.test/x265.git\ttag\t4.0')"
 FFMPEG_VERSION=9.0.1 got="$(dep_source libfoo)"; check "commit ref"           "$got" "$(printf 'https://example.test/foo.git\tcommit\tabc123')"
 FFMPEG_VERSION=9.0.1 got="$(dep_source libbar)"; check "branch ref"           "$got" "$(printf 'https://example.test/bar.git\tbranch\tmain')"
 export FFMPEG_VERSION=9.0.1

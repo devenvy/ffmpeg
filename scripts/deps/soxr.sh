@@ -9,14 +9,10 @@ set -euo pipefail
 build_cmake_dep soxr \
   -DWITH_OPENMP=OFF -DBUILD_TESTS=OFF -DBUILD_EXAMPLES=OFF -DWITH_LSR_BINDINGS=OFF
 
-# soxr links libm; make sure FFmpeg's static configure test for -lsoxr sees it.
-# (If the resampler check still fails in a local build despite this, fall back
-# to adding -lm to FFmpeg's --extra-libs in 07_build_ffmpeg.sh, gated on
-# BUILD_LIBSOXR, instead of/alongside this .pc fix.)
-SOXR_PC="${DEPS_DIR}/lib/pkgconfig/soxr.pc"
-if [[ -f "${SOXR_PC}" ]] && ! grep -q 'Libs.private:.*-lm' "${SOXR_PC}"; then
-  printf 'Libs.private: -lm\n' >> "${SOXR_PC}"
-fi
+# FFmpeg links libsoxr via a hardcoded -lsoxr (it does not use soxr's pkg-config),
+# so soxr's libm dependency (log/pow in its FFT code) must be added to FFmpeg's
+# own link explicitly, or the --enable-libsoxr configure check fails to link.
+EXTRA_LIBS="${EXTRA_LIBS:-} -lm"
 
 CONFIGURE_FLAGS+=(--enable-libsoxr)
 echo "libsoxr (high-quality resampling) enabled."

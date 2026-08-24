@@ -164,6 +164,7 @@
       "tag": "v1.6.0",
       "datasource": "git-refs"
     },
+    "libxml2": { "origin": "https://github.com/GNOME/libxml2.git", "tag": "v2.15.3", "datasource": "git-tags" },
     "nv-codec": {
       "origin": "https://github.com/FFmpeg/nv-codec-headers.git",
       "tag": "n13.1.15.0",

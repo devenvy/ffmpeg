@@ -24,6 +24,7 @@ D="${ROOT_DIR}/scripts/deps"
 . "${D}/kvazaar.sh"      # H.265 software encoder (BSD — LGPL builds too)
 . "${D}/dav1d.sh"        # fast AV1 decoder
 . "${D}/zlib.sh"         # zlib compression
+. "${D}/libxml2.sh"      # XML parser — FFmpeg DASH demuxer + IMF
 . "${D}/libpng.sh"       # PNG image support (freetype dependency)
 . "${D}/freetype.sh"     # text rendering (drawtext)
 . "${D}/fribidi.sh"      # bidirectional text (libass dependency)

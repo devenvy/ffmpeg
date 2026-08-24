@@ -31,7 +31,7 @@ one static library and appends its `--enable-<lib>` flag. To add a library you w
 
 **Maintaining multiple versions.** the `.ffmpeg` list in `deps.json` is the source of truth for which FFmpeg
 releases this repo builds — one exact upstream version per line. Each line is built and
-released independently (see [Releases](README.md#releases)), so several major/minor lines
+released independently (see [What a merged bump releases](#what-a-merged-bump-releases)), so several major/minor lines
 (e.g. `9.0` and `8.1.2`) can be maintained in parallel. **Renovate** keeps each line's point
 releases current (8.1.2 → 8.x, grouped with the library bumps into one PR); `check-updates.yml`
 only detects a new upstream **major** and opens a PR adding it as a new line (see

@@ -1,8 +1,9 @@
 # FFmpeg Builds
 
-Prebuilt, self-contained **FFmpeg 8** libraries and binaries for every major platform, in four
-license variants — with the [whisper.cpp](https://github.com/ggml-org/whisper.cpp) speech-to-text
-filter (`af_whisper`) built in. No network, no external services; every artifact ships the
+Prebuilt, self-contained **FFmpeg** libraries and binaries for every major platform, in four
+license variants — multiple major lines (currently **8.x** and **9.x**) built in parallel, each
+with the [whisper.cpp](https://github.com/ggml-org/whisper.cpp) speech-to-text filter
+(`af_whisper`) built in. No network, no external services; every artifact ships the
 governing license text and each bundled dependency's license under `legal/`.
 
 ## Platforms

@@ -1,4 +1,8 @@
 {
+  "ffmpeg": [
+    "8.1.2",
+    "9.0.1"
+  ],
   "defaults": {
     "dav1d": {
       "origin": "https://code.videolan.org/videolan/dav1d.git",

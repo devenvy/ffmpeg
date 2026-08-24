@@ -17,17 +17,17 @@
 # license reasons (GPL / conflicting). Curation (label, category, footnote) is
 # OVERLAY ONLY and can never hide a row.
 #
-# Usage:  bash scripts/gen-matrix.sh   (regenerates from every versions.txt line)
+# Usage:  bash scripts/gen-matrix.sh   (regenerates from every deps.json .ffmpeg entry)
 set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${ROOT_DIR}"
 
 RIDS=(linux-x64 linux-arm64 linux-armhf linux-musl-x64 win-x64 osx-x64 osx-arm64 android-arm64 ios-arm64 ios-sim-arm64)
 
-# FFmpeg configure for EVERY maintained version (versions.txt) — the source of
+# FFmpeg configure for EVERY maintained version (deps.json's .ffmpeg list) — the source of
 # truth for each version's library universe. Each is rendered to its own files.
-mapfile -t VERSIONS < <(grep -vE '^[[:space:]]*(#|$)' versions.txt | sed 's/[[:space:]]//g' | grep .)
-[ "${#VERSIONS[@]}" -gt 0 ] || { echo "ERROR: no versions in versions.txt" >&2; exit 1; }
+mapfile -t VERSIONS < <(jq -r '.ffmpeg[]' deps.json)
+[ "${#VERSIONS[@]}" -gt 0 ] || { echo "ERROR: no versions in deps.json .ffmpeg" >&2; exit 1; }
 CONF_DIR="$(mktemp -d)"; MANIFEST_FILE="$(mktemp)"; : > "${MANIFEST_FILE}"
 for V in "${VERSIONS[@]}"; do
   CF="${CONF_DIR}/${V}.configure"

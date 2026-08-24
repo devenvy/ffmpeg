@@ -17,7 +17,7 @@ jobs:
   # every tracked FFmpeg version. Same diff logic as release.yml's prepare, so CI and
   # release agree on what a change touches:
   #   - a build-recipe change (scripts/, except tests) → ALL tracked versions
-  #   - only versions.txt → just the added/changed lines (an add-9 PR → only 9)
+  #   - only deps.json's .ffmpeg list → just the added/changed lines (an add-9 PR → only 9)
   #   - anything else (docs, etc.) → nothing
   resolve:
     runs-on: ubuntu-latest
@@ -33,13 +33,13 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           set -euo pipefail
-          mapfile -t TRACKED < <(grep -vE '^[[:space:]]*(#|$)' versions.txt | sed 's/[[:space:]]//g' | grep .)
+          mapfile -t TRACKED < <(jq -r '.ffmpeg[]' deps.json)
           echo "Changed vs base:"; git diff --name-only "${BASE_SHA}" HEAD || true
           # Which lines this PR affects (shared with release.yml via select-versions.sh):
           #   build-recipe change (scripts/**, non-test) -> all lines
           #   deps.json bump -> only lines whose RESOLVED deps changed (a line that whole-line-
           #                     pins the bumped dep is skipped — it wasn't affected)
-          #   versions.txt   -> the added/changed version lines
+          #   deps.json's .ffmpeg list   -> the added/changed version lines
           mapfile -t SEL < <(bash scripts/ci/select-versions.sh "${BASE_SHA}" "${TRACKED[@]}")
           echo "Selected versions: ${SEL[*]:-none}"
 
@@ -57,7 +57,7 @@ jobs:
 
   # Keep the committed build-coverage matrices (docs/matrix/) in lockstep with what we
   # actually build. They are generated from FFmpeg's configure + the build scripts + the
-  # dependency ledger (deps.json), so a DEP BUMP, a versions.txt change, or a build-script
+  # dependency ledger (deps.json), so a DEP BUMP, a deps.json's .ffmpeg list change, or a build-script
   # edit must regenerate them — not just an FFmpeg change. This job regenerates and fails if
   # the committed files drifted; the fix is `bash scripts/gen-matrix.sh` + commit. Cheap
   # (~1 min), so it runs on every PR. SELECT THIS as a required check alongside build/test.

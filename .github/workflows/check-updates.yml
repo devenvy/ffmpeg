@@ -27,7 +27,7 @@ jobs:
       # Point releases (8.1.2 -> 8.1.x) are handled by Renovate now (grouped with the library
       # bumps into one PR). This workflow does only what Renovate can't: when a newer FFmpeg
       # MAJOR appears upstream than anything tracked, open a PR that ADDS it as a new parallel
-      # line in versions.txt. A new major is a flag you enhance (new sonames / configure flags /
+      # line in deps.json's .ffmpeg list. A new major is a flag you enhance (new sonames / configure flags /
       # libraries worth enabling) before merge — its CI build is the check. Kept separate from
       # the mechanical point/lib bumps that Renovate merges.
       - name: Add a new FFmpeg major line if one appeared
@@ -37,9 +37,8 @@ jobs:
           git config user.email "ffmpeg-update-bot@users.noreply.github.com"
           git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
 
-          # sed strips per-line whitespace (tr -d would delete the newlines too,
-          # merging every version into one token).
-          mapfile -t TRACKED < <(grep -vE '^[[:space:]]*(#|$)' versions.txt | sed 's/[[:space:]]//g' | grep .)
+          # The maintained FFmpeg lines live in the ledger now (deps.json .ffmpeg).
+          mapfile -t TRACKED < <(jq -r '.ffmpeg[]' deps.json)
 
           # All upstream release tags (n<ver>), point releases only (no -rcN).
           mapfile -t ALLTAGS < <(git ls-remote --tags "${UPSTREAM}" 'refs/tags/n*' \
@@ -63,7 +62,7 @@ jobs:
               return
             fi
             git checkout -B "$branch" origin/${GITHUB_REF_NAME:-main}
-            git add versions.txt
+            git add deps.json renovate.json
             # Regenerate the coverage matrix so the PR is self-contained: a bump
             # refreshes its major's matrix, and a new major adds a dedicated
             # docs/matrix/ffmpeg-<major>.md + updates the index. Needs network to
@@ -80,7 +79,7 @@ jobs:
           }
 
           # Point-release bumps (8.1.2 -> 8.1.x) are handled by Renovate now (renovate.json's
-          # versions.txt manager), grouped with the library bumps into one PR. This workflow only
+          # deps.json's .ffmpeg list manager), grouped with the library bumps into one PR. This workflow only
           # does what Renovate can't — compute the highest tracked major, then (below) add a NEW
           # major.minor series as a parallel line when one appears upstream.
           MAX_MAJOR=0
@@ -97,10 +96,16 @@ jobs:
           if (( NEW_MAJOR > MAX_MAJOR )) && ! $already; then
             echo "New major available: ${NEWEST} (tracked max major ${MAX_MAJOR})"
             git checkout -f "${GITHUB_REF_NAME:-main}" 2>/dev/null || true
-            printf '%s\n' "${NEWEST}" >> versions.txt
+            # Add the new line to the ledger (.ffmpeg) AND its Renovate per-series rule, so once
+            # this PR merges, Renovate keeps the new line's point releases current going forward.
+            jq --arg v "${NEWEST}" '.ffmpeg += [$v]' deps.json > deps.tmp && mv deps.tmp deps.json
+            SERIES_RE="/^$(sed 's/\./\\./g' <<< "${NEW_SERIES}")\\./"
+            jq --arg re "${SERIES_RE}" \
+              '.packageRules += [{"matchPackageNames":["https://github.com/FFmpeg/FFmpeg.git"],"matchCurrentVersion":$re,"allowedVersions":$re}]' \
+              renovate.json > rn.tmp && mv rn.tmp renovate.json
             open_pr "auto/ffmpeg-${NEWEST}" "Add FFmpeg ${NEWEST} (new major line)" \
-              "Automated: FFmpeg ${NEWEST} is a new major series upstream. This PR adds it as a parallel maintained line in \`versions.txt\`. Major bumps can change library sonames and configure flags, and a new major often supports new libraries worth enabling — so treat this as a starting point: the CI build on this PR is the check, and you may extend it with new \`deps/\` + configure flags before merging. Existing lines keep releasing independently.$(coverage_note "${NEWEST}")"
-            git checkout -f versions.txt
+              "Automated: FFmpeg ${NEWEST} is a new major series upstream. This PR adds it to the ledger (\`deps.json\` \`.ffmpeg\`) plus a Renovate per-series rule so its point releases are tracked from here on. Major bumps can change library sonames and configure flags, and a new major often supports new libraries worth enabling — treat this as a starting point: the CI build on this PR is the check, and you may extend it with new \`deps/\` + configure flags before merging. Existing lines keep releasing independently.$(coverage_note "${NEWEST}")"
+            git checkout -f deps.json renovate.json
           fi
 
           echo "Done."

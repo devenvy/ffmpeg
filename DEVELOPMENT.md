@@ -4,7 +4,7 @@
 
 ```
 ffmpeg/
-  versions.txt              # Maintained FFmpeg versions, one per line (e.g. 8.1.2)
+  deps.json                 # The ledger — FFmpeg versions (.ffmpeg) + library versions & holds
   scripts/
     build.sh                # Orchestrator — sources the steps below, in order
     lib.sh                  # Shared build helpers (cmake wrapper, build_cmake_dep)
@@ -29,12 +29,13 @@ one static library and appends its `--enable-<lib>` flag. To add a library you w
 `deps/*.sh`, add a `BUILD_*` switch in `02_configure.sh`, and list it in `06_build_libraries.sh`
 — nothing else changes, and the coverage matrix + `build-info.txt` pick it up automatically.
 
-**Maintaining multiple versions.** `versions.txt` is the source of truth for which FFmpeg
+**Maintaining multiple versions.** the `.ffmpeg` list in `deps.json` is the source of truth for which FFmpeg
 releases this repo builds — one exact upstream version per line. Each line is built and
 released independently (see [Releases](README.md#releases)), so several major/minor lines
-(e.g. `9.0` and `8.1.2`) can be maintained in parallel. Add a line to start maintaining a new
-version; `check-updates.yml` bumps each line's point release and proposes new majors
-automatically.
+(e.g. `9.0` and `8.1.2`) can be maintained in parallel. **Renovate** keeps each line's point
+releases current (8.1.2 → 8.1.x, grouped with the library bumps into one PR); `check-updates.yml`
+only detects a new upstream **major** and opens a PR adding it as a new line (see
+[Dependency versions](#dependency-versions)).
 
 The build downloads a stock upstream FFmpeg release tarball and compiles it — there is no
 vendored FFmpeg source and no patches. All customization is in the `scripts/` tree (which
@@ -155,7 +156,7 @@ The unified build script (`scripts/build.sh`) accepts environment variables:
 | `BUILD_LICENSE` | No | `lgpl` | `lgpl`, `gpl` — family (`--disable-gpl` vs `--enable-gpl`) |
 | `BUILD_LICENSE_VERSION` | No | `3` | `3` (`--enable-version3`) or `2` (GPLv2 / LGPLv2.1, no version3) |
 | `ANDROID_NDK_HOME` | for `android-*` | — | path to the Android NDK (r26+) |
-| `FFMPEG_VERSION` | No | first line of `versions.txt` | e.g., `8.1.2` |
+| `FFMPEG_VERSION` | No | first line of the `.ffmpeg` list in `deps.json` | e.g., `8.1.2` |
 | `SKIP_DEPS` | No | `false` | `true`, `false` — skip apt/apk/brew dependency installation |
 
 `android-*` builds run on Linux/WSL with the NDK; `ios-*`/`osx-*` builds run on macOS with the
@@ -214,28 +215,31 @@ however it's built:
 
 ## CI/CD
 
-- **CI** (`ci.yml`) — On pull requests to `main`. A `resolve` job diffs the PR and builds only
-  the versions it actually affects: a `scripts/**` change → all tracked versions; a
-  `versions.txt`-only change → just the added/changed lines (so an add-9 PR builds only 9);
-  docs-only → nothing. It then chains build → desktop test + mobile test against the uploaded
-  artifacts. A single `ci-passed` gate job — green when the build/test jobs pass *or are skipped*
-  (a docs-only PR builds nothing) — is the one required status check for branch protection. PR
-  runs use `fail_fast` (one failed job cancels the rest to save minutes); release builds do not.
-- **Release** (`release.yml`) — Runs on pushes to `main` that change `versions.txt` or a build
-  recipe (`scripts/**`, excluding tests), and can also be started manually. A `prepare` job
-  decides which lines to (re)build: a `versions.txt` edit → only the added/changed lines; a
-  build-recipe change → every tracked line (the recipe applies to all — e.g. a bundled-lib
-  security fix should reach every version). Tests gate the release (build → test + test-mobile
+- **CI** (`ci.yml`) — On pull requests to `main`. A `resolve` job diffs the PR (via
+  `scripts/ci/select-versions.sh`) and builds only the lines it affects: a `scripts/**` change →
+  all tracked versions; a `deps.json` **library** bump → only lines whose resolved deps changed
+  (a line that whole-line-pins the bumped dep is skipped); a `deps.json` **`.ffmpeg`** version
+  change → the added/changed lines; docs-only → nothing. It then chains build → desktop test +
+  mobile test against the uploaded artifacts, gated by the aggregate `build`/`test` checks plus a
+  `docs-matrix` drift check. PR runs use `fail_fast`; release builds do not.
+- **Release** (`release.yml`) — Runs on pushes to `main` that change `deps.json` (FFmpeg versions
+  or libraries) or a build recipe (`scripts/**`, excluding tests), and can also be started
+  manually. A `prepare` job uses the same `select-versions.sh` to (re)build only the affected
+  lines — a `deps.json` change touches only the lines whose resolved deps or `.ffmpeg` version
+  changed; a build-recipe change rebuilds every line. Tests gate the release (build → test + test-mobile
   must pass before the tag/publish). Each selected version gets its own `{version}.{build}` tag +
   GitHub Release — all variants built and packaged (desktop/Android tarballs; a `publish-ios` job
   assembles the iOS `.xcframework`s on a macOS runner). Only the **highest** tracked line is
   marked GitHub "Latest" (`--latest=true`), so an older-major maintenance release never steals the
   badge. Bumping one line publishes only that line.
-- **Check Updates** (`check-updates.yml`) — Runs daily and can also be started manually. For
-  each line in `versions.txt` it detects a newer point release in that major.minor series and
-  opens a bump PR; if a newer major exists upstream than anything tracked, it opens a PR adding
-  that major as a new parallel line. PRs use the `UPDATE_PR_TOKEN` secret so normal PR CI runs;
-  merging one triggers the release workflow for the affected line(s).
+- **Renovate** (`renovate.yml` + `renovate.json`) — Weekly. Bumps the library `defaults` **and**
+  the FFmpeg `.ffmpeg` point releases in `deps.json`, batched into one grouped PR; it never touches
+  the `overrides` holds. PRs use `UPDATE_PR_TOKEN` so CI runs on them. Workflow actions are handled
+  separately by Dependabot (`.github/dependabot.yml`).
+- **Check Updates** (`check-updates.yml`) — Weekly. Does only what Renovate can't: when a newer
+  FFmpeg **major** appears upstream, it opens a PR adding it to `.ffmpeg` (plus the matching
+  Renovate per-series rule) so Renovate tracks the new line going forward. Uses `UPDATE_PR_TOKEN`
+  so CI runs; merging triggers the release workflow.
 
 **Build/test are separate reusable workflows** (`build.yml`, `test.yml`, `test-mobile.yml`), so
 tests can grow and re-run without rebuilding. `build.yml` builds each variant and uploads its
@@ -364,7 +368,7 @@ clone the wrong thing. `bash scripts/deps/ledger-validate.sh` checks the ledger'
   [`.github/workflows/renovate.yml`](.github/workflows/renovate.yml)) watches, weekly:
   - the `defaults` block of `deps.json` (scoped there only — it never edits an override, a commit
     pin like x264/amf, or a tarball dep like gmp/libmp3lame), and
-  - each **FFmpeg** line in `versions.txt`, constrained to **point releases within its own
+  - each **FFmpeg** line in the `.ffmpeg` list in `deps.json`, constrained to **point releases within its own
     major.minor series** (8.1.2 → 8.1.x, never → 8.2 or 9.x).
 
   It batches all of these — libraries **and** FFmpeg point bumps — into **one grouped PR** per run
@@ -377,7 +381,7 @@ clone the wrong thing. `bash scripts/deps/ledger-validate.sh` checks the ledger'
   new sonames / configure flags / libraries worth enabling). When you adopt a new maintained
   series, add its 2-line `matchCurrentVersion`/`allowedVersions` rule to `renovate.json` so Renovate
   tracks that line's point releases too.
-- **By hand:** edit the `tag`/`commit` in `deps.json` (or the version in `versions.txt`), run
+- **By hand:** edit the `tag`/`commit` in `deps.json` (or the version in the `.ffmpeg` list in `deps.json`), run
   `bash scripts/deps/ledger-validate.sh`, regenerate the matrices (`bash scripts/gen-matrix.sh`),
   and open a PR.
 
@@ -387,7 +391,7 @@ clone the wrong thing. `bash scripts/deps/ledger-validate.sh` checks the ledger'
 `scripts/ci/select-versions.sh`:
 
 - a **build-recipe** change (`scripts/**`, except `scripts/test/**`) → **all** lines;
-- a **`versions.txt`** change → the **added/changed** lines;
+- a **the `.ffmpeg` list in `deps.json`** change → the **added/changed** lines;
 - a **`deps.json`** change → only the lines whose **resolved** dependency set changed. A line that
   *whole-line-pins* the bumped dep (an `overrides.<major>` entry with no `platforms`) is **not**
   rebuilt or re-released — nothing changed for it. A platform-scoped hold still counts as affected

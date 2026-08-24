@@ -19,9 +19,13 @@
     },
     {
       "customType": "regex",
-      "description": "Track FFmpeg point releases in versions.txt — one line per maintained major.minor series (e.g. 8.1.2). Each line is a full x.y.z version; FFmpeg's upstream tags are n<version> (stripped via extractVersion). Only whole-line versions match, so comment text like the '8.1.2.0' example is ignored.",
-      "managerFilePatterns": ["/^versions\\.txt$/"],
-      "matchStrings": ["(?m)^(?<currentValue>\\d+\\.\\d+\\.\\d+)\\s*$"],
+      "description": "Track FFmpeg point releases listed in the .ffmpeg array of deps.json (one entry per maintained major.minor series, e.g. 8.1.2). The recursive first matchString scopes extraction to the .ffmpeg array only; FFmpeg's upstream tags are n<version> (stripped via extractVersion).",
+      "managerFilePatterns": ["/^deps\\.json$/"],
+      "matchStringsStrategy": "recursive",
+      "matchStrings": [
+        "\"ffmpeg\"\\s*:\\s*\\[([\\s\\S]*?)\\]",
+        "\"(?<currentValue>\\d+\\.\\d+\\.\\d+)\""
+      ],
       "depNameTemplate": "FFmpeg",
       "packageNameTemplate": "https://github.com/FFmpeg/FFmpeg.git",
       "datasourceTemplate": "git-tags",

@@ -8,8 +8,7 @@ on:
     branches:
       - main
     paths:
-      - versions.txt          # an FFmpeg version bump/add → release just that line
-      - deps.json             # a dependency VERSION bump (incl. a merged Renovate PR) → all lines
+      - deps.json             # the ledger — FFmpeg version bumps (.ffmpeg) AND library bumps (incl. merged Renovate PRs)
       - 'scripts/**'          # a build-recipe/logic change (incl. a dep build-SCRIPT fix) → all lines
       - '!scripts/test/**'    # ...except test-only changes, which don't affect artifacts
   workflow_dispatch:
@@ -25,7 +24,7 @@ concurrency:
 
 jobs:
   # Decide which version lines to (re)build this run, and compute each one's
-  # next {version}.{build} tag. A push that only edits versions.txt builds just
+  # next {version}.{build} tag. A push that only edits deps.json's .ffmpeg list builds just
   # the added/changed lines; a scripts/build.sh change (or a manual run) rebuilds
   # every tracked line.
   prepare:
@@ -46,7 +45,7 @@ jobs:
           BEFORE: ${{ github.event.before }}
         run: |
           set -euo pipefail
-          mapfile -t TRACKED < <(grep -vE '^[[:space:]]*(#|$)' versions.txt | sed 's/[[:space:]]//g;/^$/d')
+          mapfile -t TRACKED < <(jq -r '.ffmpeg[]' deps.json)
 
           BUILD_ALL=false
           SEL=()
@@ -60,7 +59,7 @@ jobs:
             # A push to main: build + release only the lines this change actually affects (shared
             # with ci.yml via scripts/ci/select-versions.sh) — a build-recipe change (scripts/**,
             # non-test) -> all lines; a deps.json bump -> only lines whose RESOLVED deps changed
-            # (a line that whole-line-pins the bumped dep is NOT re-released); a versions.txt change
+            # (a line that whole-line-pins the bumped dep is NOT re-released); a deps.json's .ffmpeg list change
             # -> the added/changed lines. First push / unknown base -> all (the script can't diff).
             mapfile -t SEL < <(bash scripts/ci/select-versions.sh "${BEFORE}" "${TRACKED[@]}")
           fi
@@ -143,7 +142,7 @@ jobs:
           # exists) must NOT become "Latest" — otherwise it steals the badge from the
           # newest major. GitHub's default (--latest omitted) would mis-assign this by
           # recency, so we set it explicitly per release.
-          HIGHEST="$(grep -vE '^[[:space:]]*(#|$)' versions.txt | sed 's/[[:space:]]//g;/^$/d' | sort -V | tail -1)"
+          HIGHEST="$(jq -r '.ffmpeg[]' deps.json | sort -V | tail -1)"
           if [[ "${VERSION}" == "${HIGHEST}" ]]; then MARK_LATEST=true; else MARK_LATEST=false; fi
           echo "Highest tracked line: ${HIGHEST} — mark ${VERSION} as latest: ${MARK_LATEST}"
           git config user.name "github-actions[bot]"

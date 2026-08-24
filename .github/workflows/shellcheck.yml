@@ -32,6 +32,7 @@ jobs:
           bash scripts/deps/ledger-test.sh
           bash scripts/deps/ledger-validate-test.sh
           bash scripts/deps/ledger-validate.sh
+          bash scripts/ci/select-versions-test.sh
 
       # Our dep scripts are SOURCED by build.sh and share its environment, so many
       # variables are assigned by the parent, not the script itself. -x follows

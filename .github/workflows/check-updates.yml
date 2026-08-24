@@ -24,7 +24,7 @@ jobs:
         with:
           persist-credentials: false
 
-      # Point releases (8.1.2 -> 8.1.x) are handled by Renovate now (grouped with the library
+      # Point releases (a newer release within the major) are handled by Renovate now (grouped with the library
       # bumps into one PR). This workflow does only what Renovate can't: when a newer FFmpeg
       # MAJOR appears upstream than anything tracked, open a PR that ADDS it as a new parallel
       # line in deps.json's .ffmpeg list. A new major is a flag you enhance (new sonames / configure flags /
@@ -78,28 +78,26 @@ jobs:
             git checkout -f "${GITHUB_REF_NAME:-main}"
           }
 
-          # Point-release bumps (8.1.2 -> 8.1.x) are handled by Renovate now (renovate.json's
+          # Point-release bumps (a newer release within the major) are handled by Renovate now (renovate.json's
           # deps.json's .ffmpeg list manager), grouped with the library bumps into one PR. This workflow only
           # does what Renovate can't — compute the highest tracked major, then (below) add a NEW
-          # major.minor series as a parallel line when one appears upstream.
+          # major as a parallel line when one appears upstream.
           MAX_MAJOR=0
           for v in "${TRACKED[@]}"; do major="${v%%.*}"; (( major > MAX_MAJOR )) && MAX_MAJOR="$major"; done
 
-          # New major line.
+          # New major line: the newest upstream release whose MAJOR is above everything tracked.
+          # A newer minor/patch of a major we already track (9.0.1 -> 9.0.2 or 9.1.0) is just a
+          # stability point in that series — Renovate bumps the existing line to it, so it is NOT a
+          # new line and never reaches here.
           NEWEST="${ALLTAGS[-1]}"
           NEW_MAJOR="${NEWEST%%.*}"
-          NEW_SERIES="$(cut -d. -f1,2 <<< "$NEWEST")"
-          already=false
-          for v in "${TRACKED[@]}"; do
-            [[ "$(cut -d. -f1,2 <<< "$v")" == "$NEW_SERIES" ]] && already=true
-          done
-          if (( NEW_MAJOR > MAX_MAJOR )) && ! $already; then
+          if (( NEW_MAJOR > MAX_MAJOR )); then
             echo "New major available: ${NEWEST} (tracked max major ${MAX_MAJOR})"
             git checkout -f "${GITHUB_REF_NAME:-main}" 2>/dev/null || true
-            # Add the new line to the ledger (.ffmpeg) AND its Renovate per-series rule, so once
-            # this PR merges, Renovate keeps the new line's point releases current going forward.
+            # Add the new line to the ledger (.ffmpeg) AND its per-major Renovate rule, so once this
+            # PR merges Renovate keeps the new line current (any newer release within the major).
             jq --arg v "${NEWEST}" '.ffmpeg += [$v]' deps.json > deps.tmp && mv deps.tmp deps.json
-            SERIES_RE="/^$(sed 's/\./\\./g' <<< "${NEW_SERIES}")\\./"
+            SERIES_RE="/^${NEW_MAJOR}\\./"
             jq --arg re "${SERIES_RE}" \
               '.packageRules += [{"matchPackageNames":["https://github.com/FFmpeg/FFmpeg.git"],"matchCurrentVersion":$re,"allowedVersions":$re}]' \
               renovate.json > rn.tmp && mv rn.tmp renovate.json

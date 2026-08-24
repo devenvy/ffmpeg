@@ -33,7 +33,7 @@ one static library and appends its `--enable-<lib>` flag. To add a library you w
 releases this repo builds — one exact upstream version per line. Each line is built and
 released independently (see [Releases](README.md#releases)), so several major/minor lines
 (e.g. `9.0` and `8.1.2`) can be maintained in parallel. **Renovate** keeps each line's point
-releases current (8.1.2 → 8.1.x, grouped with the library bumps into one PR); `check-updates.yml`
+releases current (8.1.2 → 8.x, grouped with the library bumps into one PR); `check-updates.yml`
 only detects a new upstream **major** and opens a PR adding it as a new line (see
 [Dependency versions](#dependency-versions)).
 
@@ -368,14 +368,15 @@ clone the wrong thing. `bash scripts/deps/ledger-validate.sh` checks the ledger'
   [`.github/workflows/renovate.yml`](.github/workflows/renovate.yml)) watches, weekly:
   - the `defaults` block of `deps.json` (scoped there only — it never edits an override, a commit
     pin like x264/amf, or a tarball dep like gmp/libmp3lame), and
-  - each **FFmpeg** line in the `.ffmpeg` list in `deps.json`, constrained to **point releases within its own
-    major.minor series** (8.1.2 → 8.1.x, never → 8.2 or 9.x).
+  - each **FFmpeg** line in the `.ffmpeg` list in `deps.json`, constrained to **its own major**
+    — any newer release within the major, patch or minor alike (9.0.1 → 9.0.2 → 9.1.0), never a
+    cross-major jump (9.x → 10.x).
 
   It batches all of these — libraries **and** FFmpeg point bumps — into **one grouped PR** per run
   (major *library* bumps stay separate for individual review). CI builds that PR across every
   affected line before you merge. Workflow **actions** are handled separately by **Dependabot**
   ([`.github/dependabot.yml`](.github/dependabot.yml)); Renovate never touches them.
-- **A new FFmpeg major.minor line** (e.g. 9.1, 10.0) is the one thing Renovate can't do — it edits
+- **A new FFmpeg major line** (e.g. 10.0) is the one thing Renovate can't do — it edits
   existing values, not add lines. [`check-updates.yml`](.github/workflows/check-updates.yml) detects
   a new upstream major and opens a *separate* PR adding the parallel line (a human-reviewed change:
   new sonames / configure flags / libraries worth enabling). When you adopt a new maintained

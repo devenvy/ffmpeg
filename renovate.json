@@ -9,7 +9,7 @@
     {
       "customType": "regex",
       "description": "Bump the DEFAULTS block of the dependency ledger (deps.json). The recursive first matchString scopes extraction to defaults only — the overrides block (per-version / per-platform holds) is deliberately outside the region, so Renovate never touches a pinned hold. Only tag-pinned entries with a datasource are matched; commit pins (x264, amf) and tarball deps (gmp, libmp3lame) are hand-managed.",
-      "fileMatch": ["^deps\\.json$"],
+      "managerFilePatterns": ["/^deps\\.json$/"],
       "matchStringsStrategy": "recursive",
       "matchStrings": [
         "\"defaults\"\\s*:\\s*\\{([\\s\\S]*?)\\}\\s*,\\s*\"overrides\"",
@@ -24,6 +24,15 @@
       "matchManagers": ["custom.regex"],
       "commitMessagePrefix": "chore(deps):",
       "semanticCommits": "disabled"
+    },
+    {
+      "description": "Vulkan-Headers/Loader + SPIRV-Headers ship in lockstep on vulkan-sdk-* release tags (the ledger pins the same SDK version across all three). Each repo ALSO carries a parallel v1.4.x tag scheme; restrict Renovate to the vulkan-sdk-* versioning so it can't cross namespaces or desync the trio (which it otherwise would — it proposed v1.4.360 for Loader+SPIRV but not Headers).",
+      "matchPackageNames": [
+        "https://github.com/KhronosGroup/Vulkan-Headers.git",
+        "https://github.com/KhronosGroup/Vulkan-Loader.git",
+        "https://github.com/KhronosGroup/SPIRV-Headers.git"
+      ],
+      "versioning": "regex:^vulkan-sdk-(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)\\.(?<build>\\d+)$"
     }
   ]
 }

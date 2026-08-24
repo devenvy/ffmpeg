@@ -8,13 +8,10 @@ on:
     branches:
       - main
     paths:
-      - versions.txt          # a version bump/add → release just that line
+      - versions.txt          # an FFmpeg version bump/add → release just that line
+      - deps.json             # a dependency VERSION bump (incl. a merged Renovate PR) → all lines
       - 'scripts/**'          # a build-recipe/logic change (incl. a dep build-SCRIPT fix) → all lines
       - '!scripts/test/**'    # ...except test-only changes, which don't affect artifacts
-      # NOTE: deps.json (dependency VERSION bumps, incl. Renovate PRs) is deliberately NOT a
-      # release trigger. Such a bump is built + tested by ci.yml on its PR, but PUBLISHING is a
-      # deliberate act: trigger this workflow via "Run workflow" (versions: all) to ship the
-      # merged bumps. Keeps release cadence under manual control.
   workflow_dispatch:
     inputs:
       versions:
@@ -60,13 +57,15 @@ jobs:
               read -ra SEL <<< "${DISPATCH_VERSIONS}"
             fi
           else
-            # First push / unknown base, or ANY build-recipe change (a scripts/ file
-            # other than tests — build.sh, a step, or a dep-lib pin bump) → rebuild
-            # every tracked line, since the recipe applies to all of them. A push that
-            # only edits versions.txt falls through to the per-line diff below.
+            # First push / unknown base, or ANY build-recipe change (a scripts/ file other
+            # than tests — build.sh, a step, a dep build-script) OR a dependency VERSION bump
+            # (deps.json — the ledger, incl. a merged Renovate PR) → rebuild every tracked line,
+            # since the change applies to all of them. A push that only edits versions.txt falls
+            # through to the per-line diff below.
             if [[ -z "${BEFORE}" || "${BEFORE}" =~ ^0+$ ]] || ! git rev-parse -q --verify "${BEFORE}^{commit}" >/dev/null; then
               BUILD_ALL=true
-            elif git diff --name-only "${BEFORE}" HEAD | grep -E '^scripts/' | grep -qv '^scripts/test/'; then
+            elif { git diff --name-only "${BEFORE}" HEAD | grep -E '^scripts/' | grep -qv '^scripts/test/'; } \
+                 || git diff --name-only "${BEFORE}" HEAD | grep -qx 'deps.json'; then
               BUILD_ALL=true
             else
               if git cat-file -e "${BEFORE}:versions.txt" 2>/dev/null; then

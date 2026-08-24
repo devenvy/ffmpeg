@@ -26,6 +26,12 @@
       "semanticCommits": "disabled"
     },
     {
+      "description": "Keep review load low: batch routine (non-major) dependency bumps into ONE grouped PR per run instead of one PR per dep — so a quiet-to-busy week is a single PR + a single CI run to review and merge. MAJOR bumps are deliberately left ungrouped so each gets its own PR and individual scrutiny (they're the risky ones, e.g. an API-breaking codec major like x265 3->4). To go back to a PR per dep, delete this rule.",
+      "matchManagers": ["custom.regex"],
+      "matchUpdateTypes": ["minor", "patch", "digest"],
+      "groupName": "build dependencies (non-major)"
+    },
+    {
       "description": "Vulkan-Headers/Loader + SPIRV-Headers ship in lockstep on vulkan-sdk-* release tags (the ledger pins the same SDK version across all three). Each repo ALSO carries a parallel v1.4.x tag scheme; restrict Renovate to the vulkan-sdk-* versioning so it can't cross namespaces or desync the trio (which it otherwise would — it proposed v1.4.360 for Loader+SPIRV but not Headers).",
       "matchPackageNames": [
         "https://github.com/KhronosGroup/Vulkan-Headers.git",

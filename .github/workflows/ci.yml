@@ -34,32 +34,14 @@ jobs:
         run: |
           set -euo pipefail
           mapfile -t TRACKED < <(grep -vE '^[[:space:]]*(#|$)' versions.txt | sed 's/[[:space:]]//g' | grep .)
-          CHANGED="$(git diff --name-only "${BASE_SHA}" HEAD)"
-          echo "Changed files:"; echo "${CHANGED}"
-
-          SEL=()
-          if { echo "${CHANGED}" | grep -E '^scripts/' | grep -qv '^scripts/test/'; } \
-             || echo "${CHANGED}" | grep -qx 'deps.json'; then
-            # A build-recipe change (scripts/, except tests) OR a dependency-version bump
-            # (deps.json — where the ledger now holds the pins) affects every line's artifacts,
-            # so build + test them all. This is what validates a Renovate dep-bump PR.
-            SEL=("${TRACKED[@]}")
-            echo "Build-recipe or dependency-ledger change → all tracked versions."
-          elif echo "${CHANGED}" | grep -qx 'versions.txt'; then
-            if git cat-file -e "${BASE_SHA}:versions.txt" 2>/dev/null; then
-              mapfile -t PREV < <(git show "${BASE_SHA}:versions.txt" | grep -vE '^[[:space:]]*(#|$)' | sed 's/[[:space:]]//g' | grep .)
-            else
-              PREV=()
-            fi
-            for v in "${TRACKED[@]}"; do
-              found=false
-              for p in "${PREV[@]:-}"; do [[ "$v" == "$p" ]] && found=true && break; done
-              $found || SEL+=("$v")
-            done
-            echo "versions.txt change → added/changed lines only."
-          else
-            echo "No build-affecting change → nothing to build."
-          fi
+          echo "Changed vs base:"; git diff --name-only "${BASE_SHA}" HEAD || true
+          # Which lines this PR affects (shared with release.yml via select-versions.sh):
+          #   build-recipe change (scripts/**, non-test) -> all lines
+          #   deps.json bump -> only lines whose RESOLVED deps changed (a line that whole-line-
+          #                     pins the bumped dep is skipped — it wasn't affected)
+          #   versions.txt   -> the added/changed version lines
+          mapfile -t SEL < <(bash scripts/ci/select-versions.sh "${BASE_SHA}" "${TRACKED[@]}")
+          echo "Selected versions: ${SEL[*]:-none}"
 
           VERSIONS='[]'
           for v in "${SEL[@]:-}"; do

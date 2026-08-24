@@ -358,16 +358,47 @@ malformed, or `jq` is unavailable — a mis-resolved dependency must stop the bu
 clone the wrong thing. `bash scripts/deps/ledger-validate.sh` checks the ledger's shape
 (origin + exactly one ref; every override has a reason; `platforms` are known RIDs).
 
-### Bumping a dependency
+### Bumping a dependency (and FFmpeg)
 
-- **Automatically:** self-hosted **Renovate**
-  ([`.github/workflows/renovate.yml`](.github/workflows/renovate.yml) + [`renovate.json`](renovate.json))
-  watches each `defaults` entry's upstream weekly and opens a `chore(deps):` PR when a newer tag
-  appears. Its regex manager is scoped to the **`defaults` block only** — it never edits an
-  override, a commit pin (x264, amf), or a tarball dep (gmp, libmp3lame). CI builds that bump
-  against every FFmpeg line before it can merge.
-- **By hand:** edit the `tag`/`commit` in `deps.json`, run `bash scripts/deps/ledger-validate.sh`,
-  regenerate the matrices (`bash scripts/gen-matrix.sh`), and open a PR.
+- **Automatically:** self-hosted **Renovate** ([`renovate.json`](renovate.json) +
+  [`.github/workflows/renovate.yml`](.github/workflows/renovate.yml)) watches, weekly:
+  - the `defaults` block of `deps.json` (scoped there only — it never edits an override, a commit
+    pin like x264/amf, or a tarball dep like gmp/libmp3lame), and
+  - each **FFmpeg** line in `versions.txt`, constrained to **point releases within its own
+    major.minor series** (8.1.2 → 8.1.x, never → 8.2 or 9.x).
+
+  It batches all of these — libraries **and** FFmpeg point bumps — into **one grouped PR** per run
+  (major *library* bumps stay separate for individual review). CI builds that PR across every
+  affected line before you merge. Workflow **actions** are handled separately by **Dependabot**
+  ([`.github/dependabot.yml`](.github/dependabot.yml)); Renovate never touches them.
+- **A new FFmpeg major.minor line** (e.g. 9.1, 10.0) is the one thing Renovate can't do — it edits
+  existing values, not add lines. [`check-updates.yml`](.github/workflows/check-updates.yml) detects
+  a new upstream major and opens a *separate* PR adding the parallel line (a human-reviewed change:
+  new sonames / configure flags / libraries worth enabling). When you adopt a new maintained
+  series, add its 2-line `matchCurrentVersion`/`allowedVersions` rule to `renovate.json` so Renovate
+  tracks that line's point releases too.
+- **By hand:** edit the `tag`/`commit` in `deps.json` (or the version in `versions.txt`), run
+  `bash scripts/deps/ledger-validate.sh`, regenerate the matrices (`bash scripts/gen-matrix.sh`),
+  and open a PR.
+
+### What a merged bump releases
+
+`ci.yml` (on the PR) and `release.yml` (on merge to main) both pick the affected lines through
+`scripts/ci/select-versions.sh`:
+
+- a **build-recipe** change (`scripts/**`, except `scripts/test/**`) → **all** lines;
+- a **`versions.txt`** change → the **added/changed** lines;
+- a **`deps.json`** change → only the lines whose **resolved** dependency set changed. A line that
+  *whole-line-pins* the bumped dep (an `overrides.<major>` entry with no `platforms`) is **not**
+  rebuilt or re-released — nothing changed for it. A platform-scoped hold still counts as affected
+  (the default still applies to its other platforms).
+
+So a merged dependency bump cuts a release for exactly the lines it touched — never for a line that
+pinned the changed lib away.
+
+**Automerge (future):** the flow is built for it. Merge manually until the build+test gates have
+proven themselves, then add `"automerge": true` (with `"platformAutomerge": true`) to the grouping
+rule in `renovate.json` to let green bump PRs merge without you.
 
 ### When a bump breaks a build
 

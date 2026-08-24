@@ -1,8 +1,8 @@
-name: Check FFmpeg Updates
+name: Check for a new FFmpeg major line
 
 on:
   schedule:
-    - cron: "0 6 * * *" # Daily, 6am UTC
+    - cron: "0 6 * * 1" # Weekly, Monday 6am UTC (a new FFmpeg major is a rare event)
   workflow_dispatch:
 
 permissions:
@@ -24,16 +24,13 @@ jobs:
         with:
           persist-credentials: false
 
-      # For every tracked line, look for a newer point release in its
-      # major.minor series and open a bump PR. Separately, if a newer major
-      # exists upstream than anything tracked, open a PR that ADDS it as a new
-      # parallel line — its CI build will show whether scripts/build.sh needs a
-      # tweak for the new major. Point bumps are mechanical/merge-ready; a new
-      # major is a flag you enhance (new libs / build-script support) before merge,
-      # so they are kept as SEPARATE PRs (the safe bump isn't blocked behind the
-      # human-handled major work). Per-major matrix files keep the PRs from
-      # colliding; only the shared index can, and that merges per-line.
-      - name: Plan and open update PRs
+      # Point releases (8.1.2 -> 8.1.x) are handled by Renovate now (grouped with the library
+      # bumps into one PR). This workflow does only what Renovate can't: when a newer FFmpeg
+      # MAJOR appears upstream than anything tracked, open a PR that ADDS it as a new parallel
+      # line in versions.txt. A new major is a flag you enhance (new sonames / configure flags /
+      # libraries worth enabling) before merge — its CI build is the check. Kept separate from
+      # the mechanical point/lib bumps that Renovate merges.
+      - name: Add a new FFmpeg major line if one appeared
         run: |
           set -euo pipefail
           git config user.name "ffmpeg-update-bot"
@@ -47,15 +44,6 @@ jobs:
           # All upstream release tags (n<ver>), point releases only (no -rcN).
           mapfile -t ALLTAGS < <(git ls-remote --tags "${UPSTREAM}" 'refs/tags/n*' \
             | grep -v '\^{}' | sed 's|.*refs/tags/n||' | grep -vi '-' | sort -V)
-
-          latest_in_series() { # $1 = major.minor, echoes highest matching upstream version
-            local s="$1" best="" t mm
-            for t in "${ALLTAGS[@]}"; do
-              mm="$(cut -d. -f1,2 <<< "$t")"
-              [[ "$mm" == "$s" ]] && best="$t"
-            done
-            echo "$best"
-          }
 
           # Append the library-coverage gap for a version to a PR body, so a bump
           # surfaces any NEW external libraries FFmpeg gained (e.g. a codec added
@@ -91,24 +79,14 @@ jobs:
             git checkout -f "${GITHUB_REF_NAME:-main}"
           }
 
-          # 1) Point-release bumps for each tracked line.
+          # Point-release bumps (8.1.2 -> 8.1.x) are handled by Renovate now (renovate.json's
+          # versions.txt manager), grouped with the library bumps into one PR. This workflow only
+          # does what Renovate can't — compute the highest tracked major, then (below) add a NEW
+          # major.minor series as a parallel line when one appears upstream.
           MAX_MAJOR=0
-          for v in "${TRACKED[@]}"; do
-            series="$(cut -d. -f1,2 <<< "$v")"
-            major="${v%%.*}"; (( major > MAX_MAJOR )) && MAX_MAJOR="$major"
-            latest="$(latest_in_series "$series")"
-            if [[ -n "$latest" && "$latest" != "$v" ]] \
-               && [[ "$(printf '%s\n%s\n' "$v" "$latest" | sort -V | tail -1)" == "$latest" ]]; then
-              echo "Line ${series}: ${v} -> ${latest}"
-              git checkout -f "${GITHUB_REF_NAME:-main}" 2>/dev/null || true
-              sed -i "s/^${v//./\\.}$/${latest}/" versions.txt
-              open_pr "auto/ffmpeg-${latest}" "Bump FFmpeg ${series} line to ${latest}" \
-                "Automated point-release update: FFmpeg ${latest} is available in the ${series} series (was ${v}).$(coverage_note "${latest}")"
-              git checkout -f versions.txt
-            fi
-          done
+          for v in "${TRACKED[@]}"; do major="${v%%.*}"; (( major > MAX_MAJOR )) && MAX_MAJOR="$major"; done
 
-          # 2) New major line.
+          # New major line.
           NEWEST="${ALLTAGS[-1]}"
           NEW_MAJOR="${NEWEST%%.*}"
           NEW_SERIES="$(cut -d. -f1,2 <<< "$NEWEST")"

@@ -16,6 +16,16 @@
         "\"origin\"\\s*:\\s*\"(?<packageName>https?://[^\"]+)\"\\s*,\\s*\"tag\"\\s*:\\s*\"(?<currentValue>[^\"]+)\"\\s*,\\s*\"datasource\""
       ],
       "datasourceTemplate": "git-tags"
+    },
+    {
+      "customType": "regex",
+      "description": "Track FFmpeg point releases in versions.txt — one line per maintained major.minor series (e.g. 8.1.2). Each line is a full x.y.z version; FFmpeg's upstream tags are n<version> (stripped via extractVersion). Only whole-line versions match, so comment text like the '8.1.2.0' example is ignored.",
+      "managerFilePatterns": ["/^versions\\.txt$/"],
+      "matchStrings": ["(?m)^(?<currentValue>\\d+\\.\\d+\\.\\d+)\\s*$"],
+      "depNameTemplate": "FFmpeg",
+      "packageNameTemplate": "https://github.com/FFmpeg/FFmpeg.git",
+      "datasourceTemplate": "git-tags",
+      "extractVersionTemplate": "^n(?<version>.+)$"
     }
   ],
   "packageRules": [
@@ -29,7 +39,7 @@
       "description": "Keep review load low: batch routine (non-major) dependency bumps into ONE grouped PR per run instead of one PR per dep — so a quiet-to-busy week is a single PR + a single CI run to review and merge. MAJOR bumps are deliberately left ungrouped so each gets its own PR and individual scrutiny (they're the risky ones, e.g. an API-breaking codec major like x265 3->4). To go back to a PR per dep, delete this rule.",
       "matchManagers": ["custom.regex"],
       "matchUpdateTypes": ["minor", "patch", "digest"],
-      "groupName": "build dependencies (non-major)"
+      "groupName": "FFmpeg + library dependencies"
     },
     {
       "description": "Vulkan-Headers/Loader + SPIRV-Headers ship in lockstep on vulkan-sdk-* release tags (the ledger pins the same SDK version across all three). Each repo ALSO carries a parallel v1.4.x tag scheme; restrict Renovate to the vulkan-sdk-* versioning so it can't cross namespaces or desync the trio (which it otherwise would — it proposed v1.4.360 for Loader+SPIRV but not Headers).",
@@ -39,6 +49,17 @@
         "https://github.com/KhronosGroup/SPIRV-Headers.git"
       ],
       "versioning": "regex:^vulkan-sdk-(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)\\.(?<build>\\d+)$"
+    },
+    {
+      "description": "Constrain each FFmpeg line to its own major.minor series so Renovate only offers point releases (8.1.x, 9.0.x) and never a cross-series jump (8.1.x -> 9.x). One rule per maintained series; matchCurrentVersion scopes the rule to the line at that series, allowedVersions filters candidates to that series. Adding a new maintained series (check-updates.yml opens that as its own PR) means adding a matching rule here.",
+      "matchPackageNames": ["https://github.com/FFmpeg/FFmpeg.git"],
+      "matchCurrentVersion": "/^8\\.1\\./",
+      "allowedVersions": "/^8\\.1\\./"
+    },
+    {
+      "matchPackageNames": ["https://github.com/FFmpeg/FFmpeg.git"],
+      "matchCurrentVersion": "/^9\\.0\\./",
+      "allowedVersions": "/^9\\.0\\./"
     }
   ]
 }

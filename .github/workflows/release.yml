@@ -9,8 +9,12 @@ on:
       - main
     paths:
       - versions.txt          # a version bump/add → release just that line
-      - 'scripts/**'          # any build-recipe change (incl. a dep-lib fix) → all lines
+      - 'scripts/**'          # a build-recipe/logic change (incl. a dep build-SCRIPT fix) → all lines
       - '!scripts/test/**'    # ...except test-only changes, which don't affect artifacts
+      # NOTE: deps.json (dependency VERSION bumps, incl. Renovate PRs) is deliberately NOT a
+      # release trigger. Such a bump is built + tested by ci.yml on its PR, but PUBLISHING is a
+      # deliberate act: trigger this workflow via "Run workflow" (versions: all) to ship the
+      # merged bumps. Keeps release cadence under manual control.
   workflow_dispatch:
     inputs:
       versions:

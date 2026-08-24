@@ -38,9 +38,13 @@ jobs:
           echo "Changed files:"; echo "${CHANGED}"
 
           SEL=()
-          if echo "${CHANGED}" | grep -E '^scripts/' | grep -qv '^scripts/test/'; then
+          if { echo "${CHANGED}" | grep -E '^scripts/' | grep -qv '^scripts/test/'; } \
+             || echo "${CHANGED}" | grep -qx 'deps.json'; then
+            # A build-recipe change (scripts/, except tests) OR a dependency-version bump
+            # (deps.json — where the ledger now holds the pins) affects every line's artifacts,
+            # so build + test them all. This is what validates a Renovate dep-bump PR.
             SEL=("${TRACKED[@]}")
-            echo "Build-recipe change → all tracked versions."
+            echo "Build-recipe or dependency-ledger change → all tracked versions."
           elif echo "${CHANGED}" | grep -qx 'versions.txt'; then
             if git cat-file -e "${BASE_SHA}:versions.txt" 2>/dev/null; then
               mapfile -t PREV < <(git show "${BASE_SHA}:versions.txt" | grep -vE '^[[:space:]]*(#|$)' | sed 's/[[:space:]]//g' | grep .)

@@ -4,7 +4,7 @@ set -euo pipefail
 # Parameterized FFmpeg build script
 #
 # Build parameters (environment variables):
-#   FFMPEG_VERSION         - FFmpeg version (default: first line of versions.txt)
+#   FFMPEG_VERSION         - FFmpeg version (default: first entry of deps.json .ffmpeg)
 #   BUILD_RID              - Runtime identifier (required):
 #                            linux-x64, linux-arm64, linux-armhf, linux-musl-x64,
 #                            win-x64, osx-x64, osx-arm64, android-arm64,
@@ -20,12 +20,12 @@ set -euo pipefail
 ############################################
 # Step 1: Inputs & Paths
 #
-# Resolve the build inputs — FFmpeg version (first line of versions.txt),
+# Resolve the build inputs — FFmpeg version (first line of deps.json's .ffmpeg list),
 # target RID, and license (lgpl/gpl) — and lay out the working and output
 # directories used by the rest of the script.
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-FFMPEG_VERSION="${FFMPEG_VERSION:-$(grep -vE '^[[:space:]]*(#|$)' "${ROOT_DIR}/versions.txt" | head -1 | tr -d '[:space:]')}"
+FFMPEG_VERSION="${FFMPEG_VERSION:-$(jq -r '.ffmpeg[0]' "${ROOT_DIR}/deps.json")}"
 RID="${BUILD_RID:?BUILD_RID is required}"
 LICENSE="${BUILD_LICENSE:-lgpl}"
 
@@ -46,6 +46,7 @@ mkdir -p "${WORK_DIR}" "${OUT_DIR}"
 
 # Shared helpers (cmake wrapper, build_cmake_dep) used by the build steps.
 . "${ROOT_DIR}/scripts/lib.sh"
+. "${ROOT_DIR}/scripts/deps/lib.sh"
 
 ############################################
 # Build

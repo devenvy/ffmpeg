@@ -8,7 +8,7 @@ if [[ "${BUILD_LIBX264}" == "1" ]]; then
   echo "Building libx264 (static)..."
   cd "${WORK_DIR}" || exit 1
   rm -rf x264
-  git clone --depth 1 --branch stable https://code.videolan.org/videolan/x264.git
+  clone_dep x264 "${WORK_DIR}/x264"
   cd x264 || exit 1
 
   X264_ARGS=(

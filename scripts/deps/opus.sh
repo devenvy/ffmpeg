@@ -5,7 +5,7 @@ set -euo pipefail
 # to CONFIGURE_FLAGS where applicable). Not a standalone script.
 
 if [[ "${BUILD_LIBOPUS}" == "1" ]]; then
-  build_cmake_dep opus https://github.com/xiph/opus.git v1.5.2 \
+  build_cmake_dep opus \
     -DOPUS_BUILD_TESTING=OFF -DOPUS_BUILD_PROGRAMS=OFF
   CONFIGURE_FLAGS+=(--enable-libopus)
   echo "libopus (Opus audio encoder) enabled."

@@ -18,12 +18,12 @@ case "${RID}" in
     # autoconf/automake/libtool provide `autoreconf`, which several deps' autogen.sh
     # needs (kvazaar, libogg, libvorbis, zimg — cloned from git with no pre-generated
     # configure). GitHub's macOS runners no longer ship them, so install explicitly.
-    for pkg in autoconf automake libtool cmake gperf meson nasm pkg-config yasm; do
+    for pkg in autoconf automake libtool cmake gperf meson nasm pkg-config yasm jq; do
       brew list "$pkg" &>/dev/null || brew install "$pkg"
     done
     ;;
   linux-musl-*)
-    apk add --no-cache "${PKGS_APK[@]}"
+    apk add --no-cache "${PKGS_APK[@]}" jq
     ;;
   linux-x64|linux-arm64)
     if [[ "${BUILD_CONTAINER:-}" == "manylinux" ]]; then
@@ -34,7 +34,7 @@ case "${RID}" in
       # env below persists into the later build steps.
       source /opt/rh/gcc-toolset-14/enable
       DNF_PKGS="nasm ninja-build cmake git pkgconfig autoconf automake libtool \
-                perl gperf xz curl make diffutils gcc-c++"
+                perl gperf xz curl make diffutils gcc-c++ jq"
       dnf -y install --setopt=install_weak_deps=False ${DNF_PKGS} >/dev/null 2>&1 \
         || dnf -y install ${DNF_PKGS}
       # meson: the system python is 3.6 (pip caps at meson 0.61) and dnf's meson is
@@ -67,12 +67,21 @@ case "${RID}" in
     else
       # Building on a normal glibc host (e.g. local Ubuntu) — use apt like the others.
       sudo apt-get update
-      sudo apt-get install -y --no-install-recommends "${PKGS[@]}"
+      sudo apt-get install -y --no-install-recommends "${PKGS[@]}" jq
+      # meson >= 1.11 for fontconfig 2.18+ (apt meson is older) — see the note in *) below.
+      sudo python3 -m pip install --break-system-packages --upgrade meson ninja \
+        || sudo python3 -m pip install --upgrade meson ninja
     fi
     ;;
   *)
     sudo apt-get update
-    sudo apt-get install -y --no-install-recommends "${PKGS[@]}"
+    sudo apt-get install -y --no-install-recommends "${PKGS[@]}" jq
+    # fontconfig 2.18+ (and other newer Meson projects) require meson >= 1.11; the distro's
+    # apt meson is older (Ubuntu 24.04 ships 1.3.2). Pull a current meson/ninja from PyPI —
+    # same approach the manylinux path uses. PEP-668 marks the system env externally-managed
+    # on newer Ubuntu, so allow the override, with a plain-pip fallback for older hosts.
+    sudo python3 -m pip install --break-system-packages --upgrade meson ninja \
+      || sudo python3 -m pip install --upgrade meson ninja
     ;;
 esac
 else

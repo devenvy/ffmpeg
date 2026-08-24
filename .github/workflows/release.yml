@@ -8,8 +8,8 @@ on:
     branches:
       - main
     paths:
-      - versions.txt          # a version bump/add → release just that line
-      - 'scripts/**'          # any build-recipe change (incl. a dep-lib fix) → all lines
+      - deps.json             # the ledger — FFmpeg version bumps (.ffmpeg) AND library bumps (incl. merged Renovate PRs)
+      - 'scripts/**'          # a build-recipe/logic change (incl. a dep build-SCRIPT fix) → all lines
       - '!scripts/test/**'    # ...except test-only changes, which don't affect artifacts
   workflow_dispatch:
     inputs:
@@ -24,7 +24,7 @@ concurrency:
 
 jobs:
   # Decide which version lines to (re)build this run, and compute each one's
-  # next {version}.{build} tag. A push that only edits versions.txt builds just
+  # next {version}.{build} tag. A push that only edits deps.json's .ffmpeg list builds just
   # the added/changed lines; a scripts/build.sh change (or a manual run) rebuilds
   # every tracked line.
   prepare:
@@ -45,7 +45,7 @@ jobs:
           BEFORE: ${{ github.event.before }}
         run: |
           set -euo pipefail
-          mapfile -t TRACKED < <(grep -vE '^[[:space:]]*(#|$)' versions.txt | sed 's/[[:space:]]//g;/^$/d')
+          mapfile -t TRACKED < <(jq -r '.ffmpeg[]' deps.json)
 
           BUILD_ALL=false
           SEL=()
@@ -56,26 +56,12 @@ jobs:
               read -ra SEL <<< "${DISPATCH_VERSIONS}"
             fi
           else
-            # First push / unknown base, or ANY build-recipe change (a scripts/ file
-            # other than tests — build.sh, a step, or a dep-lib pin bump) → rebuild
-            # every tracked line, since the recipe applies to all of them. A push that
-            # only edits versions.txt falls through to the per-line diff below.
-            if [[ -z "${BEFORE}" || "${BEFORE}" =~ ^0+$ ]] || ! git rev-parse -q --verify "${BEFORE}^{commit}" >/dev/null; then
-              BUILD_ALL=true
-            elif git diff --name-only "${BEFORE}" HEAD | grep -E '^scripts/' | grep -qv '^scripts/test/'; then
-              BUILD_ALL=true
-            else
-              if git cat-file -e "${BEFORE}:versions.txt" 2>/dev/null; then
-                mapfile -t PREV < <(git show "${BEFORE}:versions.txt" | grep -vE '^[[:space:]]*(#|$)' | sed 's/[[:space:]]//g;/^$/d')
-              else
-                PREV=()
-              fi
-              for v in "${TRACKED[@]}"; do
-                found=false
-                for p in "${PREV[@]:-}"; do [[ "$v" == "$p" ]] && found=true && break; done
-                $found || SEL+=("$v")
-              done
-            fi
+            # A push to main: build + release only the lines this change actually affects (shared
+            # with ci.yml via scripts/ci/select-versions.sh) — a build-recipe change (scripts/**,
+            # non-test) -> all lines; a deps.json bump -> only lines whose RESOLVED deps changed
+            # (a line that whole-line-pins the bumped dep is NOT re-released); a deps.json's .ffmpeg list change
+            # -> the added/changed lines. First push / unknown base -> all (the script can't diff).
+            mapfile -t SEL < <(bash scripts/ci/select-versions.sh "${BEFORE}" "${TRACKED[@]}")
           fi
           $BUILD_ALL && SEL=("${TRACKED[@]}")
 
@@ -156,7 +142,7 @@ jobs:
           # exists) must NOT become "Latest" — otherwise it steals the badge from the
           # newest major. GitHub's default (--latest omitted) would mis-assign this by
           # recency, so we set it explicitly per release.
-          HIGHEST="$(grep -vE '^[[:space:]]*(#|$)' versions.txt | sed 's/[[:space:]]//g;/^$/d' | sort -V | tail -1)"
+          HIGHEST="$(jq -r '.ffmpeg[]' deps.json | sort -V | tail -1)"
           if [[ "${VERSION}" == "${HIGHEST}" ]]; then MARK_LATEST=true; else MARK_LATEST=false; fi
           echo "Highest tracked line: ${HIGHEST} — mark ${VERSION} as latest: ${MARK_LATEST}"
           git config user.name "github-actions[bot]"

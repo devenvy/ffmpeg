@@ -10,7 +10,7 @@ if [[ "${BUILD_VPL_SOURCE}" == "1" ]]; then
   cd "${WORK_DIR}" || exit 1
   rm -rf libvpl
 
-  git clone --depth 1 https://github.com/intel/libvpl.git
+  clone_dep libvpl "${WORK_DIR}/libvpl"
   cd libvpl || exit 1
   cmake -G Ninja -B build \
     ${CMAKE_CROSS_ARGS[@]+"${CMAKE_CROSS_ARGS[@]}"} \

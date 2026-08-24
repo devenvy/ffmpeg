@@ -12,7 +12,7 @@ set -euo pipefail
 echo "Building libva (static, DRM backend only)..."
 cd "${WORK_DIR}" || exit 1
 rm -rf libva
-git clone --depth 1 --branch 2.22.0 https://github.com/intel/libva.git
+clone_dep libva "${WORK_DIR}/libva"
 cd libva || exit 1
 # libva's meson uses shared_library() explicitly, which ignores --default-library.
 # Rewrite to library() so --default-library=static yields static archives (library()

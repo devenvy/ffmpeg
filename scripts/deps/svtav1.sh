@@ -11,7 +11,7 @@ if [[ "${BUILD_LIBSVTAV1}" == "1" ]]; then
     -DCMAKE_CXX_FLAGS="-static-libgcc -static-libstdc++ -O2"
   )
 
-  build_cmake_dep SVT-AV1 https://gitlab.com/AOMediaCodec/SVT-AV1.git v2.2.0 \
+  build_cmake_dep svtav1 \
     -DBUILD_APPS=OFF -DBUILD_DEC=OFF -DBUILD_TESTING=OFF \
     ${SVT_EXTRA[@]+"${SVT_EXTRA[@]}"}
   CONFIGURE_FLAGS+=(--enable-libsvtav1)

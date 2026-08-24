@@ -10,7 +10,7 @@ set -euo pipefail
 echo "Building openh264 (static)..."
 cd "${WORK_DIR}" || exit 1
 rm -rf openh264
-git clone --depth 1 --branch v2.4.1 https://github.com/cisco/openh264.git
+clone_dep openh264 "${WORK_DIR}/openh264"
 cd openh264 || exit 1
 
 OH_ARGS=(
@@ -27,7 +27,9 @@ meson compile -C build -j "$(${NPROC})"
 meson install -C build
 
 # openh264's meson build doesn't reliably install a pkg-config file FFmpeg finds;
-# write one (FFmpeg's configure requires openh264 >= 1.3.0).
+# write one (FFmpeg's configure requires openh264 >= 1.3.0). pkg-config Version:
+# is conventionally bare (no leading 'v'), unlike the ledger's git tag.
+openh264_pc_ver="$(dep_version openh264)"; openh264_pc_ver="${openh264_pc_ver#v}"
 cat > "${DEPS_DIR}/lib/pkgconfig/openh264.pc" <<PC
 prefix=${DEPS_DIR}
 libdir=\${prefix}/lib
@@ -35,7 +37,7 @@ includedir=\${prefix}/include
 
 Name: openh264
 Description: OpenH264 — Cisco H.264 codec
-Version: 2.4.1
+Version: ${openh264_pc_ver}
 Libs: -L\${libdir} -lopenh264
 Libs.private: -lstdc++ -lm
 Cflags: -I\${includedir}

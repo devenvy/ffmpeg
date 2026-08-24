@@ -48,12 +48,12 @@ git() {
 # ── Helper: build a CMake-based static dependency ─────────────────────────
 
 build_cmake_dep() {
-  local name="$1" url="$2" branch="$3"; shift 3
+  local name="$1"; shift
   echo "Building ${name} (static)..."
   cd "${WORK_DIR}" || return 1
   rm -rf "${name}"
-  git clone --depth 1 ${branch:+--branch "$branch"} "$url" "$name"
-  cd "$name" || return 1
+  clone_dep "${name}" "${WORK_DIR}/${name}"
+  cd "${name}" || return 1
   cmake -B build \
     -DCMAKE_INSTALL_PREFIX="${DEPS_DIR}" \
     -DCMAKE_INSTALL_LIBDIR=lib \

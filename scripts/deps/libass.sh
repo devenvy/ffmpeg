@@ -9,14 +9,14 @@ set -euo pipefail
 echo "Building libass (static)..."
 cd "${WORK_DIR}" || exit 1
 rm -rf libass
-git clone --depth 1 --branch 0.17.3 https://github.com/libass/libass.git
+clone_dep libass "${WORK_DIR}/libass"
 cd libass || exit 1
 # fontconfig is only built where the platform uses it (off on Windows/mobile,
 # which fall back to DirectWrite/CoreText or an explicit fontfile=).
 FC_OPT="-Dfontconfig=disabled"
 [[ "${BUILD_FONTCONFIG}" == "1" ]] && FC_OPT="-Dfontconfig=enabled"
 ASS_ARGS=(--prefix="${DEPS_DIR}" --libdir=lib --default-library=static
-          --buildtype=release "${FC_OPT}" -Dtest=false)
+          --buildtype=release "${FC_OPT}" -Dtest=disabled)
 # Windows/Apple provide DirectWrite/CoreText; Linux uses fontconfig. Android has
 # none, so let libass build without a system font provider (fonts are supplied
 # explicitly at runtime).

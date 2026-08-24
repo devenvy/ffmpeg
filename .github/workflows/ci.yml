@@ -17,7 +17,7 @@ jobs:
   # every tracked FFmpeg version. Same diff logic as release.yml's prepare, so CI and
   # release agree on what a change touches:
   #   - a build-recipe change (scripts/, except tests) → ALL tracked versions
-  #   - only versions.txt → just the added/changed lines (an add-9 PR → only 9)
+  #   - only deps.json's .ffmpeg list → just the added/changed lines (an add-9 PR → only 9)
   #   - anything else (docs, etc.) → nothing
   resolve:
     runs-on: ubuntu-latest
@@ -33,29 +33,15 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           set -euo pipefail
-          mapfile -t TRACKED < <(grep -vE '^[[:space:]]*(#|$)' versions.txt | sed 's/[[:space:]]//g' | grep .)
-          CHANGED="$(git diff --name-only "${BASE_SHA}" HEAD)"
-          echo "Changed files:"; echo "${CHANGED}"
-
-          SEL=()
-          if echo "${CHANGED}" | grep -E '^scripts/' | grep -qv '^scripts/test/'; then
-            SEL=("${TRACKED[@]}")
-            echo "Build-recipe change → all tracked versions."
-          elif echo "${CHANGED}" | grep -qx 'versions.txt'; then
-            if git cat-file -e "${BASE_SHA}:versions.txt" 2>/dev/null; then
-              mapfile -t PREV < <(git show "${BASE_SHA}:versions.txt" | grep -vE '^[[:space:]]*(#|$)' | sed 's/[[:space:]]//g' | grep .)
-            else
-              PREV=()
-            fi
-            for v in "${TRACKED[@]}"; do
-              found=false
-              for p in "${PREV[@]:-}"; do [[ "$v" == "$p" ]] && found=true && break; done
-              $found || SEL+=("$v")
-            done
-            echo "versions.txt change → added/changed lines only."
-          else
-            echo "No build-affecting change → nothing to build."
-          fi
+          mapfile -t TRACKED < <(jq -r '.ffmpeg[]' deps.json)
+          echo "Changed vs base:"; git diff --name-only "${BASE_SHA}" HEAD || true
+          # Which lines this PR affects (shared with release.yml via select-versions.sh):
+          #   build-recipe change (scripts/**, non-test) -> all lines
+          #   deps.json bump -> only lines whose RESOLVED deps changed (a line that whole-line-
+          #                     pins the bumped dep is skipped — it wasn't affected)
+          #   deps.json's .ffmpeg list   -> the added/changed version lines
+          mapfile -t SEL < <(bash scripts/ci/select-versions.sh "${BASE_SHA}" "${TRACKED[@]}")
+          echo "Selected versions: ${SEL[*]:-none}"
 
           VERSIONS='[]'
           for v in "${SEL[@]:-}"; do
@@ -68,6 +54,28 @@ jobs:
             echo "any=${ANY}"
           } >> "$GITHUB_OUTPUT"
           echo "Building: ${VERSIONS}"
+
+  # Keep the committed build-coverage matrices (docs/matrix/) in lockstep with what we
+  # actually build. They are generated from FFmpeg's configure + the build scripts + the
+  # dependency ledger (deps.json), so a DEP BUMP, a deps.json's .ffmpeg list change, or a build-script
+  # edit must regenerate them — not just an FFmpeg change. This job regenerates and fails if
+  # the committed files drifted; the fix is `bash scripts/gen-matrix.sh` + commit. Cheap
+  # (~1 min), so it runs on every PR. SELECT THIS as a required check alongside build/test.
+  docs-matrix:
+    runs-on: ubuntu-latest   # ANDROID_NDK_LATEST_HOME is preinstalled here (the android sim needs it)
+    steps:
+      - uses: actions/checkout@v4
+      - name: Regenerate coverage matrices and fail on drift
+        run: |
+          set -euo pipefail
+          bash scripts/gen-matrix.sh
+          if ! git diff --quiet -- docs/matrix; then
+            echo "::error::docs/matrix is stale — run 'bash scripts/gen-matrix.sh' and commit the result (a dependency bump in deps.json changes these files too)."
+            git diff --stat -- docs/matrix
+            git --no-pager diff -- docs/matrix | head -300
+            exit 1
+          fi
+          echo "Coverage matrices are up to date."
 
   # The matrix-caller jobs (one reusable-workflow call, fanned out per version × RID ×
   # license). Their individual matrix checks surface as "build-matrix / …", "test-matrix / …"

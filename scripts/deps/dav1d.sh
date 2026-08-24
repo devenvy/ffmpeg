@@ -9,7 +9,7 @@ set -euo pipefail
 echo "Building dav1d (static)..."
 cd "${WORK_DIR}" || exit 1
 rm -rf dav1d
-git clone --depth 1 --branch 1.4.3 https://code.videolan.org/videolan/dav1d.git
+clone_dep dav1d "${WORK_DIR}/dav1d"
 cd dav1d || exit 1
 
 DAV1D_ARGS=(

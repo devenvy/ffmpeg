@@ -6,10 +6,10 @@ set -euo pipefail
 # SOURCED by scripts/build.sh (shares its environment; appends its --enable-*
 # to CONFIGURE_FLAGS where applicable). Not a standalone script.
 
-echo "Building whisper.cpp v1.8.6 (static, backend=${WHISPER_BACKEND})..."
+echo "Building whisper.cpp (static, backend=${WHISPER_BACKEND})..."
 cd "${WORK_DIR}" || exit 1
 rm -rf whisper.cpp
-git clone --depth 1 --branch v1.8.6 https://github.com/ggml-org/whisper.cpp
+clone_dep whisper "${WORK_DIR}/whisper.cpp"
 cd whisper.cpp || exit 1
 
 WHISPER_CMAKE=(
@@ -39,19 +39,16 @@ case "${WHISPER_BACKEND}" in
     case "${RID}" in
       win-x64|android-arm64|linux-musl-x64|linux-x64|linux-arm64)
         [ -d "${DEPS_DIR}/include/vulkan" ] || {
-          git clone --depth 1 https://github.com/KhronosGroup/Vulkan-Headers.git "${WORK_DIR}/Vulkan-Headers-ggml"
+          rm -rf "${WORK_DIR}/Vulkan-Headers-ggml"   # clone_dep git-clones into this dir; clear a stale one (retry/re-run) so the clone can't abort under set -e
+          clone_dep vulkan-headers "${WORK_DIR}/Vulkan-Headers-ggml"
           cp -r "${WORK_DIR}/Vulkan-Headers-ggml/include/vulkan" "${DEPS_DIR}/include/"
           cp -r "${WORK_DIR}/Vulkan-Headers-ggml/include/vk_video" "${DEPS_DIR}/include/" 2>/dev/null || true
         }
-        # ggml-vulkan does find_package(SPIRV-Headers) (CONFIG mode), so it needs
-        # SPIRV-HeadersConfig.cmake — not just the headers. Install SPIRV-Headers properly
-        # (headers + cmake config) into DEPS_DIR and point find_package straight at the
-        # installed config dir (avoids cross-toolchain find-root-path issues).
-        rm -rf "${WORK_DIR}/SPIRV-Headers-ggml"
-        git clone --depth 1 https://github.com/KhronosGroup/SPIRV-Headers.git "${WORK_DIR}/SPIRV-Headers-ggml"
-        cmake -S "${WORK_DIR}/SPIRV-Headers-ggml" -B "${WORK_DIR}/SPIRV-Headers-ggml/build" \
-          -DCMAKE_INSTALL_PREFIX="${DEPS_DIR}"
-        cmake --install "${WORK_DIR}/SPIRV-Headers-ggml/build"
+        # SPIRV-Headers (headers + cmake config) are installed into DEPS_DIR by
+        # deps/spirv-headers.sh, sourced before this script in 06_build_libraries.sh.
+        # ggml-vulkan does find_package(SPIRV-Headers) (CONFIG mode), so point it
+        # straight at the installed config dir (avoids cross-toolchain
+        # find-root-path issues).
         SPIRV_HEADERS_CFG="$(dirname "$(find "${DEPS_DIR}" -iname 'spirv-headers*config.cmake' 2>/dev/null | head -1)")"
         WHISPER_CMAKE+=(-DVulkan_INCLUDE_DIR="${DEPS_DIR}/include"
                         -DSPIRV-Headers_DIR="${SPIRV_HEADERS_CFG}")
@@ -74,9 +71,10 @@ case "${WHISPER_BACKEND}" in
         WHISPER_SYS_LIBS="-lvulkan -lc++ -lm"
         ;;
       linux-x64|linux-arm64)
-        # Link OUR bundled libc-only Vulkan loader (built by vulkan.sh), not the
-        # system one — so the artifact has no external libvulkan dependency. Headers
-        # come from DEPS_DIR (vulkan.sh); SPIRV-Headers from the system package.
+        # Link OUR bundled libc-only Vulkan loader (built by vulkan-loader.sh), not
+        # the system one — so the artifact has no external libvulkan dependency.
+        # Headers come from DEPS_DIR (vulkan-headers.sh); SPIRV-Headers from the
+        # system package.
         WHISPER_CMAKE+=(-DVulkan_INCLUDE_DIR="${DEPS_DIR}/include"
                         -DVulkan_LIBRARY="${DEPS_DIR}/lib/libvulkan.so")
         ;;
@@ -146,6 +144,8 @@ WHISPER_PRIV="${WHISPER_GGML} ${WHISPER_SYS_LIBS}"
 
 # whisper.cpp installs no pkg-config file; hand-author one (as done for x265/vpl).
 # Static link: Libs.private lists the ggml archives + loader/toolchain in dependency order.
+# pkg-config Version: is conventionally bare (no leading 'v'), unlike the ledger's git tag.
+whisper_pc_ver="$(dep_version whisper)"; whisper_pc_ver="${whisper_pc_ver#v}"
 cat > "${DEPS_DIR}/lib/pkgconfig/whisper.pc" <<PKGCONFIG
 prefix=${DEPS_DIR}
 libdir=\${prefix}/lib
@@ -153,7 +153,7 @@ includedir=\${prefix}/include
 
 Name: whisper
 Description: whisper.cpp speech recognition
-Version: 1.8.6
+Version: ${whisper_pc_ver}
 Libs: -L\${libdir} -lwhisper
 Libs.private: ${WHISPER_PRIV}
 Cflags: -I\${includedir}

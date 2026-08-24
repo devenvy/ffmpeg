@@ -7,25 +7,32 @@ set -euo pipefail
 
 [[ "${BUILD_GNUTLS}" == "1" ]] || return 0
 
-NETTLE_VER=3.10
-echo "Building nettle ${NETTLE_VER} (static, GnuTLS chain)..."
+# Like GnuTLS, nettle's git tag has no pre-generated ./configure (GNU release tarballs
+# are bootstrapped before upload; a raw git checkout is not) — stays a tarball fetch.
+# Version comes from the ledger (via dep_version), not a hardcoded string.
+nettle_ver="$(dep_version nettle)"
+echo "Building nettle ${nettle_ver} (static, GnuTLS chain)..."
 cd "${WORK_DIR}" || exit 1
-rm -rf "nettle-${NETTLE_VER}"
+rm -rf "nettle-${nettle_ver}"
 curl -fsSL --retry 3 --retry-delay 5 --retry-connrefused --connect-timeout 30 \
-  "https://ftp.gnu.org/gnu/nettle/nettle-${NETTLE_VER}.tar.gz" -o nettle.tar.gz
+  "https://ftp.gnu.org/gnu/nettle/nettle-${nettle_ver}.tar.gz" -o nettle.tar.gz
 tar -xf nettle.tar.gz
-cd "nettle-${NETTLE_VER}" || exit 1
-# Finds GMP (built just before) via the explicit include/lib paths. PIC comes from the
-# exported CFLAGS (-fPIC on the manylinux builds; default elsewhere).
+cd "nettle-${nettle_ver}" || exit 1
+# Finds GMP (built just before) via CPPFLAGS/LDFLAGS. nettle 4.0 dropped the older
+# --with-include-path/--with-lib-path options (silently ignored → GMP not found → no
+# libhogweed → GnuTLS configure fails); the standard autoconf vars work on both 3.x and
+# 4.x. PIC comes from the exported CFLAGS (-fPIC on the manylinux builds; default elsewhere).
 NETTLE_ARGS=(--prefix="${DEPS_DIR}" --libdir="${DEPS_DIR}/lib"
-             --disable-shared --enable-static --disable-documentation
-             --with-include-path="${DEPS_DIR}/include" --with-lib-path="${DEPS_DIR}/lib")
+             --disable-shared --enable-static --disable-documentation)
 [ -n "${CROSS_HOST:-}" ] && NETTLE_ARGS+=(--host="${CROSS_HOST}")   # cross triple resolved in 02_configure
 # nettle's bundled getopt.c/getopt.h use K&R empty-paren prototypes (getopt()/getenv()).
 # GCC 15 defaults to C23 where `()` == `(void)`, turning the real calls into hard errors
 # ("too many arguments to function 'getenv'"). Pin the C standard to gnu17. Same GCC-15/C23
 # issue as GMP; surfaced on Alpine (rolling GCC). Harmless on the older glibc/manylinux GCC.
-CFLAGS="${CFLAGS:-} -std=gnu17" ./configure "${NETTLE_ARGS[@]}"
+CFLAGS="${CFLAGS:-} -std=gnu17" \
+  CPPFLAGS="-I${DEPS_DIR}/include ${CPPFLAGS:-}" \
+  LDFLAGS="-L${DEPS_DIR}/lib ${LDFLAGS:-}" \
+  ./configure "${NETTLE_ARGS[@]}"
 make -j"$(${NPROC})"
 make install
 echo "nettle built (GnuTLS dependency)."

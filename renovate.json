@@ -1,0 +1,69 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "onboarding": false,
+  "enabledManagers": ["custom.regex"],
+  "dependencyDashboard": true,
+  "labels": ["dependencies"],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Bump the DEFAULTS block of the dependency ledger (deps.json). The recursive first matchString scopes extraction to defaults only — the overrides block (per-version / per-platform holds) is deliberately outside the region, so Renovate never touches a pinned hold. Only tag-pinned entries with a datasource are matched; commit pins (x264, amf) and tarball deps (gmp, libmp3lame) are hand-managed.",
+      "managerFilePatterns": ["/^deps\\.json$/"],
+      "matchStringsStrategy": "recursive",
+      "matchStrings": [
+        "\"defaults\"\\s*:\\s*\\{([\\s\\S]*?)\\}\\s*,\\s*\"overrides\"",
+        "\"origin\"\\s*:\\s*\"(?<packageName>https?://[^\"]+)\"\\s*,\\s*\"tag\"\\s*:\\s*\"(?<currentValue>[^\"]+)\"\\s*,\\s*\"datasource\""
+      ],
+      "datasourceTemplate": "git-tags"
+    },
+    {
+      "customType": "regex",
+      "description": "Track FFmpeg point releases listed in the .ffmpeg array of deps.json (one entry per maintained major line, e.g. 8.1.2). The recursive first matchString scopes extraction to the .ffmpeg array only; FFmpeg's upstream tags are n<version> (stripped via extractVersion).",
+      "managerFilePatterns": ["/^deps\\.json$/"],
+      "matchStringsStrategy": "recursive",
+      "matchStrings": [
+        "\"ffmpeg\"\\s*:\\s*\\[([\\s\\S]*?)\\]",
+        "\"(?<currentValue>\\d+\\.\\d+\\.\\d+)\""
+      ],
+      "depNameTemplate": "FFmpeg",
+      "packageNameTemplate": "https://github.com/FFmpeg/FFmpeg.git",
+      "datasourceTemplate": "git-tags",
+      "extractVersionTemplate": "^n(?<version>.+)$"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "Group all ledger dependency bumps under a clear prefix so CI (build + docs-matrix) validates each PR against every FFmpeg line before merge.",
+      "matchManagers": ["custom.regex"],
+      "commitMessagePrefix": "chore(deps):",
+      "semanticCommits": "disabled"
+    },
+    {
+      "description": "Keep review load low: batch routine (non-major) dependency bumps into ONE grouped PR per run instead of one PR per dep — so a quiet-to-busy week is a single PR + a single CI run to review and merge. MAJOR bumps are deliberately left ungrouped so each gets its own PR and individual scrutiny (they're the risky ones, e.g. an API-breaking codec major like x265 3->4). To go back to a PR per dep, delete this rule.",
+      "matchManagers": ["custom.regex"],
+      "matchUpdateTypes": ["minor", "patch", "digest"],
+      "groupName": "FFmpeg + library dependencies"
+    },
+    {
+      "description": "Vulkan-Headers/Loader + SPIRV-Headers ship in lockstep on vulkan-sdk-* release tags (the ledger pins the same SDK version across all three). Each repo ALSO carries a parallel v1.4.x tag scheme; restrict Renovate to the vulkan-sdk-* versioning so it can't cross namespaces or desync the trio (which it otherwise would — it proposed v1.4.360 for Loader+SPIRV but not Headers).",
+      "matchPackageNames": [
+        "https://github.com/KhronosGroup/Vulkan-Headers.git",
+        "https://github.com/KhronosGroup/Vulkan-Loader.git",
+        "https://github.com/KhronosGroup/SPIRV-Headers.git"
+      ],
+      "versioning": "regex:^vulkan-sdk-(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)\\.(?<build>\\d+)$"
+    },
+    {
+      "description": "Constrain each FFmpeg line to its own MAJOR: Renovate offers any newer release within the major — patch or minor alike (9.0.1 -> 9.0.2 -> 9.1.0) — but never a cross-major jump (9.x -> 10.x). One rule per maintained major; matchCurrentVersion scopes it to the line at that major, allowedVersions filters candidates to that major. A NEW major is a new line that check-updates.yml adds (with its matching rule).",
+      "matchPackageNames": ["https://github.com/FFmpeg/FFmpeg.git"],
+      "matchCurrentVersion": "/^8\\./",
+      "allowedVersions": "/^8\\./"
+    },
+    {
+      "matchPackageNames": ["https://github.com/FFmpeg/FFmpeg.git"],
+      "matchCurrentVersion": "/^9\\./",
+      "allowedVersions": "/^9\\./"
+    }
+  ]
+}

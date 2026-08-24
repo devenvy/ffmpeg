@@ -9,7 +9,7 @@ set -euo pipefail
 echo "Building libogg (static)..."
 cd "${WORK_DIR}" || exit 1
 rm -rf ogg
-git clone --depth 1 --branch v1.3.5 https://github.com/xiph/ogg.git
+clone_dep libogg "${WORK_DIR}/ogg"
 cd ogg || exit 1
 ./autogen.sh
 OGG_ARGS=(--prefix="${DEPS_DIR}" --disable-shared --enable-static --with-pic)

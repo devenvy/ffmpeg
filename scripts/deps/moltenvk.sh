@@ -4,7 +4,7 @@ set -euo pipefail
 # what makes FFmpeg's --enable-vulkan GPU filters (scale_vulkan, gblur_vulkan, …) run on Metal —
 # there is no Metal equivalent in FFmpeg's filtergraph. Built for BOTH macOS and iOS (v3 only —
 # Apache-2.0 is cleared for the v2 App-Store cells by 04_select_license). Pairs with the
-# Vulkan-Loader from vulkan.sh. SOURCED by scripts/build.sh. Not standalone.
+# Vulkan-Loader from vulkan-loader.sh. SOURCED by scripts/build.sh. Not standalone.
 #
 # NOTE: MoltenVK does not reliably publish prebuilt binaries per release, so we build it from
 # source on the macOS runner (Xcode present). fetchDependencies + `make` output paths have
@@ -13,11 +13,10 @@ set -euo pipefail
 case "${RID}" in osx-*|ios-*) : ;; *) return 0 ;; esac
 [[ "${BUILD_VULKAN}" == "1" ]] || return 0
 
-MOLTENVK_VER=v1.2.11
-echo "Building MoltenVK ${MOLTENVK_VER} (Vulkan-over-Metal) for ${RID}..."
+echo "Building MoltenVK (Vulkan-over-Metal) for ${RID}..."
 cd "${WORK_DIR}" || exit 1
 rm -rf MoltenVK
-git clone --depth 1 --branch "${MOLTENVK_VER}" https://github.com/KhronosGroup/MoltenVK.git
+clone_dep moltenvk "${WORK_DIR}/MoltenVK"
 cd MoltenVK || exit 1
 
 # Which MoltenVK make target to build for this RID.

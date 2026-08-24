@@ -9,7 +9,8 @@ set -euo pipefail
 echo "Building zimg (static)..."
 cd "${WORK_DIR}" || exit 1
 rm -rf zimg
-git clone --depth 1 --branch release-3.0.5 --recursive https://github.com/sekrit-twc/zimg.git
+clone_dep zimg "${WORK_DIR}/zimg"
+git -C "${WORK_DIR}/zimg" submodule update --init --recursive
 cd zimg || exit 1
 ./autogen.sh
 

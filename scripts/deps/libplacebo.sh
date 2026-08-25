@@ -26,5 +26,10 @@ PL_ARGS=(--prefix="${DEPS_DIR}" --libdir=lib --default-library=static
 meson setup build "${PL_ARGS[@]}"
 meson compile -C build -j "$(${NPROC})"
 meson install -C build
+# libplacebo and the static shaderc it pulls are C++ (std::to_chars / std::from_chars),
+# but their pkg-config files declare no C++ runtime. Add libstdc++ to FFmpeg's link
+# (EXTRA_LIBS is appended last to configure + final link) so the static --enable-libplacebo
+# probe resolves the C++ symbols.
+EXTRA_LIBS="${EXTRA_LIBS:-} -lstdc++"
 CONFIGURE_FLAGS+=(--enable-libplacebo)
 echo "libplacebo (GPU HDR tone-map + scaling) enabled."

@@ -26,4 +26,10 @@ cmake -B build -G Ninja \
   -DSHADERC_SKIP_TESTS=ON -DSHADERC_SKIP_EXAMPLES=ON -DSHADERC_SKIP_COPYRIGHT_CHECK=ON \
   ${CMAKE_CROSS_ARGS[@]+"${CMAKE_CROSS_ARGS[@]}"}
 cmake --build build --target install -j "$(${NPROC})"
-echo "shaderc built (libshaderc + bundled glslang/SPIRV-Tools)."
+# We link statically. Point the default shaderc.pc at the self-contained static archive
+# (libshaderc_combined bundles glslang + SPIRV-Tools) and drop the shared library, so
+# FFmpeg's static link of libplacebo pulls the static shaderc and nothing depends on a
+# libshaderc_shared.so at runtime.
+sed -i 's/-lshaderc_shared/-lshaderc_combined/' "${DEPS_DIR}/lib/pkgconfig/shaderc.pc"
+rm -f "${DEPS_DIR}"/lib/libshaderc_shared.so*
+echo "shaderc built (static libshaderc_combined + bundled glslang/SPIRV-Tools)."

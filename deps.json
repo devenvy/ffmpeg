@@ -127,6 +127,11 @@
       "datasource": "gitlab-tags",
       "registryUrl": "https://gitlab.freedesktop.org"
     },
+    "libplacebo": {
+      "origin": "https://github.com/haasn/libplacebo.git",
+      "tag": "v7.360.1",
+      "datasource": "github-tags"
+    },
     "libpng": {
       "origin": "https://github.com/pnggroup/libpng.git",
       "tag": "v1.6.58",
@@ -164,6 +169,7 @@
       "tag": "v1.6.0",
       "datasource": "git-refs"
     },
+    "libxml2": { "origin": "https://github.com/GNOME/libxml2.git", "tag": "v2.15.3", "datasource": "git-tags" },
     "nv-codec": {
       "origin": "https://github.com/FFmpeg/nv-codec-headers.git",
       "tag": "n13.1.15.0",
@@ -172,6 +178,11 @@
     "opus": {
       "origin": "https://github.com/xiph/opus.git",
       "tag": "v1.6.1",
+      "datasource": "github-tags"
+    },
+    "shaderc": {
+      "origin": "https://github.com/google/shaderc.git",
+      "tag": "v2026.3",
       "datasource": "github-tags"
     },
     "soxr": {

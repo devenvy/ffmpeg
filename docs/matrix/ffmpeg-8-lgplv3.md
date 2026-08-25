@@ -41,13 +41,14 @@ _6 of 23 built._
 | Xvid — MPEG-4 ASP (GPL) |  | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
 
 ### Audio codecs  
-_3 of 19 built._
+_4 of 19 built._
 
 | Feature | Version | lin-x64 | lin-a64 | lin-hf | musl | win | osx-x64 | osx-a64 | android | ios | ios-sim |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | libmp3lame — MP3 encode | 3.100 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | libopus — Opus | v1.6.1 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | n/a |
 | libvorbis — Vorbis | v1.3.7 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| SoX resampler | 0.1.3 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | bs2b — stereo→binaural |  | — | — | — | — | — | — | — | — | — | — |
 | CELT — audio (legacy) |  | — | — | — | — | — | — | — | — | — | — |
 | Codec2 — low-bitrate speech |  | — | — | — | — | — | — | — | — | — | — |
@@ -61,23 +62,22 @@ _3 of 19 built._
 | libopenmpt — tracker music |  | — | — | — | — | — | — | — | — | — | — |
 | Rubber Band — time-stretch/pitch (GPL) |  | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
 | Shine — fixed-point MP3 |  | — | — | — | — | — | — | — | — | — | — |
-| SoX resampler |  | — | — | — | — | — | — | — | — | — | — |
 | Speex — speech |  | — | — | — | — | — | — | — | — | — | — |
 | TwoLAME — MP2 encode |  | — | — | — | — | — | — | — | — | — | — |
 
 ### Images / subtitles / text  
-_4 of 15 built._
+_6 of 15 built._
 
 | Feature | Version | lin-x64 | lin-a64 | lin-hf | musl | win | osx-x64 | osx-a64 | android | ios | ios-sim |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | fontconfig — font-by-name[^fontconfig] | 2.18.3 | ✓ | ✓ | ✓ | ✓ | n/a | ✓ | ✓ | n/a | n/a | n/a |
 | FreeType — drawtext | VER-2-14-3 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | n/a |
 | libass — SSA/ASS subtitles | 0.17.5 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | n/a |
+| libfribidi — bidi text (drawtext) | v1.0.16 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | n/a |
+| libharfbuzz — text shaping | 14.3.1 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | n/a |
 | libwebp — WebP[^webp] | v1.6.0 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | n/a | n/a | n/a |
 | ARIB caption decode |  | — | — | — | — | — | — | — | — | — | — |
 | Cairo — vector rendering |  | — | — | — | — | — | — | — | — | — | — |
-| libfribidi — bidi text (drawtext) |  | — | — | — | — | — | — | — | — | — | — |
-| libharfbuzz — text shaping |  | — | — | — | — | — | — | — | — | — | — |
 | libjxl |  | — | — | — | — | — | — | — | — | — | — |
 | libqrencode — QR encode |  | — | — | — | — | — | — | — | — | — | — |
 | librsvg — SVG rasterize |  | — | — | — | — | — | — | — | — | — | — |
@@ -87,16 +87,16 @@ _4 of 15 built._
 | Tesseract — OCR |  | — | — | — | — | — | — | — | — | — | — |
 
 ### Processing  
-_1 of 19 built._
+_2 of 19 built._
 
 | Feature | Version | lin-x64 | lin-a64 | lin-hf | musl | win | osx-x64 | osx-a64 | android | ios | ios-sim |
 |---|---|---|---|---|---|---|---|---|---|---|---|
+| libplacebo — GPU processing | v7.360.1 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | n/a |
 | zimg — scaling/colorspace | release-3.0.6 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Chromaprint — audio fingerprint |  | — | — | — | — | — | — | — | — | — | — |
 | frei0r — effect plugins (GPL) |  | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
 | glslang — shader compile |  | — | — | — | — | — | — | — | — | — | — |
 | LADSPA — audio plugins |  | — | — | — | — | — | — | — | — | — | — |
-| libplacebo — GPU processing |  | — | — | — | — | — | — | — | — | — | — |
 | LibTorch — DNN backend |  | — | — | — | — | — | — | — | — | — | — |
 | libvmaf — VMAF quality metric |  | — | — | — | — | — | — | — | — | — | — |
 | Little CMS — color management |  | — | — | — | — | — | — | — | — | — | — |
@@ -167,11 +167,12 @@ _16 of 23 built._
 | VDPAU |  | — | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
 
 ### Other / miscellaneous  
-_2 of 19 built._
+_3 of 19 built._
 
 | Feature | Version | lin-x64 | lin-a64 | lin-hf | musl | win | osx-x64 | osx-a64 | android | ios | ios-sim |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | JNI (Android bridge) |  | — | — | — | — | — | — | — | ✓ | — | — |
+| libxml2 — DASH/IMF parse | v2.15.3 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | MediaCodec (Android) |  | n/a | n/a | n/a | n/a | n/a | n/a | n/a | ✓ | n/a | n/a |
 | AviSynth — frameserver (GPL) |  | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
 | FireWire capture |  | — | — | — | — | — | — | — | — | — | — |
@@ -183,7 +184,6 @@ _2 of 19 built._
 | libdc1394 — IIDC cameras |  | — | — | — | — | — | — | — | — | — | — |
 | libdvdnav — DVD nav (GPL) |  | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
 | libdvdread — DVD read (GPL) |  | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
-| libxml2 — DASH/IMF parse |  | — | — | — | — | — | — | — | — | — | — |
 | OpenAL — audio capture |  | — | — | — | — | — | — | — | — | — | — |
 | OpenGL — output |  | — | — | — | — | — | — | — | — | — | — |
 | PulseAudio — audio I/O |  | — | — | — | — | — | — | — | — | — | — |

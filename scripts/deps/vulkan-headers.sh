@@ -12,6 +12,11 @@ if [[ "${BUILD_VULKAN}" == "1" ]]; then
   clone_dep vulkan-headers "${WORK_DIR}/Vulkan-Headers"
   cp -r Vulkan-Headers/include/vulkan "${DEPS_DIR}/include/"
   cp -r Vulkan-Headers/include/vk_video "${DEPS_DIR}/include/"
+  # Install the Vulkan registry (vk.xml) too: libplacebo generates its Vulkan bindings
+  # from it and looks for it under <prefix>/share/vulkan/registry. Ship the copy that
+  # matches these headers so the build never depends on a system-provided vk.xml.
+  mkdir -p "${DEPS_DIR}/share/vulkan/registry"
+  cp Vulkan-Headers/registry/vk.xml "${DEPS_DIR}/share/vulkan/registry/"
 
   VULKAN_HEADER_FILE="${DEPS_DIR}/include/vulkan/vulkan_core.h"
   VULKAN_HEADER_REV="$(awk '/^#define VK_HEADER_VERSION / { print $3; exit }' "${VULKAN_HEADER_FILE}")"

@@ -24,6 +24,7 @@ D="${ROOT_DIR}/scripts/deps"
 . "${D}/kvazaar.sh"      # H.265 software encoder (BSD — LGPL builds too)
 . "${D}/dav1d.sh"        # fast AV1 decoder
 . "${D}/zlib.sh"         # zlib compression
+. "${D}/libxml2.sh"      # XML parser — FFmpeg DASH demuxer + IMF
 . "${D}/libpng.sh"       # PNG image support (freetype dependency)
 . "${D}/freetype.sh"     # text rendering (drawtext)
 . "${D}/fribidi.sh"      # bidirectional text (libass dependency)
@@ -35,8 +36,7 @@ D="${ROOT_DIR}/scripts/deps"
 . "${D}/libvorbis.sh"    # Vorbis audio
 . "${D}/opus.sh"         # Opus audio
 . "${D}/libmp3lame.sh"   # MP3 audio encoder
-# . "${D}/soxr.sh"       # high-quality resampling — deferred: FFmpeg's direct
-#                        # -lsoxr check needs -lm link-ordering; swresample covers it
+. "${D}/soxr.sh"         # high-quality audio resampling (soxr backend for aresample)
 . "${D}/aom.sh"          # AV1 reference encoder/decoder (libaom)
 . "${D}/svtav1.sh"       # fast AV1 encoder (SVT-AV1)
 . "${D}/libwebp.sh"      # WebP image
@@ -53,6 +53,8 @@ D="${ROOT_DIR}/scripts/deps"
 . "${D}/moltenvk.sh"        # MoltenVK Vulkan-over-Metal ICD (v3 macOS only; pairs with the loader)
 . "${D}/spirv-headers.sh"   # SPIRV-Headers for whisper's ggml-vulkan backend (mingw/NDK/musl/linux)
 . "${D}/whisper.sh"         # whisper.cpp — af_whisper ASR (links the Vulkan loader above)
+. "${D}/shaderc.sh"         # SPIR-V compiler (static lib) — libplacebo build dependency (v3 Vulkan cells)
+. "${D}/libplacebo.sh"      # GPU HDR tone-map/scaling via Vulkan — FFmpeg libplacebo filter
 
 # Ensure deps dirs are in compiler/linker search paths
 EXTRA_CFLAGS="${EXTRA_CFLAGS:+${EXTRA_CFLAGS} }-I${DEPS_DIR}/include"

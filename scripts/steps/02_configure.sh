@@ -23,6 +23,10 @@ HWACCEL_FEATURES=""
 BUILD_NVIDIA=0
 # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
 BUILD_VULKAN=0
+# libplacebo tracks the FINAL BUILD_VULKAN (set in 04_select_license, after the v2
+# clear): it needs Vulkan + shaderc, so it builds only in the v3 Vulkan cells.
+# shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
+BUILD_LIBPLACEBO=0
 # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
 BUILD_AMF=0
 # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
@@ -71,6 +75,8 @@ BUILD_LIBKVAZAAR=1
 BUILD_LIBZIMG=1
 # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
 BUILD_LIBASS=1
+# shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
+BUILD_LIBXML2=1
 # TLS/https backend. Windows uses SChannel and Apple uses SecureTransport (both
 # OS-native, no dependency — enabled directly in the per-RID flags below);
 # Linux/Android have no system TLS FFmpeg can use, so they build OpenSSL. Since

@@ -10,7 +10,8 @@ case "${RID}" in
     # mingw-w64-tools -> gendef, llvm -> llvm-dlltool: together these turn each
     # built DLL into an MSVC-consumable COFF import library (see artifact staging).
     # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
-    PKGS=(cmake git mingw-w64 mingw-w64-tools llvm meson nasm ninja-build pkg-config curl xz-utils yasm
+    PKGS=(autoconf automake build-essential gperf libtool
+          cmake git mingw-w64 mingw-w64-tools llvm meson nasm ninja-build pkg-config curl xz-utils yasm
           glslc glslang-tools)
     CROSS_PREFIX="x86_64-w64-mingw32"
     export CC="${CROSS_PREFIX}-gcc-win32"

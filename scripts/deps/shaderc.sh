@@ -36,6 +36,7 @@ rm -f "${DEPS_DIR}/lib/pkgconfig/shaderc.pc.bak"
 rm -f "${DEPS_DIR}"/lib/libshaderc_shared.*   # .so/.dylib/.dll across platforms
 # shaderc's install also drops its glslc CLI into ${DEPS_DIR}/bin — built for the TARGET
 # arch on cross builds, so it shadows the host glslc (installed by 03) that shader steps
-# must run. We only need libshaderc for libplacebo, so remove the binary.
-rm -f "${DEPS_DIR}"/bin/glslc*
+# must run. We only need libshaderc for libplacebo, so remove it. (-rf: on macOS/iOS
+# glslc installs as a glslc.app bundle directory, not a plain file.)
+rm -rf "${DEPS_DIR}"/bin/glslc*
 echo "shaderc built (static libshaderc_combined + bundled glslang/SPIRV-Tools)."

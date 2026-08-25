@@ -29,10 +29,13 @@ build_cmake_dep libjxl \
   -DJPEGXL_FORCE_SYSTEM_LCMS2=ON
 
 # libjxl + highway are C++; pkg-config declares no C++ runtime. Add it for FFmpeg's
-# static --enable-libjxl link (libstdc++ GNU/mingw, libc++ Apple/NDK).
+# static --enable-libjxl link (libstdc++ GNU/mingw, libc++ Apple/NDK). On Android,
+# libjxl's __ANDROID__ logging path calls __android_log_write (in -llog) but its .pc
+# doesn't declare it, so the static link test fails without an explicit -llog.
 case "${PLATFORM:-linux}" in
-  apple|android) EXTRA_LIBS="${EXTRA_LIBS:-} -lc++" ;;
-  *)             EXTRA_LIBS="${EXTRA_LIBS:-} -lstdc++" ;;
+  apple)   EXTRA_LIBS="${EXTRA_LIBS:-} -lc++" ;;
+  android) EXTRA_LIBS="${EXTRA_LIBS:-} -lc++ -llog" ;;
+  *)       EXTRA_LIBS="${EXTRA_LIBS:-} -lstdc++" ;;
 esac
 CONFIGURE_FLAGS+=(--enable-libjxl)
 echo "libjxl (JPEG XL) enabled."

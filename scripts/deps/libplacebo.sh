@@ -15,13 +15,20 @@ cd "${WORK_DIR}" || exit 1
 rm -rf libplacebo
 clone_dep libplacebo "${WORK_DIR}/libplacebo"
 cd libplacebo || exit 1
-# libplacebo generates code at build time from vendored submodules: glad (Vulkan
-# loader), jinja + markupsafe (templating). Fetch just those (skip demos/nuklear).
-git submodule update --init --depth 1 3rdparty/glad 3rdparty/jinja 3rdparty/markupsafe
+# libplacebo builds from vendored submodules: glad (Vulkan loader), jinja + markupsafe
+# (build-time templating), and fast_float (float parsing — required where the C++ stdlib
+# lacks floating-point std::from_chars, e.g. the Android NDK / older libc++). Fetch just
+# those (skip demos/nuklear and the bundled Vulkan-Headers — we supply our own).
+git submodule update --init --depth 1 \
+  3rdparty/glad 3rdparty/jinja 3rdparty/markupsafe 3rdparty/fast_float
 PL_ARGS=(--prefix="${DEPS_DIR}" --libdir=lib --default-library=static
          --buildtype=release
          -Dvulkan=enabled -Dshaderc=enabled -Dglslang=disabled -Dopengl=disabled
-         -Ddemos=false -Dtests=false -Dlcms=disabled -Dd3d11=disabled)
+         -Ddemos=false -Dtests=false -Dlcms=disabled -Dd3d11=disabled
+         # Don't link vkGetInstanceProcAddr ourselves — FFmpeg's vf_libplacebo supplies
+         # the Vulkan loader/proc-addr at runtime. Linking it needs a Vulkan import lib the
+         # mingw/win deps don't provide (undefined vkGetInstanceProcAddr at FFmpeg link).
+         -Dvk-proc-addr=disabled)
 [[ -n "${MESON_CROSS_FILE:-}" ]] && PL_ARGS+=(--cross-file "${MESON_CROSS_FILE}")
 meson setup build "${PL_ARGS[@]}"
 meson compile -C build -j "$(${NPROC})"

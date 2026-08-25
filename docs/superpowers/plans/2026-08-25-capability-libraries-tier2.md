@@ -153,6 +153,15 @@ set -euo pipefail
 build_cmake_dep openjpeg \
   -DBUILD_CODEC=OFF -DBUILD_TESTING=OFF
 
+# BUILD FIX (found in linux-x64 build): OpenJPEG 2.5.x emits a malformed Libs.private
+# ("-l-lpthread") in libopenjp2.pc; FFmpeg's static pkg-config link test then fails.
+# Repair the token (sed -i.bak for BSD/macOS portability; no-op if absent).
+OPJ_PC="${DEPS_DIR}/lib/pkgconfig/libopenjp2.pc"
+if [ -f "${OPJ_PC}" ]; then
+  sed -i.bak 's/-l-lpthread/-lpthread/g' "${OPJ_PC}"
+  rm -f "${OPJ_PC}.bak"
+fi
+
 CONFIGURE_FLAGS+=(--enable-libopenjpeg)
 echo "libopenjpeg (JPEG 2000) enabled."
 ```

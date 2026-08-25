@@ -428,7 +428,10 @@ set -euo pipefail
 
 # SJPEG + TRANSCODE_JPEG OFF (spike finding): SJPEG=ON needs a third_party/sjpeg
 # submodule a no-submodule clone lacks; it's the JPEG-recompression path FFmpeg doesn't use.
+# CMAKE_FIND_ROOT_PATH=DEPS_DIR (android build finding): the NDK toolchain (unlike win/armhf/ios)
+# doesn't put DEPS_DIR on the find-root path, so find_library(HWY) fails; this restores it.
 build_cmake_dep libjxl \
+  -DCMAKE_FIND_ROOT_PATH="${DEPS_DIR}" \
   -DBUILD_TESTING=OFF \
   -DJPEGXL_ENABLE_TOOLS=OFF -DJPEGXL_ENABLE_BENCHMARK=OFF \
   -DJPEGXL_ENABLE_EXAMPLES=OFF -DJPEGXL_ENABLE_MANPAGES=OFF \

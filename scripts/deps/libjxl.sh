@@ -11,7 +11,14 @@ set -euo pipefail
 # SJPEG + TRANSCODE_JPEG are OFF: they are the lossless JPEG->JXL recompression path
 # (FFmpeg's libjxl codec doesn't use it) and SJPEG=ON pulls a third_party/sjpeg submodule
 # that a shallow no-submodule clone doesn't have — turning them off keeps us submodule-free.
+#
+# CMAKE_FIND_ROOT_PATH=${DEPS_DIR}: libjxl is the only dep that locates OTHER built deps
+# (highway/brotli/lcms2) via find_library/find_path. The win/armhf/ios toolchains already put
+# DEPS_DIR on the find-root path, but android uses the NDK's own toolchain file which doesn't —
+# so without this, find_library(HWY) fails under the NDK cross ("Could NOT find HWY"). Adding
+# DEPS_DIR to the root path (keeping the strict MODE=ONLY) makes android match the others.
 build_cmake_dep libjxl \
+  -DCMAKE_FIND_ROOT_PATH="${DEPS_DIR}" \
   -DBUILD_TESTING=OFF \
   -DJPEGXL_ENABLE_TOOLS=OFF -DJPEGXL_ENABLE_BENCHMARK=OFF \
   -DJPEGXL_ENABLE_EXAMPLES=OFF -DJPEGXL_ENABLE_MANPAGES=OFF \

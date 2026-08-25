@@ -30,6 +30,8 @@ cmake --build build --target install -j "$(${NPROC})"
 # (libshaderc_combined bundles glslang + SPIRV-Tools) and drop the shared library, so
 # FFmpeg's static link of libplacebo pulls the static shaderc and nothing depends on a
 # libshaderc_shared.so at runtime.
-sed -i 's/-lshaderc_shared/-lshaderc_combined/' "${DEPS_DIR}/lib/pkgconfig/shaderc.pc"
+# sed -i.bak (attached suffix) is portable — bare `sed -i` fails on BSD/macOS (osx/ios).
+sed -i.bak 's/-lshaderc_shared/-lshaderc_combined/' "${DEPS_DIR}/lib/pkgconfig/shaderc.pc"
+rm -f "${DEPS_DIR}/lib/pkgconfig/shaderc.pc.bak"
 rm -f "${DEPS_DIR}"/lib/libshaderc_shared.*   # .so/.dylib/.dll across platforms
 echo "shaderc built (static libshaderc_combined + bundled glslang/SPIRV-Tools)."

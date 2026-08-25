@@ -53,6 +53,7 @@ D="${ROOT_DIR}/scripts/deps"
 . "${D}/gnutls.sh"       #   GnuTLS (needs the three above; appends --enable-gnutls)
 . "${D}/brotli.sh"       # compression — libjxl dependency (no FFmpeg flag)
 . "${D}/highway.sh"      # SIMD — libjxl dependency (no FFmpeg flag)
+. "${D}/libjxl.sh"       # JPEG XL (--enable-libjxl; needs brotli + highway + lcms2)
 . "${D}/vulkan-headers.sh"  # Vulkan headers (FFmpeg hwaccel/filters + whisper's ggml backend)
 . "${D}/vulkan-loader.sh"   # (glibc Linux / macOS) libc-only loader to bundle — needs headers above
 . "${D}/moltenvk.sh"        # MoltenVK Vulkan-over-Metal ICD (v3 macOS only; pairs with the loader)

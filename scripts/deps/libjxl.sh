@@ -8,12 +8,16 @@ set -euo pipefail
 
 [[ "${BUILD_LIBJXL}" == "1" ]] || { echo "Skipping libjxl (not needed for ${RID})."; return 0; }
 
+# SJPEG + TRANSCODE_JPEG are OFF: they are the lossless JPEG->JXL recompression path
+# (FFmpeg's libjxl codec doesn't use it) and SJPEG=ON pulls a third_party/sjpeg submodule
+# that a shallow no-submodule clone doesn't have — turning them off keeps us submodule-free.
 build_cmake_dep libjxl \
   -DBUILD_TESTING=OFF \
   -DJPEGXL_ENABLE_TOOLS=OFF -DJPEGXL_ENABLE_BENCHMARK=OFF \
   -DJPEGXL_ENABLE_EXAMPLES=OFF -DJPEGXL_ENABLE_MANPAGES=OFF \
   -DJPEGXL_ENABLE_DOXYGEN=OFF -DJPEGXL_ENABLE_JPEGLI=OFF \
   -DJPEGXL_ENABLE_PLUGINS=OFF -DJPEGXL_ENABLE_SKCMS=OFF \
+  -DJPEGXL_ENABLE_SJPEG=OFF -DJPEGXL_ENABLE_TRANSCODE_JPEG=OFF \
   -DJPEGXL_FORCE_SYSTEM_BROTLI=ON -DJPEGXL_FORCE_SYSTEM_HWY=ON \
   -DJPEGXL_FORCE_SYSTEM_LCMS2=ON
 

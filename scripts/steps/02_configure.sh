@@ -85,6 +85,8 @@ BUILD_LIBOPENJPEG=1
 BUILD_LIBVMAF=1
 # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
 BUILD_BROTLI=1
+# shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
+BUILD_HIGHWAY=1
 # TLS/https backend. Windows uses SChannel and Apple uses SecureTransport (both
 # OS-native, no dependency — enabled directly in the per-RID flags below);
 # Linux/Android have no system TLS FFmpeg can use, so they build OpenSSL. Since

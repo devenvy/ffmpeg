@@ -171,6 +171,7 @@
     },
     "libxml2": { "origin": "https://github.com/GNOME/libxml2.git", "tag": "v2.15.3", "datasource": "git-tags" },
     "lcms2": { "origin": "https://github.com/mm2/Little-CMS.git", "tag": "lcms2.19.1", "datasource": "github-tags" },
+    "openjpeg": { "origin": "https://github.com/uclouvain/openjpeg.git", "tag": "v2.5.4", "datasource": "github-tags" },
     "nv-codec": {
       "origin": "https://github.com/FFmpeg/nv-codec-headers.git",
       "tag": "n13.1.15.0",

@@ -41,6 +41,7 @@ D="${ROOT_DIR}/scripts/deps"
 . "${D}/aom.sh"          # AV1 reference encoder/decoder (libaom)
 . "${D}/svtav1.sh"       # fast AV1 encoder (SVT-AV1)
 . "${D}/libwebp.sh"      # WebP image
+. "${D}/openjpeg.sh"     # JPEG 2000 (--enable-libopenjpeg)
 . "${D}/zimg.sh"         # high-quality scaling/colorspace conversion
 . "${D}/openssl.sh"      # TLS/https, v3 series (Linux + Android; native backends elsewhere)
 # GnuTLS chain — TLS/https for the v2 series (LGPLv2.1+/GPLv2), replacing OpenSSL where

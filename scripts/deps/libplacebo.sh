@@ -32,9 +32,8 @@ meson install -C build
 # resolves the C++ symbols. The runtime differs by toolchain: libstdc++ on GNU/Linux and
 # mingw-w64, libc++ on Apple (clang) and the Android NDK.
 case "${PLATFORM:-linux}" in
-  apple)   EXTRA_LIBS="${EXTRA_LIBS:-} -lc++" ;;
-  android) EXTRA_LIBS="${EXTRA_LIBS:-} -lc++_static" ;;
-  *)       EXTRA_LIBS="${EXTRA_LIBS:-} -lstdc++" ;;
+  apple|android) EXTRA_LIBS="${EXTRA_LIBS:-} -lc++" ;;  # clang libc++ (matches whisper/x265)
+  *)             EXTRA_LIBS="${EXTRA_LIBS:-} -lstdc++" ;;
 esac
 CONFIGURE_FLAGS+=(--enable-libplacebo)
 echo "libplacebo (GPU HDR tone-map + scaling) enabled."

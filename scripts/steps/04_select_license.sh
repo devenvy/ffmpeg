@@ -120,3 +120,6 @@ fi
 # final value here so both the build and the coverage matrix gate it consistently.
 # shellcheck disable=SC2034  # consumed by scripts/deps/{shaderc,libplacebo}.sh
 BUILD_LIBPLACEBO="${BUILD_VULKAN}"
+# The iOS simulator slice is a deliberately lean Xcode-testing build (it already drops
+# x264/x265/aom/opus/libass); don't pull the heavy shaderc+libplacebo chain into it.
+[ "${RID}" = "ios-sim-arm64" ] && BUILD_LIBPLACEBO=0

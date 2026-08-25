@@ -114,3 +114,9 @@ if [[ "${RID}" == "ios-sim-arm64" ]]; then
   # (fribidi + harfbuzz are gated on BUILD_LIBASS in their dep scripts, so setting
   # BUILD_LIBASS=0 already drops them — no separate BUILD_FRIBIDI/BUILD_HARFBUZZ needed.)
 fi
+
+# libplacebo needs Vulkan (+ shaderc), so it builds exactly where Vulkan does: on the
+# v3 Vulkan cells, and NOT on the v2 cells just cleared above. Track BUILD_VULKAN's
+# final value here so both the build and the coverage matrix gate it consistently.
+# shellcheck disable=SC2034  # consumed by scripts/deps/{shaderc,libplacebo}.sh
+BUILD_LIBPLACEBO="${BUILD_VULKAN}"

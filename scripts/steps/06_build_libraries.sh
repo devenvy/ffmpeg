@@ -53,6 +53,8 @@ D="${ROOT_DIR}/scripts/deps"
 . "${D}/moltenvk.sh"        # MoltenVK Vulkan-over-Metal ICD (v3 macOS only; pairs with the loader)
 . "${D}/spirv-headers.sh"   # SPIRV-Headers for whisper's ggml-vulkan backend (mingw/NDK/musl/linux)
 . "${D}/whisper.sh"         # whisper.cpp — af_whisper ASR (links the Vulkan loader above)
+. "${D}/shaderc.sh"         # SPIR-V compiler (static lib) — libplacebo build dependency (v3 Vulkan cells)
+. "${D}/libplacebo.sh"      # GPU HDR tone-map/scaling via Vulkan — FFmpeg libplacebo filter
 
 # Ensure deps dirs are in compiler/linker search paths
 EXTRA_CFLAGS="${EXTRA_CFLAGS:+${EXTRA_CFLAGS} }-I${DEPS_DIR}/include"

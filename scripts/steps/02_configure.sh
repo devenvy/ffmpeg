@@ -23,6 +23,10 @@ HWACCEL_FEATURES=""
 BUILD_NVIDIA=0
 # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
 BUILD_VULKAN=0
+# libplacebo tracks the FINAL BUILD_VULKAN (set in 04_select_license, after the v2
+# clear): it needs Vulkan + shaderc, so it builds only in the v3 Vulkan cells.
+# shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
+BUILD_LIBPLACEBO=0
 # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
 BUILD_AMF=0
 # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script

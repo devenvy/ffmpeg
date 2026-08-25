@@ -114,10 +114,17 @@ must be sourced before libjxl.
 ### Per-library detail
 
 **Task 1 — lcms2 `--enable-lcms2`.** New `scripts/deps/lcms2.sh`, meson build
-(Little CMS 2 ships `meson.build`; FFmpeg needs `lcms2 >= 2.13`, pin a current
-2.1x tag). Minimal: `-Dtests=disabled -Djpeg=disabled -Dtiff=disabled`. Enables
-FFmpeg's ICC profile support → `iccdetect` / `iccgen` filters + ICC in
-avcodec. `BUILD_LCMS2=1` all cells. Also unblocks Tasks 6 and 7. Risk: low.
+(Little CMS 2 ships `meson.build`; FFmpeg needs `lcms2 >= 2.13`, pin
+`lcms2.19.1`). Args: `-Djpeg=disabled -Dtiff=disabled -Dtests=disabled
+-Dutils=false -Dversionedlibs=false`. **License landmine:** lcms2's two meson
+plugins `fastfloat` and `threaded` are **GPL-3.0** (upstream option text: "use
+only if GPL 3.0 is acceptable") — both default to `false` and **must stay
+off**; enabling either would inject GPLv3 into every cell and break both the v2
+lane and all LGPL builds. So the core MIT library only. `versionedlibs=false`
+per upstream's Android-cross guidance (moot under `--default-library=static`,
+set for safety). Enables FFmpeg's ICC profile support → `iccdetect` / `iccgen`
+filters + ICC in avcodec. `BUILD_LCMS2=1` all cells. Also unblocks Tasks 6 and
+7. Risk: low.
 
 **Task 2 — openjpeg `--enable-libopenjpeg`.** New `scripts/deps/openjpeg.sh`,
 `build_cmake_dep openjpeg -DBUILD_CODEC=OFF -DBUILD_TESTING=OFF` (core

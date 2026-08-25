@@ -51,6 +51,7 @@ D="${ROOT_DIR}/scripts/deps"
 . "${D}/nettle.sh"       #   crypto (nettle/hogweed; needs GMP)
 . "${D}/libtasn1.sh"     #   ASN.1
 . "${D}/gnutls.sh"       #   GnuTLS (needs the three above; appends --enable-gnutls)
+. "${D}/brotli.sh"       # compression — libjxl dependency (no FFmpeg flag)
 . "${D}/vulkan-headers.sh"  # Vulkan headers (FFmpeg hwaccel/filters + whisper's ggml backend)
 . "${D}/vulkan-loader.sh"   # (glibc Linux / macOS) libc-only loader to bundle — needs headers above
 . "${D}/moltenvk.sh"        # MoltenVK Vulkan-over-Metal ICD (v3 macOS only; pairs with the loader)

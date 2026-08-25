@@ -134,7 +134,7 @@ JPEG 2000 encode/decode. `BUILD_LIBOPENJPEG=1` all cells. Risk: low.
 
 **Task 3 — libvmaf `--enable-libvmaf`.** New `scripts/deps/libvmaf.sh`, meson
 build (source lives in `libvmaf/` subdir of the repo — `meson setup` runs from
-there). `-Denable_tests=false -Denable_docs=false -Denable_float=true`; VMAF's
+there). `-Denable_tests=false -Denable_docs=false -Dbuilt_in_models=true -Denable_float=true`; VMAF's
 default prediction models are compiled into the library, so no runtime model
 files ship. C++ → append the C++ runtime to `EXTRA_LIBS`. FFmpeg needs
 `libvmaf >= 2.0.0`; adds the `vmaf` quality-metric filter. Skip the optional

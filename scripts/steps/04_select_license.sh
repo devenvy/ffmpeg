@@ -116,11 +116,10 @@ if [[ "${RID}" == "ios-sim-arm64" ]]; then
 fi
 
 # libplacebo needs Vulkan (+ shaderc), so it builds exactly where Vulkan does: on the
-# v3 Vulkan cells, and NOT on the v2 cells just cleared above. Track BUILD_VULKAN's
-# final value here so both the build and the coverage matrix gate it consistently.
-# shellcheck disable=SC2034  # consumed by scripts/deps/{shaderc,libplacebo}.sh
-BUILD_LIBPLACEBO="${BUILD_VULKAN}"
-# The iOS simulator slice is a deliberately lean Xcode-testing build (it already drops
-# x264/x265/aom/opus/libass); don't pull the heavy shaderc+libplacebo chain into it.
+# v3 Vulkan cells, and NOT on the v2 cells just cleared above — track BUILD_VULKAN's
+# final value so the build and the coverage matrix gate it consistently. EXCEPT the
+# deliberately lean iOS-simulator slice (Xcode testing; already drops x264/x265/aom/
+# opus/libass), which shouldn't pull in the heavy shaderc+libplacebo chain.
 # (An `if` — not `[ ] && …` — because a false test would abort the script under `set -e`.)
-if [ "${RID}" = "ios-sim-arm64" ]; then BUILD_LIBPLACEBO=0; fi
+# shellcheck disable=SC2034  # consumed by scripts/deps/{shaderc,libplacebo}.sh
+if [ "${RID}" = "ios-sim-arm64" ]; then BUILD_LIBPLACEBO=0; else BUILD_LIBPLACEBO="${BUILD_VULKAN}"; fi

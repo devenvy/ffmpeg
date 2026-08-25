@@ -24,7 +24,7 @@ git submodule update --init --depth 1 \
 PL_ARGS=(--prefix="${DEPS_DIR}" --libdir=lib --default-library=static
          --buildtype=release
          -Dvulkan=enabled -Dshaderc=enabled -Dglslang=disabled -Dopengl=disabled
-         -Ddemos=false -Dtests=false -Dlcms=disabled -Dd3d11=disabled
+         -Ddemos=false -Dtests=false -Dlcms=enabled -Dd3d11=disabled
          # Don't link vkGetInstanceProcAddr ourselves — FFmpeg's vf_libplacebo supplies
          # the Vulkan loader/proc-addr at runtime. Linking it needs a Vulkan import lib the
          # mingw/win deps don't provide (undefined vkGetInstanceProcAddr at FFmpeg link).

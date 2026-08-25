@@ -122,4 +122,5 @@ fi
 BUILD_LIBPLACEBO="${BUILD_VULKAN}"
 # The iOS simulator slice is a deliberately lean Xcode-testing build (it already drops
 # x264/x265/aom/opus/libass); don't pull the heavy shaderc+libplacebo chain into it.
-[ "${RID}" = "ios-sim-arm64" ] && BUILD_LIBPLACEBO=0
+# (An `if` — not `[ ] && …` — because a false test would abort the script under `set -e`.)
+if [ "${RID}" = "ios-sim-arm64" ]; then BUILD_LIBPLACEBO=0; fi

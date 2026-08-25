@@ -43,6 +43,7 @@ D="${ROOT_DIR}/scripts/deps"
 . "${D}/libwebp.sh"      # WebP image
 . "${D}/openjpeg.sh"     # JPEG 2000 (--enable-libopenjpeg)
 . "${D}/zimg.sh"         # high-quality scaling/colorspace conversion
+. "${D}/libvmaf.sh"      # VMAF perceptual quality metric (--enable-libvmaf)
 . "${D}/openssl.sh"      # TLS/https, v3 series (Linux + Android; native backends elsewhere)
 # GnuTLS chain — TLS/https for the v2 series (LGPLv2.1+/GPLv2), replacing OpenSSL where
 # it can't ship. All four self-skip unless BUILD_GNUTLS=1. Dependency order matters.

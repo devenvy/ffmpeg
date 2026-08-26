@@ -25,9 +25,10 @@ ffmpeg/
 **How the build is organized.** `scripts/build.sh` is a thin orchestrator: it resolves the
 inputs, then sources each `steps/NN_*.sh` in order (they share one shell environment). Step 6
 (`06_build_libraries.sh`) sources every active `deps/<lib>.sh`; each dependency script builds
-one static library and appends its `--enable-<lib>` flag. To add a library you write one
-`deps/*.sh`, add a `BUILD_*` switch in `02_configure.sh`, and list it in `06_build_libraries.sh`
-— nothing else changes, and the coverage matrix + `build-info.txt` pick it up automatically.
+one static library and appends its `--enable-<lib>` flag. The core of adding a library is one
+`deps/*.sh`, a `BUILD_*` switch in `02_configure.sh`, and a line in `06_build_libraries.sh` —
+but licensing, Renovate coverage, and per-platform gotchas each need a look. See
+[Adding a library](#adding-a-library) for the full checklist.
 
 **Maintaining multiple versions.** the `.ffmpeg` list in `deps.json` is the source of truth for which FFmpeg
 releases this repo builds — one exact upstream version per line. Each line is built and
@@ -305,6 +306,82 @@ Two build-mechanics notes that aren't about coverage:
   ships broken aarch64 NEON intrinsics) via a per-platform ledger override — see
   [Dependency versions](#dependency-versions). It also builds with `-DENABLE_ASSEMBLY=OFF` under
   the NDK/iOS toolchains, where its aarch64 asm won't assemble.
+
+## Adding a library
+
+A checklist for adding a bundled dependency (an FFmpeg external library, or an internal
+sub-dependency another lib needs). Work top-to-bottom — the **⚠** items are where past
+additions broke CI, usually only on one platform.
+
+1. **Pin it in the ledger — [`deps.json`](deps.json).** Add a `.defaults` entry: `origin` +
+   exactly one ref (`tag`/`branch`/`commit`) + **`datasource`** (`github-tags`, etc.). The
+   `datasource` is what makes **Renovate** track it — omit it and the lib silently stops
+   getting updates. See [Dependency versions](#dependency-versions) for the full ledger rules.
+   **⚠ Never provision a dep (or a build-time tool it needs) with a raw unpinned `git clone`
+   outside the ledger** — it tracks upstream `master` and drifts (that is how the manylinux
+   `glslc` build broke on a glslang change). Clone with `--branch "$(dep_version <name>)"` and
+   give it a ledger entry so Renovate covers it.
+
+2. **Declare the flag — `scripts/steps/02_configure.sh`.** Add `BUILD_MYLIB=1` (with the inline
+   `# shellcheck disable=SC2034` the siblings carry). All-cells → `1`; if it needs gating
+   (`--enable-version3`, Vulkan, a platform that has it), set `0` and enable it only where it
+   qualifies, next to the existing gates in `scripts/platform/<family>.sh` / `04_select_license.sh`.
+
+3. **Write `scripts/deps/mylib.sh`.** Copy the closest sibling (`soxr.sh`/`libxml2.sh` for CMake,
+   `harfbuzz.sh` for meson): guard on `BUILD_MYLIB`, build (`build_cmake_dep` / meson), append
+   `CONFIGURE_FLAGS+=(--enable-mylib)`. The ledger name (step 1) must match the `clone_dep` /
+   `build_cmake_dep` first arg; the `BUILD_*` guard must match step 2. Confirm the exact
+   `--enable-*` against `ffmpeg configure --help` (it isn't always `--enable-lib<name>`). A
+   sub-dependency FFmpeg doesn't consume appends no flag.
+   - **⚠ `set -e` footgun:** a bare `[ test ] && cmd` as the *last* line of a sourced script
+     aborts the whole build when the test is false. Use `if … fi`.
+   - **⚠ C++ libraries** self-supply the runtime (pkg-config doesn't): append `-lstdc++`
+     (GNU/mingw) / `-lc++` (apple, android) to `EXTRA_LIBS`, plus `-llog` on android if the lib
+     calls Android logging (libjxl did). See `libjxl.sh`/`libvmaf.sh`.
+   - **⚠ Cross `find_library`:** if the lib locates *other* built deps via CMake `find_package`,
+     add `-DCMAKE_FIND_ROOT_PATH="${DEPS_DIR}"` — the NDK toolchain (unlike win/armhf/ios) omits it.
+   - **⚠ Broken `.pc`:** some libs emit malformed pkg-config Libs (OpenJPEG's `-l-lpthread` /
+     `-l-pthread`) that fail FFmpeg's static link test — repair with a portable
+     `sed -i.bak … && rm -f ….bak` (see `openjpeg.sh`).
+
+4. **Source it in order — `06_build_libraries.sh`.** After everything it consumes (lcms2 before
+   libjxl and libplacebo; brotli → highway → libjxl).
+
+5. **Licensing — check every cell, including transitive static deps.** A lib and everything it
+   statically links must fit each of the 4 license cells (see [LGPL vs GPL](#lgpl-vs-gpl)). The
+   **LGPLv2.1 / App-Store** lane is strict: no Apache-2.0 (needs version3), no GPLv3-only parts.
+   Elect the compatible option on dual-licensed deps (highway → BSD-3), keep optional GPLv3
+   plugins off (lcms2's `fastfloat`/`threaded`), and gate to v3 anything that truly needs version3.
+
+6. **Build-time packages — `⚠` check Alpine specifically.** A tool the lib's build needs must be
+   in each container's package list: `PKGS` (apt), the manylinux `DNF_PKGS` in
+   `03_install_packages.sh`, and **`PKGS_APK`** (Alpine) in `scripts/platform/linux.sh`. Alpine
+   ships **busybox stubs** — its `xxd` lacks `-i`, so libvmaf's model embedding failed on musl
+   until the real `xxd` package was added (while glibc had no `xxd` at all and fell back cleanly).
+   A tool can be fine on three platforms and broken on the fourth.
+
+7. **Regenerate the matrix.** `bash scripts/gen-matrix.sh` (needs a fake NDK locally — see below).
+   FFmpeg-facing libs appear automatically; if one shows as a bare token, add a category + label
+   to the maps in `gen-matrix.sh`. Commit the regenerated `docs/matrix/*.md` (the `docs-matrix`
+   gate enforces zero drift).
+
+8. **Vet locally on ALL cross-compilable platforms before the PR.** CI rounds are ~2.5h; local
+   cross builds catch the platform breaks in ~30-60 min. Build **linux-x64, linux-arm64,
+   linux-musl-x64 (Alpine — genuinely different), linux-armhf, win-x64, android-arm64** — not just
+   linux-x64. Only **osx/ios** need a macOS runner. Done = the lib compiles on every buildable
+   cell and FFmpeg's `config.h` shows `CONFIG_MYLIB=1` (a lib that fails to link is silently
+   autodetect-disabled). Local-env notes: the harness lives in the **Ubuntu-24.04** WSL distro
+   (`wsl.exe -d Ubuntu-24.04`); **⚠ root-clean reused build dirs** (`docker run --rm -v "$DST:/work"
+   … rm -rf /work/.build /work/artifacts`) — docker leaves root-owned files a host `rm` can't
+   delete, and a stale target-arch `glslc` once broke a rebuild; **⚠ gen-matrix** needs a fake NDK
+   (`mkdir -p /tmp/fakendk/toolchains/llvm/prebuilt/linux-x86_64/bin; export ANDROID_NDK_HOME=/tmp/fakendk`).
+
+9. **Gates:** `shellcheck` (inline per-line disables only, never file-wide), `jq -e . deps.json`,
+   `bash scripts/deps/ledger-validate.sh`, `bash scripts/ci/select-versions-test.sh`, matrix zero-drift.
+
+**Files touched per library:** `deps.json` · `02_configure.sh` · `deps/<lib>.sh` ·
+`06_build_libraries.sh` · `gen-matrix.sh` (only if unlabeled) · a platform/`03` package list (only
+if it needs a build tool) · regenerated `docs/matrix/`.
 
 ## Dependency versions
 

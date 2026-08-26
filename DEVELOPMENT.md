@@ -343,6 +343,13 @@ additions broke CI, usually only on one platform.
    - **⚠ Broken `.pc`:** some libs emit malformed pkg-config Libs (OpenJPEG's `-l-lpthread` /
      `-l-pthread`) that fail FFmpeg's static link test — repair with a portable
      `sed -i.bak … && rm -f ….bak` (see `openjpeg.sh`).
+   - **⚠ Apple case-insensitive FS:** a source file whose name case-collides with the cmake
+     build dir breaks the configure on macOS/iOS (google/highway ships a Bazel `BUILD` file →
+     clashes with `build` → "Unable to (re)create ... pkgRedirects"). `build_cmake_dep` builds
+     in `_build` to avoid this; a bespoke cmake call must pick a non-colliding `-B` dir too.
+   - **⚠ iOS executable install:** `install(TARGETS <exe> RUNTIME …)` fails on iOS (executables
+     need a BUNDLE destination). Disable a dep's CLI/tools if it installs one — brotli needed
+     `-DBROTLI_BUILD_TOOLS=OFF`.
 
 4. **Source it in order — `06_build_libraries.sh`.** After everything it consumes (lcms2 before
    libjxl and libplacebo; brotli → highway → libjxl).

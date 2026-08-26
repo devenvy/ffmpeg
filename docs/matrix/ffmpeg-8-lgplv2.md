@@ -66,7 +66,7 @@ _4 of 19 built._
 | TwoLAME — MP2 encode |  | — | — | — | — | — | — | — | — | — | — |
 
 ### Images / subtitles / text  
-_6 of 15 built._
+_8 of 15 built._
 
 | Feature | Version | lin-x64 | lin-a64 | lin-hf | musl | win | osx-x64 | osx-a64 | android | ios | ios-sim |
 |---|---|---|---|---|---|---|---|---|---|---|---|
@@ -75,22 +75,24 @@ _6 of 15 built._
 | libass — SSA/ASS subtitles | 0.17.5 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | n/a |
 | libfribidi — bidi text (drawtext) | v1.0.16 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | n/a |
 | libharfbuzz — text shaping | 14.3.1 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | n/a |
+| libjxl — JPEG XL | v0.12.0 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | libwebp — WebP[^webp] | v1.6.0 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | n/a | n/a | n/a |
+| OpenJPEG — JPEG 2000 | v2.5.4 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | ARIB caption decode |  | — | — | — | — | — | — | — | — | — | — |
 | Cairo — vector rendering |  | — | — | — | — | — | — | — | — | — | — |
-| libjxl |  | — | — | — | — | — | — | — | — | — | — |
 | libqrencode — QR encode |  | — | — | — | — | — | — | — | — | — | — |
 | librsvg — SVG rasterize |  | — | — | — | — | — | — | — | — | — | — |
 | libzvbi — teletext/VBI |  | — | — | — | — | — | — | — | — | — | — |
-| OpenJPEG — JPEG 2000 |  | — | — | — | — | — | — | — | — | — | — |
 | SVT JPEG-XS |  | — | — | — | — | — | — | — | — | — | — |
 | Tesseract — OCR |  | — | — | — | — | — | — | — | — | — | — |
 
 ### Processing  
-_1 of 19 built._
+_3 of 19 built._
 
 | Feature | Version | lin-x64 | lin-a64 | lin-hf | musl | win | osx-x64 | osx-a64 | android | ios | ios-sim |
 |---|---|---|---|---|---|---|---|---|---|---|---|
+| libvmaf — VMAF quality metric | v3.2.0 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Little CMS — color management | lcms2.19.1 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | zimg — scaling/colorspace | release-3.0.6 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Chromaprint — audio fingerprint |  | — | — | — | — | — | — | — | — | — | — |
 | frei0r — effect plugins (GPL) |  | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
@@ -98,8 +100,6 @@ _1 of 19 built._
 | LADSPA — audio plugins |  | — | — | — | — | — | — | — | — | — | — |
 | libplacebo — GPU processing |  | — | — | — | — | — | — | — | — | — | — |
 | LibTorch — DNN backend |  | — | — | — | — | — | — | — | — | — | — |
-| libvmaf — VMAF quality metric |  | — | — | — | — | — | — | — | — | — | — |
-| Little CMS — color management |  | — | — | — | — | — | — | — | — | — | — |
 | LV2 — audio plugins |  | — | — | — | — | — | — | — | — | — | — |
 | OpenColorIO |  | — | — | — | — | — | — | — | — | — | — |
 | OpenCV — CV filters |  | — | — | — | — | — | — | — | — | — | — |

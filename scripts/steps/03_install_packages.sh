@@ -56,7 +56,15 @@ case "${RID}" in
       # glslc (Vulkan shader compiler) from shaderc — AlmaLinux 8 has no package, and
       # FFmpeg's Vulkan filters + whisper's GPU shaders need it at build time.
       if ! command -v glslc >/dev/null 2>&1; then
-        git clone --depth 1 https://github.com/google/shaderc /tmp/shaderc
+        # Build glslc from the SAME shaderc tag the ledger pins (deps.json .defaults.shaderc,
+        # which Renovate tracks) via dep_version — so this build-tool copy can't drift from the
+        # shaderc dep and gets version bumps automatically. An unpinned clone tracked shaderc
+        # master, and git-sync-deps pulled glslang/SPIRV-Tools HEAD — non-deterministic: a
+        # glslang change made spirv-opt emit LocalSizeId execution mode, which whisper's
+        # ggml-vulkan shaders (compiled --target-env=vulkan1.2) reject ("LocalSizeId mode is not
+        # allowed by the current environment"), breaking the build whenever master moved.
+        SHADERC_TAG="$(dep_version shaderc)"
+        git clone --depth 1 --branch "${SHADERC_TAG}" https://github.com/google/shaderc /tmp/shaderc
         ( cd /tmp/shaderc && ./utils/git-sync-deps )
         cmake -S /tmp/shaderc -B /tmp/shaderc/build -G Ninja \
           -DCMAKE_BUILD_TYPE=Release -DSHADERC_SKIP_TESTS=ON -DSHADERC_SKIP_EXAMPLES=ON \

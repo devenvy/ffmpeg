@@ -215,6 +215,7 @@ DESC = {
   "openssl":"OpenSSL — TLS/https","libsoxr":"SoX resampler",
   "libkvazaar":"Kvazaar — HEVC encoder","libvvenc":"vvenc — H.266/VVC encoder",
   "libtheora":"libtheora — Theora","libopenjpeg":"OpenJPEG — JPEG 2000",
+  "libjxl":"libjxl — JPEG XL",
   "libuavs3d":"uavs3d — AVS3 decode","liboapv":"OpenAPV — APV codec",
   "libxeve":"XEVE — MPEG-5 EVC encode","libxevd":"XEVD — MPEG-5 EVC decode",
   "libxevdb":"XEVD baseline — EVC decode","libxeveb":"XEVE baseline — EVC encode",

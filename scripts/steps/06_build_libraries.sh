@@ -24,6 +24,7 @@ D="${ROOT_DIR}/scripts/deps"
 . "${D}/kvazaar.sh"      # H.265 software encoder (BSD — LGPL builds too)
 . "${D}/dav1d.sh"        # fast AV1 decoder
 . "${D}/zlib.sh"         # zlib compression
+. "${D}/lcms2.sh"        # ICC color management (FFmpeg iccdetect/iccgen; libjxl + libplacebo dep)
 . "${D}/libxml2.sh"      # XML parser — FFmpeg DASH demuxer + IMF
 . "${D}/libpng.sh"       # PNG image support (freetype dependency)
 . "${D}/freetype.sh"     # text rendering (drawtext)
@@ -40,7 +41,9 @@ D="${ROOT_DIR}/scripts/deps"
 . "${D}/aom.sh"          # AV1 reference encoder/decoder (libaom)
 . "${D}/svtav1.sh"       # fast AV1 encoder (SVT-AV1)
 . "${D}/libwebp.sh"      # WebP image
+. "${D}/openjpeg.sh"     # JPEG 2000 (--enable-libopenjpeg)
 . "${D}/zimg.sh"         # high-quality scaling/colorspace conversion
+. "${D}/libvmaf.sh"      # VMAF perceptual quality metric (--enable-libvmaf)
 . "${D}/openssl.sh"      # TLS/https, v3 series (Linux + Android; native backends elsewhere)
 # GnuTLS chain — TLS/https for the v2 series (LGPLv2.1+/GPLv2), replacing OpenSSL where
 # it can't ship. All four self-skip unless BUILD_GNUTLS=1. Dependency order matters.
@@ -48,6 +51,9 @@ D="${ROOT_DIR}/scripts/deps"
 . "${D}/nettle.sh"       #   crypto (nettle/hogweed; needs GMP)
 . "${D}/libtasn1.sh"     #   ASN.1
 . "${D}/gnutls.sh"       #   GnuTLS (needs the three above; appends --enable-gnutls)
+. "${D}/brotli.sh"       # compression — libjxl dependency (no FFmpeg flag)
+. "${D}/highway.sh"      # SIMD — libjxl dependency (no FFmpeg flag)
+. "${D}/libjxl.sh"       # JPEG XL (--enable-libjxl; needs brotli + highway + lcms2)
 . "${D}/vulkan-headers.sh"  # Vulkan headers (FFmpeg hwaccel/filters + whisper's ggml backend)
 . "${D}/vulkan-loader.sh"   # (glibc Linux / macOS) libc-only loader to bundle — needs headers above
 . "${D}/moltenvk.sh"        # MoltenVK Vulkan-over-Metal ICD (v3 macOS only; pairs with the loader)

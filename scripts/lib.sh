@@ -54,7 +54,11 @@ build_cmake_dep() {
   rm -rf "${name}"
   clone_dep "${name}" "${WORK_DIR}/${name}"
   cd "${name}" || return 1
-  cmake -B build \
+  # Build in "_build", not "build": some sources ship a case-insensitively-colliding entry
+  # (google/highway has a Bazel `BUILD` file) that clashes with a `build` dir on macOS/iOS's
+  # case-insensitive filesystem — cmake then fails ("Unable to (re)create ... pkgRedirects").
+  # "_build" avoids that, and also never reuses a `build/` dir a project might vendor.
+  cmake -B _build \
     -DCMAKE_INSTALL_PREFIX="${DEPS_DIR}" \
     -DCMAKE_INSTALL_LIBDIR=lib \
     -DCMAKE_PREFIX_PATH="${DEPS_DIR}" \
@@ -62,6 +66,6 @@ build_cmake_dep() {
     -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
     ${CMAKE_CROSS_ARGS[@]+"${CMAKE_CROSS_ARGS[@]}"} \
     "$@"
-  cmake --build build -j"$(${NPROC})"
-  cmake --install build
+  cmake --build _build -j"$(${NPROC})"
+  cmake --install _build
 }

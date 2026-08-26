@@ -112,10 +112,14 @@ case "${RID}" in
     # a standard `apk add libstdc++ libgcc` on any musl host.)
     # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     PKGS_APK=(autoconf automake libtool build-base cmake curl diffutils gperf git linux-headers
-              m4 meson nasm ninja patchelf perl pkgconf xz yasm
+              m4 meson nasm ninja patchelf perl pkgconf xz yasm xxd
               glslang shaderc)
     # m4 is required by GMP's configure (GnuTLS chain, v2 series). build-base does not
     # pull it in; the glibc/manylinux images already ship it, so only the Alpine list needs it.
+    # xxd: libvmaf embeds its built-in VMAF models via `xxd -i`. Alpine's base ships only the
+    # busybox `xxd` applet, which lacks the `-i` (C-array) flag, so the model-gen step fails;
+    # the `xxd` package installs the real vim xxd (with `-i`). glibc/manylinux has no xxd at
+    # all, where libvmaf falls back to a non-xxd path — only Alpine has the broken stub.
     CONFIGURE_FLAGS+=(
       --enable-cuda --enable-cuvid --enable-nvenc --enable-nvdec --enable-ffnvcodec
       --enable-vaapi --enable-libdrm --enable-libvpl

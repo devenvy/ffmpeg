@@ -178,6 +178,31 @@ jobs:
           SRC="artifacts/${VARIANT}"
           RUN="/tmp/run"; DEV="/tmp/dev"
           rm -rf "${RUN}" "${DEV}" && mkdir -p "${RUN}"
+          # actions/upload-artifact dereferences symlinks, so the downloaded lib set has the
+          # SONAME/linker aliases as full COPIES (3x per .so, 2x per .dylib) — a ~3x-bloated
+          # tarball. Collapse each group back to one real file (the fullest-versioned) + relative
+          # symlinks, restoring the standard layout the loader expects (ffmpeg's NEEDED is the
+          # SONAME). Run inside the target dir.
+          relink_so() {    # ELF: libfoo.so, libfoo.so.MAJOR, libfoo.so.MAJOR.MINOR.MICRO
+            local link stem f full
+            for link in *.so; do
+              [ -e "$link" ] || continue
+              stem="${link%.so}"; full=""
+              for f in "${stem}".so.*; do [ -e "$f" ] || continue; { [ -z "$full" ] || [ "${#f}" -gt "${#full}" ]; } && full="$f"; done
+              [ -n "$full" ] || continue
+              for f in "$link" "${stem}".so.*; do [ -e "$f" ] && [ "$f" != "$full" ] && ln -sf "$full" "$f"; done
+            done
+          }
+          relink_dylib() { # Mach-O: libfoo.dylib (bare linker alias), libfoo.MAJOR.dylib (real)
+            local link stem f full
+            for link in *.dylib; do
+              [ -e "$link" ] || continue
+              case "$link" in *.*.dylib) continue ;; esac   # skip versioned; process only bare libfoo.dylib
+              stem="${link%.dylib}"; full=""
+              for f in "${stem}".*.dylib; do [ -e "$f" ] || continue; { [ -z "$full" ] || [ "${#f}" -gt "${#full}" ]; } && full="$f"; done
+              [ -n "$full" ] && ln -sf "$full" "$link"
+            done
+          }
           # Runtime tarball = binaries + shared libraries + legal ONLY. Dev files
           # (headers, and Windows import libs) go in a separate -dev tarball so the
           # runtime download stays lean. Android/iOS are link-only artifacts and
@@ -191,6 +216,7 @@ jobs:
               ;;
             osx-*)
               cp "${SRC}"/*.dylib "${SRC}/ffmpeg" "${SRC}/ffprobe" "${RUN}/"
+              ( cd "${RUN}" && relink_dylib )
               mkdir -p "${DEV}/include"; cp -r "${SRC}/include/." "${DEV}/include/"
               ;;
             android-*)
@@ -201,6 +227,7 @@ jobs:
               ;;
             *)  # linux-*
               cp "${SRC}"/*.so* "${SRC}/ffmpeg" "${SRC}/ffprobe" "${RUN}/"
+              ( cd "${RUN}" && relink_so )
               mkdir -p "${DEV}/include"; cp -r "${SRC}/include/." "${DEV}/include/"
               ;;
           esac

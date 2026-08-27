@@ -89,6 +89,18 @@ BUILD_BROTLI=1
 BUILD_HIGHWAY=1
 # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
 BUILD_LIBJXL=1
+# shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
+BUILD_LIBSPEEX=1
+# shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
+BUILD_LIBGSM=1
+# shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
+BUILD_KISSFFT=1
+# shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
+BUILD_CHROMAPRINT=1
+# shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
+BUILD_LIBOPENCORE_AMR=1
+# shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
+BUILD_LIBVOAMRWBENC=1
 # TLS/https backend. Windows uses SChannel and Apple uses SecureTransport (both
 # OS-native, no dependency — enabled directly in the per-RID flags below);
 # Linux/Android have no system TLS FFmpeg can use, so they build OpenSSL. Since

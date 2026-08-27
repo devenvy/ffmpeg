@@ -222,6 +222,24 @@
       "origin": "https://github.com/KhronosGroup/SPIRV-Headers.git",
       "tag": "vulkan-sdk-1.4.357.0",
       "datasource": "github-tags"
+    },
+    "speex": { "origin": "https://github.com/xiph/speex.git", "tag": "Speex-1.2.1", "datasource": "github-tags" },
+    "chromaprint": { "origin": "https://github.com/acoustid/chromaprint.git", "tag": "v1.6.1", "datasource": "github-tags" },
+    "kissfft": { "origin": "https://github.com/mborgerding/kissfft.git", "tag": "131.2.0", "datasource": "github-tags" },
+    "libgsm": {
+      "origin": "https://www.quut.com/gsm/gsm-1.0.22.tar.gz",
+      "tag": "1.0.22",
+      "reason": "libgsm.sh downloads the quut.com tarball (gsm-1.0.22.tar.gz) via dep_version, not git; there is no clean canonical upstream git repo (the code ships as a hand-packed tarball with a non-standard Makefile), so origin/tag describe the tarball, not a clonable ref; tag is the bare tarball-filename version. No datasource — untrackable tarball. 1.0.22 (2018) remains the latest release as of 2026-08."
+    },
+    "opencore-amr": {
+      "origin": "https://downloads.sourceforge.net/opencore-amr/opencore-amr-0.1.6.tar.gz",
+      "tag": "0.1.6",
+      "reason": "opencore-amr.sh downloads a SourceForge tarball (opencore-amr-0.1.6.tar.gz) via dep_version, not git; no clean canonical git mirror carries a matching bare-version tag, so origin/tag describe the tarball; tag is the bare tarball-filename version. No datasource — untrackable SF tarball, like libmp3lame."
+    },
+    "vo-amrwbenc": {
+      "origin": "https://downloads.sourceforge.net/opencore-amr/vo-amrwbenc-0.1.3.tar.gz",
+      "tag": "0.1.3",
+      "reason": "vo-amrwbenc.sh downloads a SourceForge tarball (vo-amrwbenc-0.1.3.tar.gz) via dep_version, not git; no clean canonical git mirror carries a matching bare-version tag, so origin/tag describe the tarball; tag is the bare tarball-filename version. No datasource — untrackable SF tarball, like libmp3lame."
     }
   },
   "overrides": {

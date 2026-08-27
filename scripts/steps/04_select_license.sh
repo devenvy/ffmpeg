@@ -50,6 +50,11 @@ case "${LICENSE_VERSION}" in
     BUILD_VULKAN=0
     # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     BUILD_VULKAN_LOADER=0
+    # AMR (opencore-amr + vo-amrwbenc) is Apache-2.0 → version3-only; drop on the v2 series.
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
+    BUILD_LIBOPENCORE_AMR=0
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
+    BUILD_LIBVOAMRWBENC=0
     [[ "${WHISPER_BACKEND}" == "vulkan" ]] && WHISPER_BACKEND="cpu"   # Apple is already metal
     # TLS for v2 on Linux/Android, where OpenSSL (Apache-2.0) can't be used without version3.
     # (Windows/Apple never had OpenSSL — they keep OS-native SChannel/SecureTransport.)

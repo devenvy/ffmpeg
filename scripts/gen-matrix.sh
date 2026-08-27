@@ -184,6 +184,7 @@ CAT = {
   "libgsm":"audio","libilbc":"audio","liblc3":"audio","libmodplug":"audio",
   "libopenmpt":"audio","libshine":"audio","libspeex":"audio","libtwolame":"audio",
   "libmysofa":"audio","librubberband":"audio","libsoxr":"audio",
+  "libopencore_amrnb":"audio","libopencore_amrwb":"audio","libvo_amrwbenc":"audio",
   "libwebp":"image","libfreetype":"image","libfontconfig":"image","libass":"image",
   "libfribidi":"image","libharfbuzz":"image","cairo":"image","libaribcaption":"image",
   "libjxl":"image","libopenjpeg":"image","librsvg":"image","libtesseract":"image",
@@ -195,7 +196,7 @@ CAT = {
   "libzmq":"proc","chromaprint":"proc",
   "openssl":"net","gnutls":"net","libtls":"net","librist":"net","librtmp":"net",
   "libsrt":"net","libssh":"net","libsmbclient":"net","librabbitmq":"net","gcrypt":"net",
-  "schannel":"net","securetransport":"net",
+  "schannel":"net","securetransport":"net","gmp":"net","mbedtls":"net",
   "whisper":"stt","pocketsphinx":"stt",
   "libbluray":"other","libcaca":"other","libdc1394":"other","libiec61883":"other",
   "libjack":"other","libklvanc":"other","libpulse":"other","libquirc":"other",
@@ -241,6 +242,10 @@ DESC = {
   "ladspa":"LADSPA — audio plugins","lv2":"LV2 — audio plugins","libsnappy":"Snappy — HAP",
   "libzmq":"ZeroMQ — zmq/azmq filters","chromaprint":"Chromaprint — audio fingerprint",
   "gnutls":"GnuTLS — TLS/https","libtls":"libtls (LibreSSL) — TLS","librist":"RIST — reliable stream",
+  "libopencore_amrnb":"OpenCORE — AMR-NB en/decode","libopencore_amrwb":"OpenCORE — AMR-WB decode",
+  "libvo_amrwbenc":"VisualOn — AMR-WB encode",
+  "gmp":"GMP — bignum (GnuTLS dep; not enabled as an FFmpeg lib)",
+  "mbedtls":"mbedTLS — SRT/librist transport crypto (not FFmpeg's own TLS backend)",
   "librtmp":"librtmp — RTMP","libsrt":"SRT — secure transport","libssh":"libssh — SFTP",
   "libsmbclient":"SMB/CIFS","librabbitmq":"RabbitMQ — AMQP","gcrypt":"libgcrypt — crypto",
   "pocketsphinx":"PocketSphinx — speech recognition","libbluray":"libbluray — Blu-ray input",
@@ -321,12 +326,18 @@ def render(version, conf, cid):
     hw  = parse_list(conf, "HWACCEL_AUTODETECT_LIBRARY_LIST") + parse_list(conf, "HWACCEL_LIBRARY_LIST")
     ext = parse_list(conf, "EXTERNAL_LIBRARY_LIST")
     gpl = parse_list(conf, "EXTERNAL_LIBRARY_GPL_LIST")
-    GPLSET = set(gpl)
+    # version3 libs (Apache-2.0 etc.: the AMR trio, gmp, mbedtls, …) need --enable-version3, so
+    # they're usable only on the v3 series. Parsed as their own list so the v2 cells can mark them
+    # ✗ (a license barrier), mirroring how GPL libs are ✗ in an LGPL build. We enable the AMR trio;
+    # the rest render as not-built. (Without this, FFmpeg's version3 sublist — and thus our AMR
+    # rows — were absent from the matrix universe entirely.)
+    ver3 = parse_list(conf, "EXTERNAL_LIBRARY_VERSION3_LIST")
+    GPLSET = set(gpl); VER3SET = set(ver3)
     KIND = {}
-    for t in ext + gpl: KIND[t] = "lib"
+    for t in ext + gpl + ver3: KIND[t] = "lib"
     for t in hw:        KIND[t] = "hw"
     for t in EXTRA:     KIND[t] = "hw"
-    UNIVERSE = list(dict.fromkeys(hw + list(EXTRA) + ext + gpl))
+    UNIVERSE = list(dict.fromkeys(hw + list(EXTRA) + ext + gpl + ver3))
 
     def cell(tok, rid):
         applies = APPLIES.get(tok, ALL)
@@ -336,6 +347,7 @@ def render(version, conf, cid):
             return "n/a"
         if enabled(tok, rid, cid): return "✓"
         if fam == "lgpl" and tok in GPLSET: return "✗"   # GPL lib, can't go in an LGPL build
+        if cid.endswith("2") and tok in VER3SET: return "✗"   # version3 lib — needs --enable-version3, off on the v2 series
         return "—"
 
     used_fn = set()
@@ -357,8 +369,9 @@ def render(version, conf, cid):
              f"the build scripts — do not edit by hand. Back to the [matrix index](README.md)._\n")
     legend = ("**✓** built · **n/a** not applicable on this platform · "
               "**—** FFmpeg supports it but we don't build it here (a choice — no license barrier)")
-    if fam == "lgpl":
-        legend += " · **✗** can't be included: GPL / conflicting license (use the GPL build instead)"
+    if fam == "lgpl" or cid.endswith("2"):
+        legend += (" · **✗** can't be included in this cell: a GPL lib in an LGPL build, or a "
+                   "version3 lib (needs --enable-version3) in a v2 build — use the matching build instead")
     L.append(legend + "\n")
     L.append("_The **Version** column is the exact upstream ref this build pins for that library — read "
              "from the ledger (`deps.json`), resolved for this FFmpeg major (an `overrides.<major>` hold "

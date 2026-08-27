@@ -55,6 +55,11 @@ D="${ROOT_DIR}/scripts/deps"
 . "${D}/nettle.sh"       #   crypto (nettle/hogweed; needs GMP)
 . "${D}/libtasn1.sh"     #   ASN.1
 . "${D}/gnutls.sh"       #   GnuTLS (needs the three above; appends --enable-gnutls)
+# Network transports. mbedTLS is the shared v3 transport crypto; both consume it (or GnuTLS on
+# gpl-2 Linux/Android, or nocrypto). Sourced after both TLS backends so either is available.
+. "${D}/mbedtls.sh"      # transport crypto (v3 only) — SRT + librist encryption (no FFmpeg flag)
+. "${D}/libsrt.sh"       # SRT transport (--enable-libsrt; enclib per cell)
+. "${D}/librist.sh"      # RIST transport (--enable-librist; crypto per cell)
 . "${D}/brotli.sh"       # compression — libjxl dependency (no FFmpeg flag)
 . "${D}/highway.sh"      # SIMD — libjxl dependency (no FFmpeg flag)
 . "${D}/libjxl.sh"       # JPEG XL (--enable-libjxl; needs brotli + highway + lcms2)

@@ -240,7 +240,15 @@
       "origin": "https://downloads.sourceforge.net/opencore-amr/vo-amrwbenc-0.1.3.tar.gz",
       "tag": "0.1.3",
       "reason": "vo-amrwbenc.sh downloads a SourceForge tarball (vo-amrwbenc-0.1.3.tar.gz) via dep_version, not git; no clean canonical git mirror carries a matching bare-version tag, so origin/tag describe the tarball; tag is the bare tarball-filename version. No datasource — untrackable SF tarball, like libmp3lame."
-    }
+    },
+    "mbedtls": {
+      "origin": "https://github.com/Mbed-TLS/mbedtls.git",
+      "tag": "v3.6.7",
+      "datasource": "github-tags",
+      "reason": "Renovate tracks the git tag (git-tags on origin), but mbedtls.sh downloads the matching release tarball (mbedtls-<ver>.tar.bz2, v stripped) instead of cloning — the tarball bundles the 'framework' submodule in-tree, avoiding a submodule init. Pin the 3.6 LTS line (4.x is the TF-PSA-Crypto split, not yet consumed by FFmpeg/SRT/librist)."
+    },
+    "srt": { "origin": "https://github.com/Haivision/srt.git", "tag": "v1.5.7", "datasource": "github-tags" },
+    "librist": { "origin": "https://code.videolan.org/rist/librist.git", "tag": "v0.2.20", "datasource": "gitlab-tags" }
   },
   "overrides": {
     "8": {

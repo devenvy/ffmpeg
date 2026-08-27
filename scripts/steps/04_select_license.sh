@@ -55,6 +55,15 @@ case "${LICENSE_VERSION}" in
     BUILD_LIBOPENCORE_AMR=0
     # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     BUILD_LIBVOAMRWBENC=0
+    # mbedTLS is Apache-2.0 → version3-only: drop it on v2 and default the SRT/librist transport
+    # crypto to nocrypto. The gpl-2 Linux/Android cells override to GnuTLS in the TLS block below;
+    # every other v2 cell (lgpl-2 everywhere + gpl-2 Win/Apple) has no v2-compatible crypto lib.
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
+    BUILD_MBEDTLS=0
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
+    SRT_ENCLIB=off
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
+    RIST_CRYPTO=none
     [[ "${WHISPER_BACKEND}" == "vulkan" ]] && WHISPER_BACKEND="cpu"   # Apple is already metal
     # TLS for v2 on Linux/Android, where OpenSSL (Apache-2.0) can't be used without version3.
     # (Windows/Apple never had OpenSSL — they keep OS-native SChannel/SecureTransport.)
@@ -67,8 +76,15 @@ case "${LICENSE_VERSION}" in
     #              Linux/Android therefore ships without https/tls.
     if [[ "${BUILD_OPENSSL:-0}" == "1" ]]; then
       BUILD_OPENSSL=0
-      # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
-      [[ "${LICENSE}" == "gpl" ]] && BUILD_GNUTLS=1   # lgpl-2: leave TLS off for LGPLv2.1 purity
+      if [[ "${LICENSE}" == "gpl" ]]; then            # lgpl-2: leave TLS off for LGPLv2.1 purity
+        # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
+        BUILD_GNUTLS=1
+        # gpl-2 Linux/Android: the SRT + librist transports reuse GnuTLS for their encryption.
+        # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
+        SRT_ENCLIB=gnutls
+        # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
+        RIST_CRYPTO=gnutls
+      fi
     fi
     ;;
   *)

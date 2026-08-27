@@ -101,6 +101,21 @@ BUILD_CHROMAPRINT=1
 BUILD_LIBOPENCORE_AMR=1
 # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
 BUILD_LIBVOAMRWBENC=1
+# Network transports (SRT + librist) and their shared v3 transport crypto (mbedTLS). mbedTLS is
+# Apache-2.0 → version3-only, so 04_select_license clears BUILD_MBEDTLS on the v2 series and
+# switches the per-transport crypto backend (SRT_ENCLIB / RIST_CRYPTO) to gnutls or off per cell.
+# shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
+BUILD_MBEDTLS=1
+# shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
+BUILD_LIBSRT=1
+# shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
+BUILD_LIBRIST=1
+# Transport encryption backend, defaulted to the v3 lane (mbedTLS); 04_select_license overrides
+# per cell. SRT: mbedtls|gnutls|off. librist: mbedtls|gnutls|none.
+# shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
+SRT_ENCLIB=mbedtls
+# shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
+RIST_CRYPTO=mbedtls
 # TLS/https backend. Windows uses SChannel and Apple uses SecureTransport (both
 # OS-native, no dependency — enabled directly in the per-RID flags below);
 # Linux/Android have no system TLS FFmpeg can use, so they build OpenSSL. Since

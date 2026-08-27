@@ -76,15 +76,14 @@ case "${LICENSE_VERSION}" in
     #              Linux/Android therefore ships without https/tls.
     if [[ "${BUILD_OPENSSL:-0}" == "1" ]]; then
       BUILD_OPENSSL=0
-      if [[ "${LICENSE}" == "gpl" ]]; then            # lgpl-2: leave TLS off for LGPLv2.1 purity
-        # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
-        BUILD_GNUTLS=1
-        # gpl-2 Linux/Android: the SRT + librist transports reuse GnuTLS for their encryption.
-        # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
-        SRT_ENCLIB=gnutls
-        # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
-        RIST_CRYPTO=gnutls
-      fi
+      # gpl-2: GnuTLS provides FFmpeg's HTTPS/TLS. The SRT + librist transports, however, both
+      # ship nocrypto on gpl-2 (SRT_ENCLIB/RIST_CRYPTO keep the v2-default off/none set above) —
+      # NEITHER can use GnuTLS: SRT's gnutls enclib compiles against nettle's removed legacy AES
+      # API (struct aes_ctx / aes_encrypt, gone since nettle 3.4), and librist's gnutls EAP/SRP
+      # path won't compile (its verifier types are mbedTLS-only). Both v2-permissible alternatives
+      # (openssl, mbedtls) are Apache-2.0/version3. So only the v3 lane gets transport crypto.
+      # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
+      [[ "${LICENSE}" == "gpl" ]] && BUILD_GNUTLS=1   # lgpl-2: leave TLS off for LGPLv2.1 purity
     fi
     ;;
   *)

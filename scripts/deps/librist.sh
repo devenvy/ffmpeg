@@ -25,6 +25,11 @@ case "${RIST_CRYPTO:-none}" in
   gnutls)  RIST_ARGS+=(-Duse_mbedtls=false -Duse_gnutls=true)  ;;
   *)       RIST_ARGS+=(-Duse_mbedtls=false -Duse_gnutls=false) ;;
 esac
+# On Windows, librist's rist_time.c calls clock_gettime, which the mingw-w64 toolchain provides in
+# winpthreads (not as the static-inline librist assumes) — so link fails with undefined clock_gettime
+# unless we opt into mingw pthreads. This makes librist link -lpthread (winpthreads); it lands in
+# librist.pc, where 07_build_ffmpeg's .pc patch wraps it -Bstatic (no libwinpthread-1.dll runtime dep).
+[[ "${PLATFORM:-}" == "windows" ]] && RIST_ARGS+=(-Dhave_mingw_pthreads=true)
 [[ -n "${MESON_CROSS_FILE:-}" ]] && RIST_ARGS+=(--cross-file "${MESON_CROSS_FILE}")
 meson setup build "${RIST_ARGS[@]}"
 meson compile -C build -j "$(${NPROC})"

@@ -51,4 +51,8 @@ cmake --install _build
 # -lsrt/-lrist, which appear earlier) lets the linker resolve both. -L is on EXTRA_LDFLAGS (06).
 # Order high-level → low so the inter-mbedTLS deps resolve left-to-right (tls → x509 → crypto).
 EXTRA_LIBS="${EXTRA_LIBS:-} -lmbedtls -lmbedx509 -lmbedcrypto"
+# On Windows, mbedcrypto's entropy_poll.c calls BCryptGenRandom (bcrypt.dll). Because our
+# -lmbedcrypto lands at the very end of FFmpeg's link, -lbcrypt must come AFTER it to resolve
+# (srt.pc lists -lbcrypt too, but earlier — before our mbedcrypto — so it doesn't cover it).
+[[ "${PLATFORM:-}" == "windows" ]] && EXTRA_LIBS="${EXTRA_LIBS} -lbcrypt"
 echo "mbedtls (SRT + librist transport crypto) built."

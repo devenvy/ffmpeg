@@ -16,6 +16,11 @@ case "${SRT_ENCLIB:-off}" in
   mbedtls|gnutls) SRT_ARGS+=(-DENABLE_ENCRYPTION=ON -DUSE_ENCLIB="${SRT_ENCLIB}") ;;
   *)              SRT_ARGS+=(-DENABLE_ENCRYPTION=OFF) ;;
 esac
+# On the Android NDK toolchain, find_library only searches CMAKE_FIND_ROOT_PATH (pointed at the
+# NDK sysroot), so SRT's find_package(MbedTLS) can't see our mbedTLS in DEPS_DIR. Add DEPS_DIR to
+# the root path — the NDK toolchain appends its own sysroot, so both are searched. (Other RIDs set
+# CMAKE_FIND_ROOT_PATH=DEPS_DIR in their toolchain file already; only the NDK's overrides it.)
+[[ "${PLATFORM:-}" == "android" && "${SRT_ENCLIB:-off}" == "mbedtls" ]] && SRT_ARGS+=(-DCMAKE_FIND_ROOT_PATH="${DEPS_DIR}")
 build_cmake_dep srt "${SRT_ARGS[@]}"
 
 # libsrt is C++; add the C++ runtime for FFmpeg's static-pkg-config link (libstdc++ on

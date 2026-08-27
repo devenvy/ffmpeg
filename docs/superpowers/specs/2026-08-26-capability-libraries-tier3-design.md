@@ -35,8 +35,14 @@ Only the **transport encryption** for SRT + librist is new:
 |---|---|---|---|
 | Linux/Android **v3** | OpenSSL (unchanged) | **mbedTLS** | mbedTLS |
 | Win/Apple **v3** | SChannel/SecureTransport (unchanged) | **mbedTLS** | mbedTLS |
-| Linux/Android **gpl-2** | GnuTLS (unchanged) | **GnuTLS** (reuse) | — |
-| **lgpl-2** (all), **gpl-2** Win/Apple | unchanged | **nocrypto** | — |
+| **all v2** (gpl-2 + lgpl-2, every RID) | GnuTLS (gpl-2 Lin/Andr) / none | **nocrypto** ¹ | — |
+
+¹ Only the **v3** lane gets transport crypto. We tried GnuTLS on gpl-2 Linux/Android but **neither
+transport can use it**: SRT's gnutls enclib links **nettle** and calls nettle's legacy AES API
+(`struct aes_ctx` / `aes_encrypt`), removed in nettle ≥ 3.4 → won't compile against our modern
+nettle; librist's gnutls **EAP/SRP** path won't compile either (its verifier types are
+mbedTLS-only). SRT's/librist's only other options (openssl, mbedtls) are Apache-2.0/version3, so
+unusable on v2. Result: transport encryption ships on the v3 cells (mbedTLS) and nowhere else.
 
 **Rationale (verified):**
 - **librist cannot use OpenSSL** — only mbedTLS or GnuTLS/nettle. So the transports need their
@@ -51,8 +57,9 @@ Only the **transport encryption** for SRT + librist is new:
   librist). Two crypto libs on the v3 cells is the normal, correct setup.
 - **lgpl-2** already ships no TLS (GMP/nettle can't be LGPLv2.1); transports match → nocrypto.
   **gpl-2 on Win/Apple** has no crypto lib there (OpenSSL is version3-only, GnuTLS not built) → nocrypto.
-- SRT uses **mbedTLS on v3** (uniform with librist; avoids needing OpenSSL on Win/Apple) and
-  **GnuTLS on gpl-2 Linux/Android**.
+- Both transports use **mbedTLS on v3** (uniform; avoids needing OpenSSL on Win/Apple) and
+  **nocrypto on every v2 cell** — GnuTLS drives FFmpeg's TLS on gpl-2 Linux/Android but can't drive
+  either transport's encryption (see ¹).
 
 ## Global Constraints
 - **Local-first (hard rule):** vet **win / linux-x64 / linux-musl-x64 / android-arm64** locally

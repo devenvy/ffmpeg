@@ -43,4 +43,12 @@ cmake -B _build \
   ${CMAKE_CROSS_ARGS[@]+"${CMAKE_CROSS_ARGS[@]}"}
 cmake --build _build -j"$(${NPROC})"
 cmake --install _build
+
+# Re-add mbedTLS as -l libs at the END of FFmpeg's link (EXTRA_LIBS). Both transports leave their
+# mbedTLS symbols unresolved otherwise: srt.pc lists mbedTLS as ABSOLUTE .a paths, which FFmpeg
+# classifies as input objects and places BEFORE -lsrt (so libsrt's cryspr-mbedtls.o refs are
+# already discarded → undefined), and librist.pc omits mbedTLS entirely. Appending them here (after
+# -lsrt/-lrist, which appear earlier) lets the linker resolve both. -L is on EXTRA_LDFLAGS (06).
+# Order high-level → low so the inter-mbedTLS deps resolve left-to-right (tls → x509 → crypto).
+EXTRA_LIBS="${EXTRA_LIBS:-} -lmbedtls -lmbedx509 -lmbedcrypto"
 echo "mbedtls (SRT + librist transport crypto) built."

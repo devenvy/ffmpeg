@@ -36,10 +36,19 @@ cd gsm-*/ || exit 1
 # CC/AR/RANLIB assume a native gcc) with our cross toolchain + PIC/EXTRA_CFLAGS. libgsm's
 # Makefile uses `AR ... $(ARFLAGS)` with ARFLAGS defaulting to `cr`, so we keep AR as the
 # archiver alone and pass the flags via ARFLAGS to stay compatible.
+#
+# Toolchain resolution: prefer an exported CC/AR/RANLIB (win/apple/android set these), else fall
+# back to the CROSS_HOST triple, else the plain native tool. This matters for linux-armhf — the
+# ONE cross target that never exports CC (its autotools deps cross via --host instead): without
+# the CROSS_HOST fallback, ${CC:-cc} would silently build a NATIVE x86-64 libgsm.a that FFmpeg's
+# armhf link then rejects ("libgsm not found"). Native linux/musl leave CROSS_HOST empty → gcc.
+gsm_cc="${CC:-${CROSS_HOST:+${CROSS_HOST}-}gcc}"
+gsm_ar="${AR:-${CROSS_HOST:+${CROSS_HOST}-}ar}"
+gsm_ranlib="${RANLIB:-${CROSS_HOST:+${CROSS_HOST}-}ranlib}"
 make -j"$(${NPROC})" lib/libgsm.a \
-  CC="${CC:-cc} -fPIC ${EXTRA_CFLAGS:-}" \
-  AR="${AR:-ar}" ARFLAGS="cr" \
-  RANLIB="${RANLIB:-ranlib}"
+  CC="${gsm_cc} -fPIC ${EXTRA_CFLAGS:-}" \
+  AR="${gsm_ar}" ARFLAGS="cr" \
+  RANLIB="${gsm_ranlib}"
 
 # Manual install — the Makefile has no `install` target we can rely on.
 mkdir -p "${DEPS_DIR}/lib" "${DEPS_DIR}/include"

@@ -41,14 +41,19 @@ _7 of 23 built._
 | Xvid — MPEG-4 ASP (GPL) |  | — | — | — | — | — | — | — | — | — | — |
 
 ### Audio codecs  
-_4 of 19 built._
+_9 of 22 built._
 
 | Feature | Version | lin-x64 | lin-a64 | lin-hf | musl | win | osx-x64 | osx-a64 | android | ios | ios-sim |
 |---|---|---|---|---|---|---|---|---|---|---|---|
+| libgsm — GSM | 1.0.22 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | libmp3lame — MP3 encode | 3.100 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | libopus — Opus | v1.6.1 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | n/a |
 | libvorbis — Vorbis | v1.3.7 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| OpenCORE — AMR-NB en/decode | 0.1.6 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| OpenCORE — AMR-WB decode | 0.1.6 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | SoX resampler | 0.1.3 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Speex — speech | Speex-1.2.1 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| VisualOn — AMR-WB encode | 0.1.3 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | bs2b — stereo→binaural |  | — | — | — | — | — | — | — | — | — | — |
 | CELT — audio (legacy) |  | — | — | — | — | — | — | — | — | — | — |
 | Codec2 — low-bitrate speech |  | — | — | — | — | — | — | — | — | — | — |
@@ -56,13 +61,11 @@ _4 of 19 built._
 | Game Music Emu |  | — | — | — | — | — | — | — | — | — | — |
 | iLBC — speech |  | — | — | — | — | — | — | — | — | — | — |
 | LC3 — Bluetooth audio |  | — | — | — | — | — | — | — | — | — | — |
-| libgsm — GSM |  | — | — | — | — | — | — | — | — | — | — |
 | libmodplug — tracker music |  | — | — | — | — | — | — | — | — | — | — |
 | libmysofa — SOFA HRTF |  | — | — | — | — | — | — | — | — | — | — |
 | libopenmpt — tracker music |  | — | — | — | — | — | — | — | — | — | — |
 | Rubber Band — time-stretch/pitch (GPL) |  | — | — | — | — | — | — | — | — | — | — |
 | Shine — fixed-point MP3 |  | — | — | — | — | — | — | — | — | — | — |
-| Speex — speech |  | — | — | — | — | — | — | — | — | — | — |
 | TwoLAME — MP2 encode |  | — | — | — | — | — | — | — | — | — | — |
 
 ### Images / subtitles / text  
@@ -87,15 +90,15 @@ _8 of 15 built._
 | Tesseract — OCR |  | — | — | — | — | — | — | — | — | — | — |
 
 ### Processing  
-_4 of 19 built._
+_5 of 19 built._
 
 | Feature | Version | lin-x64 | lin-a64 | lin-hf | musl | win | osx-x64 | osx-a64 | android | ios | ios-sim |
 |---|---|---|---|---|---|---|---|---|---|---|---|
+| Chromaprint — audio fingerprint | v1.6.1 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | libplacebo — GPU processing | v7.360.1 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | n/a |
 | libvmaf — VMAF quality metric | v3.2.0 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Little CMS — color management | lcms2.19.1 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | zimg — scaling/colorspace | release-3.0.6 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Chromaprint — audio fingerprint |  | — | — | — | — | — | — | — | — | — | — |
 | frei0r — effect plugins (GPL) |  | — | — | — | — | — | — | — | — | — | — |
 | glslang — shader compile |  | — | — | — | — | — | — | — | — | — | — |
 | LADSPA — audio plugins |  | — | — | — | — | — | — | — | — | — | — |
@@ -120,22 +123,24 @@ _1 of 2 built._
 | PocketSphinx — speech recognition |  | — | — | — | — | — | — | — | — | — | — |
 
 ### Networking / streaming / TLS  
-_3 of 12 built._
+_5 of 14 built._
 
 | Feature | Version | lin-x64 | lin-a64 | lin-hf | musl | win | osx-x64 | osx-a64 | android | ios | ios-sim |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | OpenSSL — TLS/https[^tls] | openssl-3.5.7 | ✓ | ✓ | ✓ | ✓ | — | — | — | ✓ | — | — |
+| RIST — reliable stream | v0.2.20 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | SChannel — TLS/https (OS-native)[^tls] |  | n/a | n/a | n/a | n/a | ✓ | n/a | n/a | n/a | n/a | n/a |
 | SecureTransport — TLS/https (OS-native)[^tls] |  | n/a | n/a | n/a | n/a | n/a | ✓ | ✓ | n/a | ✓ | ✓ |
+| SRT — secure transport | v1.5.7 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| GMP — bignum (GnuTLS dep; not enabled as an FFmpeg lib) |  | — | — | — | — | — | — | — | — | — | — |
 | GnuTLS — TLS/https[^tls] |  | — | — | — | — | — | — | — | — | — | — |
 | libgcrypt — crypto |  | — | — | — | — | — | — | — | — | — | — |
 | librtmp — RTMP |  | — | — | — | — | — | — | — | — | — | — |
 | libssh — SFTP |  | — | — | — | — | — | — | — | — | — | — |
 | libtls (LibreSSL) — TLS |  | — | — | — | — | — | — | — | — | — | — |
+| mbedTLS — SRT/librist transport crypto (not FFmpeg's own TLS backend) |  | — | — | — | — | — | — | — | — | — | — |
 | RabbitMQ — AMQP |  | — | — | — | — | — | — | — | — | — | — |
-| RIST — reliable stream |  | — | — | — | — | — | — | — | — | — | — |
 | SMB/CIFS |  | — | — | — | — | — | — | — | — | — | — |
-| SRT — secure transport |  | — | — | — | — | — | — | — | — | — | — |
 
 ### Hardware acceleration  
 _16 of 23 built._
@@ -167,7 +172,7 @@ _16 of 23 built._
 | VDPAU |  | — | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
 
 ### Other / miscellaneous  
-_3 of 19 built._
+_3 of 22 built._
 
 | Feature | Version | lin-x64 | lin-a64 | lin-hf | musl | win | osx-x64 | osx-a64 | android | ios | ios-sim |
 |---|---|---|---|---|---|---|---|---|---|---|---|
@@ -178,16 +183,19 @@ _3 of 19 built._
 | FireWire capture |  | — | — | — | — | — | — | — | — | — | — |
 | JACK — audio I/O |  | — | — | — | — | — | — | — | — | — | — |
 | KLV/VANC |  | — | — | — | — | — | — | — | — | — | — |
+| libaribb24 |  | — | — | — | — | — | — | — | — | — | — |
 | libbluray — Blu-ray input |  | — | — | — | — | — | — | — | — | — | — |
 | libcaca — ASCII-art output |  | — | — | — | — | — | — | — | — | — | — |
 | libcdio — CD input (GPL) |  | — | — | — | — | — | — | — | — | — | — |
 | libdc1394 — IIDC cameras |  | — | — | — | — | — | — | — | — | — | — |
 | libdvdnav — DVD nav (GPL) |  | — | — | — | — | — | — | — | — | — | — |
 | libdvdread — DVD read (GPL) |  | — | — | — | — | — | — | — | — | — | — |
+| liblensfun |  | — | — | — | — | — | — | — | — | — | — |
 | OpenAL — audio capture |  | — | — | — | — | — | — | — | — | — | — |
 | OpenGL — output |  | — | — | — | — | — | — | — | — | — | — |
 | PulseAudio — audio I/O |  | — | — | — | — | — | — | — | — | — | — |
 | quirc — QR decode |  | — | — | — | — | — | — | — | — | — | — |
+| rkmpp |  | — | — | — | — | — | — | — | — | — | — |
 | Video4Linux2 |  | — | — | — | — | — | — | — | — | — | — |
 | Vulkan (static ICD) |  | — | — | — | — | — | — | — | — | — | — |
 

@@ -53,6 +53,12 @@ if [[ "${RID}" == win-* ]]; then
   echo "Patching pkg-config files for static GCC runtime linking..."
   for pc in "${DEPS_DIR}"/lib/pkgconfig/*.pc; do
     [ -f "$pc" ] || continue
+    # Strip -lgcc_s wherever a dep over-captured the implicit compiler link line into Libs.private
+    # (SRT's srt.pc does this). -lgcc_s pulls the SHARED gcc unwinder (libgcc_s_seh-1.dll), which
+    # both adds a runtime DLL dep and collides with the static libgcc_eh that -static-libgcc pulls
+    # → "multiple definition of _Unwind_Resume" at the DLL link. Idempotent; must run BEFORE the
+    # -Bstatic skip below, since srt.pc already carries -Bstatic (so the skip would pass it over).
+    sed -i -e 's/ -lgcc_s / /g' -e 's/ -lgcc_s$//' "$pc"
     grep -q -- '-Wl,-Bstatic' "$pc" && continue
     sed -i \
       -e 's/-lpthread/-Wl,-Bstatic -lpthread -Wl,-Bdynamic/g' \

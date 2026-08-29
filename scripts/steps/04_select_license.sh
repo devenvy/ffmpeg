@@ -50,6 +50,20 @@ case "${LICENSE_VERSION}" in
     BUILD_VULKAN=0
     # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     BUILD_VULKAN_LOADER=0
+    # AMR (opencore-amr + vo-amrwbenc) is Apache-2.0 → version3-only; drop on the v2 series.
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
+    BUILD_LIBOPENCORE_AMR=0
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
+    BUILD_LIBVOAMRWBENC=0
+    # mbedTLS is Apache-2.0 → version3-only: drop it on v2 and default the SRT/librist transport
+    # crypto to nocrypto. The gpl-2 Linux/Android cells override to GnuTLS in the TLS block below;
+    # every other v2 cell (lgpl-2 everywhere + gpl-2 Win/Apple) has no v2-compatible crypto lib.
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
+    BUILD_MBEDTLS=0
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
+    SRT_ENCLIB=off
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
+    RIST_CRYPTO=none
     [[ "${WHISPER_BACKEND}" == "vulkan" ]] && WHISPER_BACKEND="cpu"   # Apple is already metal
     # TLS for v2 on Linux/Android, where OpenSSL (Apache-2.0) can't be used without version3.
     # (Windows/Apple never had OpenSSL — they keep OS-native SChannel/SecureTransport.)
@@ -62,6 +76,12 @@ case "${LICENSE_VERSION}" in
     #              Linux/Android therefore ships without https/tls.
     if [[ "${BUILD_OPENSSL:-0}" == "1" ]]; then
       BUILD_OPENSSL=0
+      # gpl-2: GnuTLS provides FFmpeg's HTTPS/TLS. The SRT + librist transports, however, both
+      # ship nocrypto on gpl-2 (SRT_ENCLIB/RIST_CRYPTO keep the v2-default off/none set above) —
+      # NEITHER can use GnuTLS: SRT's gnutls enclib compiles against nettle's removed legacy AES
+      # API (struct aes_ctx / aes_encrypt, gone since nettle 3.4), and librist's gnutls EAP/SRP
+      # path won't compile (its verifier types are mbedTLS-only). Both v2-permissible alternatives
+      # (openssl, mbedtls) are Apache-2.0/version3. So only the v3 lane gets transport crypto.
       # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
       [[ "${LICENSE}" == "gpl" ]] && BUILD_GNUTLS=1   # lgpl-2: leave TLS off for LGPLv2.1 purity
     fi

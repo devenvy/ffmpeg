@@ -37,6 +37,10 @@ D="${ROOT_DIR}/scripts/deps"
 . "${D}/libvorbis.sh"    # Vorbis audio
 . "${D}/opus.sh"         # Opus audio
 . "${D}/libmp3lame.sh"   # MP3 audio encoder
+. "${D}/speex.sh"        # Speex speech codec (--enable-libspeex)
+. "${D}/libgsm.sh"       # GSM 06.10 speech codec (--enable-libgsm)
+. "${D}/opencore-amr.sh" # AMR-NB/WB (--enable-libopencore-amrnb/-amrwb; v3 only)
+. "${D}/vo-amrwbenc.sh"  # AMR-WB encoder (--enable-libvo-amrwbenc; v3 only)
 . "${D}/soxr.sh"         # high-quality audio resampling (soxr backend for aresample)
 . "${D}/aom.sh"          # AV1 reference encoder/decoder (libaom)
 . "${D}/svtav1.sh"       # fast AV1 encoder (SVT-AV1)
@@ -51,9 +55,16 @@ D="${ROOT_DIR}/scripts/deps"
 . "${D}/nettle.sh"       #   crypto (nettle/hogweed; needs GMP)
 . "${D}/libtasn1.sh"     #   ASN.1
 . "${D}/gnutls.sh"       #   GnuTLS (needs the three above; appends --enable-gnutls)
+# Network transports. mbedTLS is the shared v3 transport crypto; both consume it (or GnuTLS on
+# gpl-2 Linux/Android, or nocrypto). Sourced after both TLS backends so either is available.
+. "${D}/mbedtls.sh"      # transport crypto (v3 only) — SRT + librist encryption (no FFmpeg flag)
+. "${D}/libsrt.sh"       # SRT transport (--enable-libsrt; enclib per cell)
+. "${D}/librist.sh"      # RIST transport (--enable-librist; crypto per cell)
 . "${D}/brotli.sh"       # compression — libjxl dependency (no FFmpeg flag)
 . "${D}/highway.sh"      # SIMD — libjxl dependency (no FFmpeg flag)
 . "${D}/libjxl.sh"       # JPEG XL (--enable-libjxl; needs brotli + highway + lcms2)
+. "${D}/kissfft.sh"      # small FFT — chromaprint dependency (no FFmpeg flag)
+. "${D}/chromaprint.sh"  # audio fingerprinting (--enable-chromaprint; needs kissfft)
 . "${D}/vulkan-headers.sh"  # Vulkan headers (FFmpeg hwaccel/filters + whisper's ggml backend)
 . "${D}/vulkan-loader.sh"   # (glibc Linux / macOS) libc-only loader to bundle — needs headers above
 . "${D}/moltenvk.sh"        # MoltenVK Vulkan-over-Metal ICD (v3 macOS only; pairs with the loader)

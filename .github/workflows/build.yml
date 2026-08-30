@@ -130,7 +130,12 @@ jobs:
           name: ${{ env.VARIANT }}
           path: artifacts/${{ matrix.rid }}/native
           if-no-files-found: error
-          retention-days: 1
+          # 5, not 1: the release workflow reuses these build artifacts in its publish jobs, and a
+          # full release run (80 build cells + tests, queuing on scarce macOS runners) can take
+          # ~24h end-to-end. At retention-days:1 the earliest-finishing artifacts (e.g. the lean
+          # ios-sim slice) expired before publish could download them → "Artifact not found". Five
+          # days gives comfortable margin over the longest observed run; they're throwaway either way.
+          retention-days: 5
 
       - uses: actions/upload-artifact@v7
         if: failure()

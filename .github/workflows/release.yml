@@ -125,6 +125,7 @@ jobs:
     needs: [prepare, build, test, test-mobile]
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false   # create every line's release even if a sibling fails
       matrix:
         build: ${{ fromJson(needs.prepare.outputs.builds) }}
     steps:
@@ -160,6 +161,9 @@ jobs:
     permissions:
       contents: write
     strategy:
+      fail-fast: false   # one cell's failure must NOT cancel the rest — a partial release beats
+                         # an empty one, and a real bug then shows in every affected cell, not just
+                         # the first to hit it (which is what masked the relink_so bug as 2 failures).
       matrix:
         build: ${{ fromJson(needs.prepare.outputs.builds) }}
         rid: [linux-x64, linux-arm64, linux-armhf, linux-musl-x64, win-x64, osx-x64, osx-arm64, android-arm64]
@@ -192,6 +196,8 @@ jobs:
               [ -n "$full" ] || continue
               for f in "$link" "${stem}".so.*; do [ -e "$f" ] && [ "$f" != "$full" ] && ln -sf "$full" "$f"; done
             done
+            return 0   # the final loop's last test ([ "$f" != "$full" ]) is falsy → without this
+                       # the function returns 1 and `set -e` (bash -e) kills the step silently.
           }
           relink_dylib() { # Mach-O: libfoo.dylib (bare linker alias), libfoo.MAJOR.dylib (real)
             local link stem f full
@@ -202,6 +208,7 @@ jobs:
               for f in "${stem}".*.dylib; do [ -e "$f" ] || continue; { [ -z "$full" ] || [ "${#f}" -gt "${#full}" ]; } && full="$f"; done
               [ -n "$full" ] && ln -sf "$full" "$link"
             done
+            return 0   # last iteration's `[ -n "$full" ] && ln` can be falsy → same set -e trap as relink_so.
           }
           # Runtime tarball = binaries + shared libraries + legal ONLY. Dev files
           # (headers, and Windows import libs) go in a separate -dev tarball so the
@@ -259,6 +266,7 @@ jobs:
     permissions:
       contents: write
     strategy:
+      fail-fast: false   # don't let one iOS cell's failure cancel the others
       matrix:
         build: ${{ fromJson(needs.prepare.outputs.builds) }}
         license: [lgpl, gpl]

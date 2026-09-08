@@ -30,6 +30,15 @@ export DYLD_LIBRARY_PATH="${DIR}${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
 if [ "$(uname -s)" = Darwin ] && [ "$(uname -m)" = "$TARCH" ]; then
   # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
   RUNNER=(); info "running functional suite natively"; run_functional
+  # Vulkan is v3-only (MoltenVK + Vulkan-Headers are Apache-2.0). Where we ship it, it must work:
+  # the runner has Metal, so a failure here is a real defect, not a missing-device artefact.
+  # Placed here (not immediately after the earlier check_config calls) because assert_vulkan_device
+  # uses RUNNER/FFMPEG, which are only valid once this native-execution branch has set them —
+  # calling it earlier would dereference an unset RUNNER under `set -u` on a structural-only run.
+  case " ${CONFIG_STR} " in
+    *" --enable-vulkan "*) assert_vulkan_device ;;
+    *)                     check_config_absent "--enable-vulkan" "Vulkan (v2: dropped)" ;;
+  esac
 else
   # Never green-wash an unexecuted target: in CI macOS runs on a native Darwin runner, so reaching
   # here means a real capability gap (wrong host / arch mismatch), which must fail rather than skip.

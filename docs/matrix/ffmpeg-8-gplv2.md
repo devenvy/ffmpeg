@@ -144,18 +144,18 @@ _15 of 23 built._
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | AMF (AMD) | c35f613ae | n/a | n/a | n/a | n/a | n/a | ✓ | n/a | n/a | n/a | n/a | n/a | n/a |
 | AudioToolbox |  | n/a | n/a | n/a | n/a | n/a | n/a | ✓ | ✓ | n/a | n/a | n/a | n/a |
-| CUDA |  | ✓ | ✓ | — | ✓ | — | ✓ | n/a | n/a | n/a | n/a | n/a | n/a |
-| CUVID (NVIDIA decode) |  | ✓ | ✓ | — | ✓ | — | ✓ | n/a | n/a | n/a | n/a | n/a | n/a |
+| CUDA |  | ✓ | ✓ | — | ✓ | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a | n/a |
+| CUVID (NVIDIA decode) |  | ✓ | ✓ | — | ✓ | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a | n/a |
 | D3D11VA |  | n/a | n/a | n/a | n/a | n/a | ✓ | n/a | n/a | n/a | n/a | n/a | n/a |
 | DXVA2 |  | n/a | n/a | n/a | n/a | n/a | ✓ | n/a | n/a | n/a | n/a | n/a | n/a |
-| ffnvcodec headers | n13.1.15.0 | ✓ | ✓ | — | ✓ | — | ✓ | n/a | n/a | n/a | n/a | n/a | n/a |
-| libdrm |  | ✓ | ✓ | — | ✓ | — | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
+| ffnvcodec headers | n13.1.15.0 | ✓ | ✓ | — | ✓ | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a | n/a |
+| libdrm |  | ✓ | ✓ | — | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
 | MediaFoundation |  | n/a | n/a | n/a | n/a | n/a | ✓ | n/a | n/a | n/a | n/a | n/a | n/a |
-| NVDEC (NVIDIA decode) |  | ✓ | ✓ | — | ✓ | — | ✓ | n/a | n/a | n/a | n/a | n/a | n/a |
-| NVENC (NVIDIA encode) |  | ✓ | ✓ | — | ✓ | — | ✓ | n/a | n/a | n/a | n/a | n/a | n/a |
+| NVDEC (NVIDIA decode) |  | ✓ | ✓ | — | ✓ | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a | n/a |
+| NVENC (NVIDIA encode) |  | ✓ | ✓ | — | ✓ | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a | n/a |
 | QSV (oneVPL) | v2.17.0 | ✓ | — | — | ✓ | — | ✓ | n/a | n/a | n/a | n/a | n/a | n/a |
-| V4L2-M2M |  | ✓ | ✓ | ✓ | — | — | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
-| VAAPI | 2.24.1 | ✓ | ✓ | — | ✓ | — | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
+| V4L2-M2M |  | ✓ | ✓ | ✓ | — | ✓ | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
+| VAAPI | 2.24.1 | ✓ | ✓ | — | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
 | VideoToolbox |  | n/a | n/a | n/a | n/a | n/a | n/a | ✓ | ✓ | n/a | n/a | ✓ | ✓ |
 | CUDA (LLVM/NVVM) |  | — | — | — | — | — | — | n/a | n/a | n/a | n/a | n/a | n/a |
 | D3D12VA[^d3d12] |  | n/a | n/a | n/a | n/a | n/a | — | n/a | n/a | n/a | n/a | n/a | n/a |
@@ -171,9 +171,9 @@ _3 of 19 built._
 
 | Feature | Version | lin-x64 | lin-a64 | lin-hf | musl | musl-a64 | win | osx-x64 | osx-a64 | android | android-x64 | ios | ios-sim |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| JNI (Android bridge) |  | — | — | — | — | — | — | — | — | ✓ | — | — | — |
+| JNI (Android bridge) |  | — | — | — | — | — | — | — | — | ✓ | ✓ | — | — |
 | libxml2 — DASH/IMF parse | v2.15.3 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| MediaCodec (Android) |  | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | ✓ | — | n/a | n/a |
+| MediaCodec (Android) |  | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | ✓ | ✓ | n/a | n/a |
 | AviSynth — frameserver (GPL) |  | — | — | — | — | — | — | — | — | — | — | — | — |
 | FireWire capture |  | — | — | — | — | — | — | — | — | — | — | — | — |
 | JACK — audio I/O |  | — | — | — | — | — | — | — | — | — | — | — | — |

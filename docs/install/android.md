@@ -10,14 +10,24 @@ Vulkan and no TLS backend (see the [runtime-dependency overview](./README.md#run
 
 ## Install
 
-**Android** (`ffmpeg-{VERSION}-android-arm64-lgplv3.tar.gz`) — a tarball with:
+**Android** (`ffmpeg-{VERSION}-android-arm64-lgplv3.tar.gz` / `ffmpeg-{VERSION}-android-x64-lgplv3.tar.gz`)
+— a tarball with:
 - `include/` — the `libav*` headers to compile against.
-- `lib/arm64-v8a/*.so` — shared libraries with unversioned sonames; drop them into your
-  module's `src/main/jniLibs/arm64-v8a/` (or point `jniLibs.srcDirs` at `lib/`).
+- `lib/arm64-v8a/*.so` (from `android-arm64`) or `lib/x86_64/*.so` (from `android-x64`) — shared
+  libraries with unversioned sonames; drop them into your module's `src/main/jniLibs/<abi>/` (or
+  point `jniLibs.srcDirs` at `lib/`).
 - `legal/` — the LGPL text plus each bundled dependency's license under `legal/licenses/<dep>/`
   (ship it).
 
-The `lib/arm64-v8a/` folder includes **`libc++_shared.so`**. `libavcodec`/`libavfilter`
+`android-arm64` is what you ship to devices; `android-x64` exists for **emulators** — every
+Android emulator image on an x86_64 host is x86_64, so this is the slice you need to run the
+libraries on a Windows or Linux development machine. Ship both ABIs in your APK/AAB (or let
+Gradle's ABI splits do it) and the right one is selected per device.
+
+32-bit `armeabi-v7a` is not built. See
+[future platforms](../future-platforms.md) if you need it.
+
+Each ABI folder includes **`libc++_shared.so`**. `libavcodec`/`libavfilter`
 depend on it at runtime — the codec libraries built from C++ (OpenH264, libass, whisper.cpp)
 are linked with `c++_shared`, so the shared NDK C++ runtime must ship alongside them or the app
 crashes on load. Keep it in `jniLibs`. If your app (or another native dependency) already

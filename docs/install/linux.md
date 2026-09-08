@@ -44,6 +44,10 @@ falls back to CPU, so treat drivers as optional `Recommends`, never a hard depen
 apk add libva libdrm libvpl vulkan-loader
 ```
 
+`linux-musl-arm64` is the Alpine-on-ARM build — AWS Graviton, Ampere, and Docker Desktop on
+Apple Silicon (which defaults to arm64 containers). Same self-contained story as
+`linux-musl-x64`: `apk add libstdc++ libgcc` is the only runtime requirement.
+
 TLS and Vulkan availability depend on which license cell you picked — see the cross-platform
 [TLS and the license cell](./README.md#runtime-dependencies) overview.
 

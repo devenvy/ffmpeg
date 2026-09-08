@@ -32,7 +32,10 @@ load_config_string "${FWDIR}/libavutil.framework/libavutil" "${FWDIR}/libavcodec
 # app bundle. --enable-vulkan-static makes FFmpeg call vkGetInstanceProcAddr directly.
 case " ${CONFIG_STR} " in
   *" --enable-version3 "*)
-    check_config "--enable-vulkan" "Vulkan"
+    # Only the -static flag is asserted: lib.sh's check_config pattern matches INSIDE
+    # "--enable-vulkan-static", so a separate "--enable-vulkan" check here could never fail
+    # and would manufacture confidence. FFmpeg declares vulkan_static_deps="vulkan", so
+    # --enable-vulkan-static cannot be accepted unless Vulkan is enabled — coverage is kept.
     check_config "--enable-vulkan-static" "Vulkan statically linked (MoltenVK)"
     ;;
   *)

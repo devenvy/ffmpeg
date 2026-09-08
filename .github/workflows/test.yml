@@ -52,9 +52,12 @@ jobs:
           - rid: linux-musl-x64
             runner: ubuntu-latest
             container: alpine:latest
+          # No container: here (unlike linux-musl-x64) — GitHub only supports
+          # JavaScript actions in Alpine containers on x64 runners, so this RID
+          # instead docker-runs alpine:latest itself in the Test artifact step
+          # below, keeping actions/checkout etc. on the host's glibc Node runtime.
           - rid: linux-musl-arm64
             runner: ubuntu-24.04-arm
-            container: alpine:latest
           - rid: win-x64
             runner: windows-latest
           - rid: osx-x64
@@ -141,8 +144,22 @@ jobs:
       - name: Test artifact
         shell: bash
         run: |
+          set -euo pipefail
           chmod +x scripts/test.sh scripts/test/*.sh
-          bash scripts/test.sh "${BUILD_RID}" "artifacts/${BUILD_RID}/native"
+          if [[ "${BUILD_RID}" == "linux-musl-arm64" ]]; then
+            # Same reasoning as the build job: GitHub only supports JavaScript
+            # actions in Alpine containers on x64 runners, so this arm64 runner
+            # docker-runs alpine:latest for the test itself instead of using
+            # `container:` on the job (which breaks actions/checkout — see
+            # linux-musl-x64, which stays on `container:` because its x64
+            # runner *is* supported).
+            docker run --rm -v "${PWD}:/work" -w /work \
+              -e BUILD_RID -e WHISPER_MODEL \
+              alpine:latest \
+              sh -c 'apk add --no-cache bash git file binutils libstdc++ libgcc curl && chmod +x scripts/test.sh scripts/test/*.sh && bash scripts/test.sh "${BUILD_RID}" "artifacts/${BUILD_RID}/native"'
+          else
+            bash scripts/test.sh "${BUILD_RID}" "artifacts/${BUILD_RID}/native"
+          fi
 
   # Gate job — single required status check for branch protection.
   all-tests:

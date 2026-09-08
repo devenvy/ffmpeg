@@ -41,9 +41,12 @@ jobs:
           - rid: linux-musl-x64
             runner: ubuntu-latest
             container: alpine:latest
+          # No container: here (unlike linux-musl-x64) — GitHub only supports
+          # JavaScript actions in Alpine containers on x64 runners, so this RID
+          # instead docker-runs alpine:latest itself in the build step below,
+          # keeping actions/checkout etc. on the host's glibc Node runtime.
           - rid: linux-musl-arm64
             runner: ubuntu-24.04-arm
-            container: alpine:latest
           - rid: win-x64
             runner: ubuntu-latest
           - rid: osx-x64
@@ -122,6 +125,24 @@ jobs:
               -e SOURCE_REPO_URL -e SOURCE_REPO_REF \
               "quay.io/pypa/manylinux_2_28_${MANYLINUX_ARCH}" \
               bash -c 'chmod +x scripts/build.sh && ./scripts/build.sh' \
+              2>&1 | tee "artifacts/${BUILD_RID}/logs/build.log"
+            # Container ran as root — hand the outputs back to the runner user so the
+            # host-side test/upload steps can read/clean them.
+            sudo chown -R "$(id -u):$(id -g)" artifacts .build 2>/dev/null || true
+          elif [[ "${BUILD_RID}" == "linux-musl-arm64" ]]; then
+            # Same reasoning as linux-x64/linux-arm64 above, but for musl: GitHub
+            # only supports JavaScript actions in Alpine containers on x64 runners,
+            # so this arm64 runner docker-runs alpine:latest for the build itself
+            # rather than using `container:` on the job (which breaks actions/checkout
+            # here — see linux-musl-x64, which stays on `container:` because its
+            # x64 runner *is* supported). BUILD_CONTAINER is intentionally NOT set
+            # to manylinux — 03_install_packages.sh must still take its
+            # linux-musl-* apk branch inside this container.
+            docker run --rm -v "${PWD}:/work" -w /work \
+              -e BUILD_RID -e BUILD_LICENSE -e BUILD_LICENSE_VERSION -e FFMPEG_VERSION \
+              -e SOURCE_REPO_URL -e SOURCE_REPO_REF \
+              alpine:latest \
+              sh -c 'apk add --no-cache bash git file jq && chmod +x scripts/build.sh && ./scripts/build.sh' \
               2>&1 | tee "artifacts/${BUILD_RID}/logs/build.log"
             # Container ran as root — hand the outputs back to the runner user so the
             # host-side test/upload steps can read/clean them.

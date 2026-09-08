@@ -34,7 +34,7 @@ check_smoke_link "${CC} -arch arm64 -mios-simulator-version-min=13.0 -isysroot $
   -framework VideoToolbox -framework AudioToolbox -framework CoreMedia \
   -framework CoreVideo -framework CoreFoundation -framework CoreServices \
   -framework Security -framework Foundation -framework Metal -framework MetalKit \
-  -framework Accelerate -framework QuartzCore || finish
+  -framework Accelerate -framework QuartzCore -framework IOSurface || finish
 
 OUT="$(xcrun simctl spawn booted /tmp/smoke_ios 2>&1; echo EXIT=$?)"
 echo "$OUT"

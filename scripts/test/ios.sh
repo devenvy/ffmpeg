@@ -118,7 +118,7 @@ if command -v xcrun >/dev/null 2>&1; then
     -framework VideoToolbox -framework AudioToolbox -framework CoreMedia \
     -framework CoreVideo -framework CoreFoundation -framework CoreServices \
     -framework Security -framework Foundation -framework Metal -framework MetalKit \
-    -framework Accelerate -framework QuartzCore \
+    -framework Accelerate -framework QuartzCore -framework IOSurface \
     -lc++ -liconv -lz
 else
   skip "smoke link: Xcode/xcrun not available (run in the macOS build job)"

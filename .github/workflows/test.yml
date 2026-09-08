@@ -69,7 +69,7 @@ jobs:
 
     steps:
       - name: Bootstrap Alpine container
-        if: matrix.rid == 'linux-musl-x64'
+        if: matrix.container
         # file: arch check. binutils: nm for symbol checks. libstdc++/libgcc: whisper's
         # C++ runtime, which the (shared) libav* link — a standard runtime dep present on
         # any real musl host (`apk add libstdc++ libgcc`), not something we can avoid.

@@ -72,13 +72,13 @@ for RID in "${RIDS[@]}"; do
     # on license VERSION, not family; only lgplv2 gets neither token). The first grep matches
     # whichever of those is present, or nothing on lgplv2; either way the second grep (which
     # filters license/generic tokens out) is left with nothing to pass and exits 1 under
-    # pipefail+set -e. Braced `|| true` on each grep tolerates ONLY that exit-1-on-no-match
-    # case, per stage, so a real sed/tr failure still aborts the script. Once every RID has
-    # real CONFIGURE_FLAGS this guard is unreachable — it documents grep's semantics, not a
-    # permanent condition.
+    # pipefail+set -e. Each grep stage is guarded to tolerate ONLY exit 1 (no match); exit 2
+    # (a real grep error — invalid regex, read error) still propagates and aborts the script,
+    # as does a real sed/tr failure. Once every RID has real CONFIGURE_FLAGS this guard is
+    # unreachable — it documents grep's semantics, not a permanent condition.
     hw=$(printf '%s\n' "${CONFIGURE_FLAGS[@]}" \
-         | { grep -oE '^--enable-[a-z0-9_-]+' || true; } | sed 's/--enable-//' \
-         | { grep -vE '^(cross-compile|gpl|version3|hwaccel|decoder|encoder|shared|static|pic|pthreads|w32threads)$' || true; } \
+         | { grep -oE '^--enable-[a-z0-9_-]+' || [ "$?" -eq 1 ]; } | sed 's/--enable-//' \
+         | { grep -vE '^(cross-compile|gpl|version3|hwaccel|decoder|encoder|shared|static|pic|pthreads|w32threads)$' || [ "$?" -eq 1 ]; } \
          | tr '\n' ' ')
     flags=""
     for v in ${!BUILD_@}; do [ "${!v}" = 1 ] && flags="$flags ${v}"; done

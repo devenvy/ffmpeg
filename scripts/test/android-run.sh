@@ -25,6 +25,7 @@ case "$RID" in
   android-x64)   ABI=x86_64;    CLANG_TRIPLE=x86_64-linux-android  ;;
   *) echo "android-run.sh: unexpected RID $RID" >&2; exit 2 ;;
 esac
+# keep in sync with scripts/platform/android.sh (API=)
 NDK_API=28
 LIBDIR="${DIR}/lib/${ABI}"
 

@@ -23,6 +23,7 @@ case "$RID" in
   android-x64)   ABI=x86_64;    ARCH_RE='ELF 64-bit.*x86-64';      CLANG_TRIPLE=x86_64-linux-android   ;;
   *) echo "android.sh: unexpected RID $RID" >&2; exit 2 ;;
 esac
+# keep in sync with scripts/platform/android.sh (API=)
 NDK_API=28
 LIBDIR="${DIR}/lib/${ABI}"
 info "Android structural checks (${RID}, ${LIBDIR})"

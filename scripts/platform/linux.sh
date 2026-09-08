@@ -152,12 +152,18 @@ case "${RID}" in
   linux-musl-arm64)
     # musl/Alpine on ARM64 — native build inside the Alpine container on an arm64 runner.
     # The intersection of linux-musl-x64 (apk toolchain, static hwaccel dispatch libs so the
-    # artifact starts on a stock musl system) and linux-arm64 (no QSV — libvpl is x86-only).
+    # artifact starts on a stock musl system) and linux-arm64 (no QSV — libvpl is x86-only),
+    # plus V4L2-M2M from linux-arm64, which musl-x64 does not carry.
     # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     PKGS_APK=(autoconf automake libtool build-base cmake curl diffutils gperf git linux-headers
-              m4 meson nasm ninja patchelf perl pkgconf xz yasm xxd
+              m4 meson ninja patchelf perl pkgconf xz xxd
               glslang shaderc)
     # (m4 for GMP's configure; xxd for libvmaf's model embedding — see linux-musl-x64.)
+    # nasm/yasm are DELIBERATELY dropped here (unlike the linux-musl-x64 list this block was
+    # otherwise copied from): both are x86-only assemblers, aarch64 targets use gas instead, and
+    # 03_install_packages.sh runs `apk add --no-cache "${PKGS_APK[@]}"` as ONE call — a package
+    # missing from Alpine's aarch64 repo would hard-fail the whole install for a tool this RID
+    # never uses.
     CONFIGURE_FLAGS+=(
       --enable-cuda --enable-cuvid --enable-nvenc --enable-nvdec --enable-ffnvcodec
       --enable-vaapi --enable-libdrm

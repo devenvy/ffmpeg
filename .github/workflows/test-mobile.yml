@@ -9,8 +9,10 @@ name: Test (mobile)
 #   1. ABI link-check — compile the smoke program against the built libraries
 #      (toolchain present on the runner); proves no undefined symbols. Runs for
 #      every RID x license.
-#   2. Runtime — actually execute on an arm64 emulator (Android) / simulator (iOS).
-#      Runtime is license-independent, so it runs once per platform (lgpl).
+#   2. Runtime — actually execute on an emulator (Android) / simulator (iOS). The Android
+#      emulator is x86_64: android-x64 runs on it natively, android-arm64 runs via the
+#      API-35 image's native bridge (translated). Runtime is license-independent, so it
+#      runs once per platform (lgpl).
 # Chained after build.yml by ci.yml and release.yml.
 
 permissions:
@@ -120,9 +122,9 @@ jobs:
             echo "WARNING: /dev/kvm absent — emulator will be un-accelerated"
           fi
 
-      # Android runtime smoke — KVM-accelerated x86_64 emulator whose API-35 image translates our
-      # arm64 code (native bridge). GATING. Boots in ~40s; arm64 binary runs via translation; the
-      # remaining work is on-device native-lib resolution (see android-run.sh / the handoff).
+      # Android runtime smoke — KVM-accelerated x86_64 emulator. GATING. Boots in ~40s; android-x64
+      # runs natively on it, android-arm64 runs via the API-35 image's native bridge (translated);
+      # the remaining work is on-device native-lib resolution (see android-run.sh / the handoff).
       - name: Android emulator runtime smoke
         if: startsWith(matrix.rid, 'android-') && matrix.license == 'lgpl'
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2

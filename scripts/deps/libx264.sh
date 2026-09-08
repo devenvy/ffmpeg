@@ -29,6 +29,9 @@ if [[ "${BUILD_LIBX264}" == "1" ]]; then
     android-arm64)
       X264_ARGS+=(--host=aarch64-linux-android --sysroot="${TOOLCHAIN}/sysroot")
       ;;
+    android-x64)
+      X264_ARGS+=(--host=x86_64-linux-android --sysroot="${TOOLCHAIN}/sysroot")
+      ;;
     ios-arm64)
       # Device only (sim slice is lean). The iOS arch/min-version/sysroot must
       # reach the ASM too (--extra-asflags) or x264's asm objects are tagged

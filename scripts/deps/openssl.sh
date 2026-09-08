@@ -34,6 +34,15 @@ clone_dep openssl "${WORK_DIR}/openssl"
       export PATH="${TOOLCHAIN}/bin:${PATH}"
       OSSL_OPTS+=("-D__ANDROID_API__=${API}")
       ;;
+    android-x64)
+      OSSL_TARGET=android-x86_64
+      # Let OpenSSL's android target pick the NDK clang via PATH; our exported
+      # CC/AR/etc. wrappers would confuse its own detection.
+      unset CC CXX AR RANLIB NM STRIP
+      export ANDROID_NDK_ROOT="${ANDROID_NDK_HOME}"
+      export PATH="${TOOLCHAIN}/bin:${PATH}"
+      OSSL_OPTS+=("-D__ANDROID_API__=${API}")
+      ;;
     *) echo "OpenSSL: unexpected RID ${RID}" >&2; exit 1 ;;
   esac
   ./Configure "${OSSL_TARGET}" "${OSSL_OPTS[@]}"

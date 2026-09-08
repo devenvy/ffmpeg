@@ -8,7 +8,7 @@ set -euo pipefail
 
 if [[ "${WHISPER_BACKEND}" == "vulkan" ]]; then
   case "${RID}" in
-    win-x64|android-arm64|linux-musl-x64|linux-x64|linux-arm64)
+    win-x64|android-arm64|android-x64|linux-musl-x64|linux-musl-arm64|linux-x64|linux-arm64)
       # ggml-vulkan does find_package(SPIRV-Headers) (CONFIG mode), so it needs
       # SPIRV-HeadersConfig.cmake — not just the headers. Install SPIRV-Headers properly
       # (headers + cmake config) into DEPS_DIR and point find_package straight at the

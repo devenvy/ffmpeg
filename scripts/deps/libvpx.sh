@@ -39,6 +39,9 @@ if [[ "${BUILD_LIBVPX}" == "1" ]]; then
     android-arm64)
       VPX_ARGS+=(--target=arm64-android-gcc --extra-cflags="-fPIC")
       ;;
+    android-x64)
+      VPX_ARGS+=(--target=x86_64-android-gcc --extra-cflags="-fPIC")
+      ;;
     ios-arm64)
       # Device only — libvpx's arm64-darwin-gcc target is iOS-device-specific.
       # The simulator slice is built lean (no libvpx) so it never reaches here.

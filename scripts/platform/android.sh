@@ -3,7 +3,7 @@ set -euo pipefail
 # Android platform config (NDK cross).
 # SOURCED by steps/02_configure.sh based on the RID family; shares its environment.
 case "${RID}" in
-  android-arm64)
+  android-arm64|android-x64)
     # Locate the NDK. ANDROID_NDK_HOME is an optional OVERRIDE — normally the NDK is found
     # automatically: CI/dev shells export ANDROID_NDK_LATEST_HOME / ANDROID_NDK_ROOT, and a
     # standard SDK install keeps it under $ANDROID_SDK_ROOT/ndk/<version>. So an Android build
@@ -32,9 +32,22 @@ case "${RID}" in
     # etc. Pick whichever is present so this works on any build/test host (x86 Linux, arm Linux, mac).
     _tchost="$(ls "${_tcroot}" 2>/dev/null | head -1)"
     TOOLCHAIN="${_tcroot}/${_tchost}"
-    ANDROID_TRIPLE=aarch64-linux-android
-    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
-    ANDROID_ABI=arm64-v8a
+    # Per-arch NDK triple / ABI / FFmpeg arch. Everything else in this block — NDK
+    # discovery, API level, MediaCodec, Vulkan, the whisper backend — is arch-independent.
+    case "${RID}" in
+      android-arm64)
+        ANDROID_TRIPLE=aarch64-linux-android
+        # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
+        ANDROID_ABI=arm64-v8a
+        FF_ARCH=aarch64
+        ;;
+      android-x64)
+        ANDROID_TRIPLE=x86_64-linux-android
+        # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
+        ANDROID_ABI=x86_64
+        FF_ARCH=x86_64
+        ;;
+    esac
     export CC="${TOOLCHAIN}/bin/${ANDROID_TRIPLE}${API}-clang"
     export CXX="${CC}++"
     export AR="${TOOLCHAIN}/bin/llvm-ar"
@@ -46,7 +59,7 @@ case "${RID}" in
           patchelf pkg-config xz-utils yasm
           glslc glslang-tools)
     CONFIGURE_FLAGS+=(
-      --enable-cross-compile --target-os=android --arch=aarch64
+      --enable-cross-compile --target-os=android --arch="${FF_ARCH}"
       --cc="${CC}" --cxx="${CXX}" --ar="${AR}" --ranlib="${RANLIB}"
       --strip="${STRIP}" --nm="${NM}"
       --sysroot="${TOOLCHAIN}/sysroot"

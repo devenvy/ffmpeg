@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
-# Android (arm64) test — structural checks + an ABI link check. The artifact is
-# aarch64 shared libraries (no executables), so we verify they are shaped and
-# configured correctly, then (when the NDK is present, i.e. the build job)
-# compile the smoke program against them to prove the ABI is complete. Actually
-# EXECUTING on a device is scripts/test/android-run.sh (the emulator job).
+# Android test (android-arm64 / android-x64) — structural checks + an ABI link
+# check. The artifact is shared libraries (no executables), so we verify they
+# are shaped and configured correctly, then (when the NDK is present, i.e. the
+# build job) compile the smoke program against them to prove the ABI is
+# complete. Actually EXECUTING on a device is scripts/test/android-run.sh (the
+# emulator job).
 set -uo pipefail
-DIR="${1:?usage: android.sh <artifact-native-dir>}"
+RID="${1:?usage: android.sh <rid> <artifact-native-dir>}"
+DIR="${2:?usage: android.sh <rid> <artifact-native-dir>}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # ELF inspection (readelf/nm) must read the Linux ELF .so on ANY test host — but macOS has no GNU
 # readelf and its nm reads Mach-O, not ELF. Put the NDK's llvm-readelf/llvm-nm on PATH first (they
@@ -16,13 +18,19 @@ if [ -n "${ANDROID_NDK_HOME:-}" ]; then
 fi
 . "${HERE}/lib.sh"
 
-LIBDIR="${DIR}/lib/arm64-v8a"
-info "Android arm64 structural checks (${LIBDIR})"
+case "$RID" in
+  android-arm64) ABI=arm64-v8a; ARCH_RE='ELF 64-bit.*ARM aarch64'; CLANG_TRIPLE=aarch64-linux-android ;;
+  android-x64)   ABI=x86_64;    ARCH_RE='ELF 64-bit.*x86-64';      CLANG_TRIPLE=x86_64-linux-android   ;;
+  *) echo "android.sh: unexpected RID $RID" >&2; exit 2 ;;
+esac
+NDK_API=28
+LIBDIR="${DIR}/lib/${ABI}"
+info "Android structural checks (${RID}, ${LIBDIR})"
 
 for base in avcodec avformat avutil avfilter swscale swresample avdevice; do
   lib="${LIBDIR}/lib${base}.so"
   [ -e "$lib" ] || { [ "$base" = avdevice ] && continue; fail "missing lib${base}.so"; continue; }
-  check_arch "$lib" 'ELF 64-bit.*ARM aarch64'
+  check_arch "$lib" "$ARCH_RE"
   check_soname_unversioned "$lib"
   check_shared_object "$lib"
 done
@@ -74,7 +82,7 @@ if [ -n "${ANDROID_NDK_HOME:-}" ]; then
   # NDK ships one host prebuilt dir (linux-x86_64 / linux-aarch64 / darwin-*); pick whichever exists.
   _tchost="$(ls "${_tcroot}" 2>/dev/null | head -1)"
   TCBIN="${_tcroot}/${_tchost}/bin"
-  check_smoke_link "${TCBIN}/aarch64-linux-android28-clang" "${DIR}/include" /tmp/smoke_android \
+  check_smoke_link "${TCBIN}/${CLANG_TRIPLE}${NDK_API}-clang" "${DIR}/include" /tmp/smoke_android \
     -L "${LIBDIR}" -lavformat -lavcodec -lavfilter -lavutil -lswscale -lswresample
 else
   skip "smoke link: ANDROID_NDK_HOME not set (run in the android build job)"

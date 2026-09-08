@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Linux test (linux-x64 / linux-arm64 / linux-armhf / linux-musl-x64).
+# Linux test (linux-x64 / linux-arm64 / linux-armhf / linux-musl-x64 / linux-musl-arm64).
 # Structural always; functional when the host can execute the target — natively
 # (arch match) or via qemu-user (cross arch, if installed).
 set -uo pipefail
@@ -11,6 +11,10 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 case "$RID" in
   linux-x64|linux-musl-x64) ARCH_RE='ELF 64-bit.*x86-64'; TARCH=x86_64; QEMU=""              ;;
   linux-arm64)              ARCH_RE='ELF 64-bit.*aarch64'; TARCH=aarch64; QEMU=qemu-aarch64  ;;
+  # QEMU="" like linux-musl-x64: the qemu branch below invokes `qemu -L /usr/${TARCH}-linux-gnu*`, a
+  # GLIBC sysroot, which is wrong for a musl binary. It runs natively on the arm64 runner; if it ever
+  # cannot, the `else` branch fails loudly rather than silently downgrading to structural-only.
+  linux-musl-arm64)         ARCH_RE='ELF 64-bit.*aarch64'; TARCH=aarch64; QEMU=""              ;;
   linux-armhf)              ARCH_RE='ELF 32-bit.*ARM';     TARCH=arm;     QEMU=qemu-arm       ;;
   *) echo "linux.sh: unexpected RID $RID" >&2; exit 2 ;;
 esac
@@ -26,7 +30,7 @@ check_config "--enable-whisper" "Whisper ASR filter"
 check_tls
 check_license_boundary
 case "$RID" in
-  linux-x64|linux-arm64|linux-musl-x64) check_config "--enable-vaapi" "VAAPI" ;;
+  linux-x64|linux-arm64|linux-musl-x64|linux-musl-arm64) check_config "--enable-vaapi" "VAAPI" ;;
 esac
 
 # Functional: native if arch matches, else qemu-user if available.

@@ -55,13 +55,15 @@ case "${RID}" in
     )
     # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     HWACCEL_FEATURES="VideoToolbox"
-    # Vulkan via MoltenVK (Vulkan-over-Metal) for parity with macOS — for FFmpeg's Vulkan GPU
-    # filters (no Metal equivalent in the filtergraph). v3 only: MoltenVK is Apache-2.0, so
-    # 04_select_license clears BUILD_VULKAN for the App-Store-safe v2 cells. Whisper still uses the
-    # native Metal ggml backend. NOTE: unlike macOS, iOS does NOT build the Khronos Vulkan-Loader —
-    # it fails to build for the iOS SDK (loader asm-gen, Error 137) and is unnecessary: on iOS
-    # MoltenVK IS the driver and is linked/loaded directly (no ICD-loader indirection). moltenvk.sh
-    # provides libMoltenVK for the iOS slice; 08 bundles it as a framework.
+    # Vulkan via MoltenVK (Vulkan-over-Metal) — for FFmpeg's Vulkan GPU filters (no Metal
+    # equivalent in the filtergraph). v3 only: MoltenVK is Apache-2.0, so 04_select_license
+    # clears BUILD_VULKAN for the App-Store-safe v2 cells. Whisper still uses the native Metal
+    # ggml backend. NOTE: unlike macOS, iOS does NOT build the Khronos Vulkan-Loader — it fails
+    # against the iOS SDK — and it does NOT ship MoltenVK as its own framework: FFmpeg's runtime
+    # dlopen only ever tries the leaf names libvulkan.dylib / libvulkan.1.dylib /
+    # libMoltenVK.dylib, none of which resolves from inside an app bundle. moltenvk.sh therefore
+    # installs libMoltenVK.a and adds --enable-vulkan-static, linking the driver INTO the libav*
+    # frameworks. Nothing Vulkan-shaped is staged separately for iOS.
     # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     BUILD_VULKAN=1
     # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script

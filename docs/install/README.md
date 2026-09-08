@@ -14,20 +14,29 @@ The per-platform pages below each use one cell in their examples; substitute the
 
 ## Verifying a download
 
-Every release carries a `SHA256SUMS` asset covering all of its artifacts, in standard
-`sha256sum` format. Fetch it alongside whatever you downloaded and check in place:
+Releases carry a `SHA256SUMS` asset covering every other artifact on that release, in standard
+`sha256sum` format. **Releases published before this was added do not have one** — check the
+release's asset list; for those, the per-asset digests are still available from the GitHub
+releases API.
+
+Fetch it alongside whatever you downloaded, and check from the directory containing the
+downloads:
 
 ```bash
 gh release download <tag> --repo <owner>/<repo> --pattern 'SHA256SUMS'
-sha256sum -c --ignore-missing SHA256SUMS
+sha256sum -c --ignore-missing SHA256SUMS          # Linux (GNU coreutils >= 8.25)
+shasum -a 256 -c --ignore-missing SHA256SUMS      # macOS (no sha256sum; shasum ships with it)
 ```
 
-`--ignore-missing` checks only the files you actually downloaded. Drop it to require the
-full set — useful when mirroring a release or staging it for an air-gapped install.
+On Windows, `Get-FileHash <file> -Algorithm SHA256` prints the hash to compare against the
+matching line, or use `sha256sum` from Git Bash / WSL.
 
-The manifest does not list itself. Its trust root is the GitHub release it is attached to;
-the same per-asset digests are also available from the releases API if you prefer to check
-one file without fetching the manifest.
+`--ignore-missing` checks only the files you actually downloaded. Drop it to require the full
+set — useful when mirroring a release or staging it for an air-gapped install.
+
+The manifest does not list itself. Its trust root is the GitHub release it is attached to; the
+same per-asset digests are also available from the releases API if you prefer to check one file
+without fetching the manifest.
 
 ### Which cell do I pick?
 

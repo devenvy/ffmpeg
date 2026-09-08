@@ -319,6 +319,10 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    # If the API ever stops populating `digest`, the job silently falls back to downloading all
+    # ~64 assets (several GB) under the default 360-minute budget; a short timeout turns that
+    # into a fast, loud failure.
+    timeout-minutes: 20
     strategy:
       matrix:
         build: ${{ fromJson(needs.prepare.outputs.builds) }}
@@ -328,10 +332,20 @@ jobs:
       - name: Generate and upload SHA256SUMS
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ matrix.build.tag }}
+          REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          bash scripts/ci/gen-manifest.sh "${{ matrix.build.tag }}" "${{ github.repository }}" > SHA256SUMS
+          bash scripts/ci/gen-manifest.sh "$TAG" "$REPO" > SHA256SUMS
           echo "--- SHA256SUMS ($(wc -l < SHA256SUMS) entries) ---"
           cat SHA256SUMS
-          gh release upload "${{ matrix.build.tag }}" SHA256SUMS \
-            --clobber --repo "${{ github.repository }}"
+          gh release upload "$TAG" SHA256SUMS \
+            --clobber --repo "$REPO"
+
+      # This job runs after the release is public and nothing gates on it, so a silent failure
+      # would leave a release whose docs promise a SHA256SUMS that isn't there. Surface it.
+      - name: Report manifest failure
+        if: failure()
+        run: |
+          echo "### SHA256SUMS generation FAILED for \`${{ matrix.build.tag }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "The release is published but has no checksum manifest. Re-run this job, or generate it locally with \`bash scripts/ci/gen-manifest.sh <tag> <repo>\` and upload it." >> "$GITHUB_STEP_SUMMARY"

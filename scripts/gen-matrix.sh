@@ -66,14 +66,19 @@ for RID in "${RIDS[@]}"; do
     source scripts/steps/02_configure.sh >/dev/null 2>&1
     # shellcheck source=/dev/null
     source scripts/steps/04_select_license.sh >/dev/null 2>&1
-    # || true: under pipefail, a RID with no CONFIGURE_FLAGS yet (platform script not
-    # written for it yet) makes the first grep match nothing and fail, which would abort
-    # this whole script via set -e. Falls back to an empty hw set, which is correct: no
-    # platform config yet means no hwaccels are known-built for that RID.
+    # A RID with no CONFIGURE_FLAGS yet (platform script not written for it yet) still
+    # carries the license tokens 04_select_license.sh just appended (--enable-gpl,
+    # --enable-version3 on gpl cells; none on lgpl cells). The first grep matches those
+    # on gpl cells, or nothing on lgpl cells; either way the second grep (which filters
+    # license/generic tokens out) is left with nothing to pass and exits 1 under
+    # pipefail+set -e. Braced `|| true` on each grep tolerates ONLY that exit-1-on-no-match
+    # case, per stage, so a real sed/tr failure still aborts the script. Once every RID has
+    # real CONFIGURE_FLAGS this guard is unreachable — it documents grep's semantics, not a
+    # permanent condition.
     hw=$(printf '%s\n' "${CONFIGURE_FLAGS[@]}" \
-         | grep -oE '^--enable-[a-z0-9_-]+' | sed 's/--enable-//' \
-         | grep -vE '^(cross-compile|gpl|version3|hwaccel|decoder|encoder|shared|static|pic|pthreads|w32threads)$' \
-         | tr '\n' ' ') || true
+         | { grep -oE '^--enable-[a-z0-9_-]+' || true; } | sed 's/--enable-//' \
+         | { grep -vE '^(cross-compile|gpl|version3|hwaccel|decoder|encoder|shared|static|pic|pthreads|w32threads)$' || true; } \
+         | tr '\n' ' ')
     flags=""
     for v in ${!BUILD_@}; do [ "${!v}" = 1 ] && flags="$flags ${v}"; done
     echo "${RID}|${CELL}|${hw}|${flags}"

@@ -23,7 +23,7 @@ clone_dep openssl "${WORK_DIR}/openssl"
              --prefix="${DEPS_DIR}" --openssldir="${DEPS_DIR}/ssl" --libdir=lib)
   case "${RID}" in
     linux-x64|linux-musl-x64) OSSL_TARGET=linux-x86_64 ;;
-    linux-arm64)              OSSL_TARGET=linux-aarch64 ;;
+    linux-arm64|linux-musl-arm64) OSSL_TARGET=linux-aarch64 ;;
     linux-armhf)              OSSL_TARGET=linux-armv4; export CROSS_COMPILE=arm-linux-gnueabihf- ;;
     android-arm64)
       OSSL_TARGET=android-arm64

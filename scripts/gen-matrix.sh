@@ -67,10 +67,11 @@ for RID in "${RIDS[@]}"; do
     # shellcheck source=/dev/null
     source scripts/steps/04_select_license.sh >/dev/null 2>&1
     # A RID with no CONFIGURE_FLAGS yet (platform script not written for it yet) still
-    # carries the license tokens 04_select_license.sh just appended (--enable-gpl,
-    # --enable-version3 on gpl cells; none on lgpl cells). The first grep matches those
-    # on gpl cells, or nothing on lgpl cells; either way the second grep (which filters
-    # license/generic tokens out) is left with nothing to pass and exits 1 under
+    # carries the license tokens 04_select_license.sh just appended (--enable-gpl on gpl
+    # cells; --enable-version3 on the v3 series — gplv3 AND lgplv3, since that flag is keyed
+    # on license VERSION, not family; only lgplv2 gets neither token). The first grep matches
+    # whichever of those is present, or nothing on lgplv2; either way the second grep (which
+    # filters license/generic tokens out) is left with nothing to pass and exits 1 under
     # pipefail+set -e. Braced `|| true` on each grep tolerates ONLY that exit-1-on-no-match
     # case, per stage, so a real sed/tr failure still aborts the script. Once every RID has
     # real CONFIGURE_FLAGS this guard is unreachable — it documents grep's semantics, not a

@@ -22,7 +22,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${ROOT_DIR}"
 
-RIDS=(linux-x64 linux-arm64 linux-armhf linux-musl-x64 win-x64 osx-x64 osx-arm64 android-arm64 ios-arm64 ios-sim-arm64)
+RIDS=(linux-x64 linux-arm64 linux-armhf linux-musl-x64 linux-musl-arm64 win-x64 osx-x64 osx-arm64 android-arm64 android-x64 ios-arm64 ios-sim-arm64)
 
 # FFmpeg configure for EVERY maintained version (deps.json's .ffmpeg list) — the source of
 # truth for each version's library universe. Each is rendered to its own files.
@@ -66,10 +66,14 @@ for RID in "${RIDS[@]}"; do
     source scripts/steps/02_configure.sh >/dev/null 2>&1
     # shellcheck source=/dev/null
     source scripts/steps/04_select_license.sh >/dev/null 2>&1
+    # || true: under pipefail, a RID with no CONFIGURE_FLAGS yet (platform script not
+    # written for it yet) makes the first grep match nothing and fail, which would abort
+    # this whole script via set -e. Falls back to an empty hw set, which is correct: no
+    # platform config yet means no hwaccels are known-built for that RID.
     hw=$(printf '%s\n' "${CONFIGURE_FLAGS[@]}" \
          | grep -oE '^--enable-[a-z0-9_-]+' | sed 's/--enable-//' \
          | grep -vE '^(cross-compile|gpl|version3|hwaccel|decoder|encoder|shared|static|pic|pthreads|w32threads)$' \
-         | tr '\n' ' ')
+         | tr '\n' ' ') || true
     flags=""
     for v in ${!BUILD_@}; do [ "${!v}" = 1 ] && flags="$flags ${v}"; done
     echo "${RID}|${CELL}|${hw}|${flags}"
@@ -102,13 +106,13 @@ for line in open(sys.argv[2]):
 MAJORS = sorted(by_major, key=int)
 OUTDIR = sys.argv[3]
 
-RIDS = ["linux-x64","linux-arm64","linux-armhf","linux-musl-x64","win-x64",
-        "osx-x64","osx-arm64","android-arm64","ios-arm64","ios-sim-arm64"]
+RIDS = ["linux-x64","linux-arm64","linux-armhf","linux-musl-x64","linux-musl-arm64","win-x64",
+        "osx-x64","osx-arm64","android-arm64","android-x64","ios-arm64","ios-sim-arm64"]
 ALL = set(RIDS)
 LINUX = {r for r in RIDS if r.startswith("linux")}
 WIN = {"win-x64"}; APPLE = {"osx-x64","osx-arm64","ios-arm64","ios-sim-arm64"}
 MAC = {"osx-x64","osx-arm64"}; IOS = {"ios-arm64","ios-sim-arm64"}
-ANDROID = {"android-arm64"}; DESKTOP = LINUX | WIN | MAC
+ANDROID = {"android-arm64","android-x64"}; DESKTOP = LINUX | WIN | MAC
 
 # HAVE_* backends FFmpeg supports but that aren't in any *_LIBRARY_LIST.
 EXTRA = {"mediafoundation": "hw", "schannel": "net", "securetransport": "net"}
@@ -276,7 +280,7 @@ APPLIES = {
   # the token falls back to ALL and the matrix claims static Vulkan on every RID.
   "vulkan_static":IOS,
   "mmal":LINUX,"omx":LINUX,"schannel":WIN,"securetransport":APPLE,
-  "libsvtav1":ALL-{"linux-armhf","android-arm64","ios-arm64","ios-sim-arm64"},
+  "libsvtav1":ALL-{"linux-armhf","android-arm64","android-x64","ios-arm64","ios-sim-arm64"},
   "libwebp":DESKTOP, "libfontconfig":LINUX|MAC,
 }
 TITLES = [("video","Video codecs"),("audio","Audio codecs"),
@@ -285,8 +289,9 @@ TITLES = [("video","Video codecs"),("audio","Audio codecs"),
           ("hw","Hardware acceleration"),("other","Other / miscellaneous")]
 DEFCAT = {"hw":"hw","lib":"other"}
 SHORT = {"linux-x64":"lin-x64","linux-arm64":"lin-a64","linux-armhf":"lin-hf",
-         "linux-musl-x64":"musl","win-x64":"win","osx-x64":"osx-x64",
-         "osx-arm64":"osx-a64","android-arm64":"android","ios-arm64":"ios","ios-sim-arm64":"ios-sim"}
+         "linux-musl-x64":"musl","linux-musl-arm64":"musl-a64","win-x64":"win",
+         "osx-x64":"osx-x64","osx-arm64":"osx-a64","android-arm64":"android",
+         "android-x64":"android-x64","ios-arm64":"ios","ios-sim-arm64":"ios-sim"}
 
 # Footnotes: rendered as GitHub [^ref] superscripts inline on the row, auto-listed
 # and auto-numbered (by first appearance) at the bottom of the file.

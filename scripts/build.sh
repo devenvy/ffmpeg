@@ -6,8 +6,10 @@ set -euo pipefail
 # Build parameters (environment variables):
 #   FFMPEG_VERSION         - FFmpeg version (default: first entry of deps.json .ffmpeg)
 #   BUILD_RID              - Runtime identifier (required):
-#                            linux-x64, linux-arm64, linux-armhf, linux-musl-x64,
-#                            win-x64, osx-x64, osx-arm64, android-arm64,
+#                            linux-x64, linux-arm64, linux-armhf,
+#                            linux-musl-x64, linux-musl-arm64,
+#                            win-x64, osx-x64, osx-arm64,
+#                            android-arm64, android-x64,
 #                            ios-arm64, ios-sim-arm64
 #   BUILD_LICENSE          - License family: gpl or lgpl (default: lgpl)
 #   BUILD_LICENSE_VERSION  - License series: 3 (default) or 2 (GPLv2 / LGPLv2.1)

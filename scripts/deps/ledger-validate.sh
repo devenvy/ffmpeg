@@ -28,8 +28,8 @@ if [ -n "${noreason}" ]; then echo "ledger-validate: overrides missing reason: $
 
 # A platform-scoped override's "platforms" (optional) must be a non-empty array of known RIDs.
 if ! badplat="$(jq -r '
-  ["linux-x64","linux-arm64","linux-armhf","linux-musl-x64","win-x64",
-   "osx-x64","osx-arm64","android-arm64","ios-arm64","ios-sim-arm64"] as $rids
+  ["linux-x64","linux-arm64","linux-armhf","linux-musl-x64","linux-musl-arm64","win-x64",
+   "osx-x64","osx-arm64","android-arm64","android-x64","ios-arm64","ios-sim-arm64"] as $rids
   | (.overrides // {}) | to_entries[] | .value | to_entries[]
   | .key as $k | .value.platforms as $p
   | select($p != null)

@@ -5,8 +5,10 @@ set -euo pipefail
 # there is no Metal equivalent in FFmpeg's filtergraph. Built for BOTH macOS and iOS (v3 only —
 # Apache-2.0 is cleared for the v2 App-Store cells by 04_select_license), but consumed
 # DIFFERENTLY: macOS ships the dylib and reaches it through the Khronos Vulkan-Loader + ICD
-# (vulkan-loader.sh); iOS has no loader for its SDK, so MoltenVK is linked statically into the
-# libav* frameworks via --enable-vulkan-static. SOURCED by scripts/build.sh. Not standalone.
+# (vulkan-loader.sh); we do not build that loader for iOS here — vulkan-loader.sh supplies no
+# iOS CMake toolchain, so it is macOS-only in this repo (upstream does support iOS) — so
+# MoltenVK is linked statically into the libav* frameworks via --enable-vulkan-static instead.
+# SOURCED by scripts/build.sh. Not standalone.
 #
 # NOTE: MoltenVK does not reliably publish prebuilt binaries per release, so we build it from
 # source on the macOS runner (Xcode present). fetchDependencies + `make` output paths have
@@ -33,10 +35,11 @@ make "${MVK_TARGET}"
 # Locate the built MoltenVK binary. Packaging differs by platform AND by how we consume it:
 #   macOS — the DYNAMIC libMoltenVK.dylib, bundled beside the libav* dylibs and reached
 #           through the Khronos loader + MoltenVK_icd.json (see 08_stage_artifacts).
-#   iOS   — the STATIC libMoltenVK.a, linked INTO the libav* frameworks. There is no
-#           Khronos loader for the iOS SDK, and FFmpeg's dlopen fallback only tries the
-#           leaf names libvulkan.dylib / libvulkan.1.dylib / libMoltenVK.dylib, none of
-#           which resolves from inside an app bundle. Static linking removes the lookup.
+#   iOS   — the STATIC libMoltenVK.a, linked INTO the libav* frameworks. We don't build the
+#           Khronos loader for iOS here (vulkan-loader.sh has no iOS toolchain; see below),
+#           and FFmpeg's dlopen fallback only tries the leaf names libvulkan.dylib /
+#           libvulkan.1.dylib / libMoltenVK.dylib, none of which resolves from inside an app
+#           bundle. Static linking removes the lookup.
 # Search prefers the platform-matching slice, then falls back to any match.
 find_mvk() { # <name-pattern> <path-hint>...
   local pat="$1"; shift
@@ -100,8 +103,11 @@ case "${RID}" in
     # exposed as libvulkan.a above, and the libraries MoltenVK itself calls into go through
     # --extra-libs, which configure appends to the link line of that very check_lib test.
     # Consumers of the resulting libav* frameworks must link the same system frameworks
-    # (see the iOS docs).
-    EXTRA_LIBS="${EXTRA_LIBS:-} -lc++ -framework Metal -framework IOSurface -framework Foundation -framework QuartzCore -framework CoreGraphics"
+    # (see the iOS docs). UIKit is required too: MoltenVK's surface code (MVKSurface.mm)
+    # imports UIKit/UIView.h, and MoltenVK's project sets CLANG_ENABLE_MODULES=NO, so there
+    # is no autolinking to supply it — omitting it fails the check_lib probe below, or at
+    # latest the final libavutil link, on unresolved UIKit/UIView symbols.
+    EXTRA_LIBS="${EXTRA_LIBS:-} -lc++ -framework Metal -framework IOSurface -framework Foundation -framework QuartzCore -framework CoreGraphics -framework UIKit"
     # shellcheck disable=SC2034  # appended here; consumed by steps/07_build_ffmpeg.sh
     CONFIGURE_FLAGS+=(--enable-vulkan-static)
     echo "MoltenVK linked STATICALLY for ${RID} (--enable-vulkan-static; no loader, no ICD)."

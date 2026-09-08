@@ -30,13 +30,15 @@ environment variable to set: FFmpeg calls into MoltenVK directly, exactly like t
 dependencies (whisper/ggml, kvazaar, opus). The artifact is the **same six `.xcframework`s** in
 every cell.
 
-MoltenVK links against `Metal`, `IOSurface`, `Foundation`, `QuartzCore` and `CoreGraphics`.
-Because the `libav*` frameworks are dynamic, those are recorded as `libavutil`'s own
-dependencies and the linker resolves them for you. If your build system links the frameworks
-in a mode that does not inherit transitive dependencies, add them explicitly:
+MoltenVK links against `Metal`, `IOSurface`, `Foundation`, `QuartzCore`, `CoreGraphics` and
+`UIKit` (its surface code imports `UIKit/UIView.h`, and MoltenVK disables Clang module
+autolinking, so nothing pulls it in implicitly). Because the `libav*` frameworks are dynamic,
+those are recorded as `libavutil`'s own dependencies and the linker resolves them for you. If
+your build system links the frameworks in a mode that does not inherit transitive dependencies,
+add them explicitly:
 
 ```
--framework Metal -framework IOSurface -framework Foundation -framework QuartzCore -framework CoreGraphics
+-framework Metal -framework IOSurface -framework Foundation -framework QuartzCore -framework CoreGraphics -framework UIKit
 ```
 
 The `v2` / App-Store cells drop Vulkan entirely (MoltenVK is Apache-2.0, incompatible with
@@ -45,8 +47,16 @@ unaffected in either series.
 
 > Earlier documentation described embedding a separate `MoltenVK.xcframework` and
 > `vulkan.xcframework` and pointing `VK_ICD_FILENAMES` at a bundled `MoltenVK_icd.json`. That
-> path never worked and those files were never shipped: the Khronos Vulkan loader does not build
-> against the iOS SDK, so there was no loader to read the ICD file. Static linking replaces it.
+> path never worked, but not because MoltenVK itself was missing: the old `v3` iOS tarball
+> genuinely shipped `MoltenVK.xcframework` (staged from `libMoltenVK.dylib` like any other
+> framework, then converted to an xcframework by the release build) — seven `.xcframework`s,
+> not six. What was never in the tarball were `vulkan.xcframework` (no Khronos loader was ever
+> built for iOS) and `MoltenVK_icd.json` (upstream MoltenVK emits that file only for its macOS
+> slice). Without the loader or the ICD JSON, FFmpeg's `dlopen` fallback could not have found
+> `MoltenVK.framework/MoltenVK` under any of the leaf names it tries, so the old instructions
+> could not have worked regardless of MoltenVK's presence. Static linking replaces all of it —
+> if you are upgrading from the old instructions, `MoltenVK.xcframework` disappears from the
+> artifact entirely; that is expected.
 
 ---
 

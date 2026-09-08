@@ -58,8 +58,10 @@ case "${RID}" in
     # Vulkan via MoltenVK (Vulkan-over-Metal) — for FFmpeg's Vulkan GPU filters (no Metal
     # equivalent in the filtergraph). v3 only: MoltenVK is Apache-2.0, so 04_select_license
     # clears BUILD_VULKAN for the App-Store-safe v2 cells. Whisper still uses the native Metal
-    # ggml backend. NOTE: unlike macOS, iOS does NOT build the Khronos Vulkan-Loader — it fails
-    # against the iOS SDK — and it does NOT ship MoltenVK as its own framework: FFmpeg's runtime
+    # ggml backend. NOTE: unlike macOS, iOS does NOT build the Khronos Vulkan-Loader — not
+    # because upstream lacks iOS support (its CMake has an explicit IOS/VK_USE_PLATFORM_IOS_MVK
+    # branch), but because vulkan-loader.sh passes no iOS CMake toolchain, so it stays
+    # macOS-only in this repo — and it does NOT ship MoltenVK as its own framework: FFmpeg's runtime
     # dlopen only ever tries the leaf names libvulkan.dylib / libvulkan.1.dylib /
     # libMoltenVK.dylib, none of which resolves from inside an app bundle. moltenvk.sh therefore
     # installs libMoltenVK.a and adds --enable-vulkan-static, linking the driver INTO the libav*

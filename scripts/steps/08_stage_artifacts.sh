@@ -152,9 +152,11 @@ PLIST
       done
     done
     # No Vulkan artifacts are staged for iOS. MoltenVK is linked INTO the libav* framework
-    # binaries (--enable-vulkan-static; see scripts/deps/moltenvk.sh), because iOS has no
-    # Khronos loader and FFmpeg's dlopen fallback cannot resolve a framework from inside an
-    # app bundle. MoltenVK's Apache-2.0 text still ships via 10_write_legal.sh's WORK_DIR walk.
+    # binaries (--enable-vulkan-static; see scripts/deps/moltenvk.sh), because we don't build
+    # the Khronos loader for iOS here (vulkan-loader.sh supplies no iOS CMake toolchain; that's
+    # our configuration, not an upstream limitation) and FFmpeg's dlopen fallback cannot
+    # resolve a framework from inside an app bundle. MoltenVK's Apache-2.0 text still ships
+    # via 10_write_legal.sh's WORK_DIR walk.
     ;;
   *)
     mkdir -p "${OUT_DIR}/include"

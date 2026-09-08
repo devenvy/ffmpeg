@@ -19,10 +19,11 @@ Vulkan and no TLS backend (see the [runtime-dependency overview](./README.md#run
 - `legal/` — the LGPL text plus each bundled dependency's license under `legal/licenses/<dep>/`
   (ship it).
 
-`android-arm64` is what you ship to devices; `android-x64` exists for **emulators** — every
-Android emulator image on an x86_64 host is x86_64, so this is the slice you need to run the
-libraries on a Windows or Linux development machine. Ship both ABIs in your APK/AAB (or let
-Gradle's ABI splits do it) and the right one is selected per device.
+`android-x64` is primarily for **emulators** — every Android emulator image on an x86_64 host is
+x86_64, so this is the slice that runs on a Windows or Linux development machine — and it also
+covers genuine x86_64 Android **devices** (e.g. ChromeOS's ARC++ Android runtime on Intel/AMD
+Chromebooks). Ship both ABIs in your APK/AAB (or let Gradle's ABI splits do it) and the right one
+is selected per device.
 
 32-bit `armeabi-v7a` is not built. See
 [future platforms](../future-platforms.md) if you need it.

@@ -53,8 +53,9 @@ without fetching the manifest.
 
 ### Runtime dependencies
 
-Two things travel with the cell you pick — TLS and Vulkan — and one platform (Alpine/musl) needs
-system packages. The cross-platform rules are here; the platform pages carry the OS-specific steps.
+Two things travel with the cell you pick — TLS and Vulkan — and one platform family (Alpine/musl)
+needs system packages. The cross-platform rules are here; the platform pages carry the OS-specific
+steps.
 
 **TLS and the license cell.** Which cell you pick changes what's inside the binary. On
 Linux/Android, `v3` cells carry **OpenSSL**, the `gplv2` cell carries **GnuTLS**, and the
@@ -66,7 +67,8 @@ backend in every cell, so their TLS is unaffected by the split. The `v2` cells a
 either way).
 
 **System packages.** The glibc Linux builds are self-contained (nothing to install); the Alpine
-(`linux-musl-x64`) build needs a few `apk` packages. Both live on the [Linux page](./linux.md#runtime-dependencies).
+(`linux-musl-x64`, `linux-musl-arm64`) builds need a few `apk` packages. Both live on the
+[Linux page](./linux.md#runtime-dependencies).
 Windows and macOS need no extra install.
 
 ## Pages

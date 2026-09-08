@@ -310,3 +310,28 @@ jobs:
             "ffmpeg-${{ matrix.build.version }}-ios-${{ matrix.license }}v${{ matrix.license_version }}.tar.gz" \
             --clobber \
             --repo "${{ github.repository }}"
+
+  # Aggregate checksum manifest — one signed-by-the-release file covering every asset, so a
+  # downstream packager or mirror verifies once instead of making an API call per asset.
+  # Gated on BOTH publish jobs so every asset exists before the release is enumerated.
+  manifest:
+    needs: [prepare, publish, publish-ios]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    strategy:
+      matrix:
+        build: ${{ fromJson(needs.prepare.outputs.builds) }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Generate and upload SHA256SUMS
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          bash scripts/ci/gen-manifest.sh "${{ matrix.build.tag }}" "${{ github.repository }}" > SHA256SUMS
+          echo "--- SHA256SUMS ($(wc -l < SHA256SUMS) entries) ---"
+          cat SHA256SUMS
+          gh release upload "${{ matrix.build.tag }}" SHA256SUMS \
+            --clobber --repo "${{ github.repository }}"

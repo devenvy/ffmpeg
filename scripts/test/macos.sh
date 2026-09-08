@@ -21,6 +21,13 @@ done
 check_core_symbols "${DIR}" dylib
 load_config_string "${DIR}/ffmpeg" "$(ls "${DIR}"/libavutil.*.dylib 2>/dev/null | head -1)"
 check_config "--enable-videotoolbox" "VideoToolbox"
+# Vulkan is v3-only (MoltenVK + Vulkan-Headers are Apache-2.0, dropped from the v2 series).
+# Structural, so it belongs here rather than inside the native-execution branch below, where
+# a non-native invocation would skip it entirely.
+case " ${CONFIG_STR} " in
+  *" --enable-vulkan "*) : ;;
+  *) check_config_absent "--enable-vulkan" "Vulkan (v2: dropped)" ;;
+esac
 check_config "--enable-whisper" "Whisper ASR filter"
 check_tls
 check_license_boundary
@@ -30,14 +37,13 @@ export DYLD_LIBRARY_PATH="${DIR}${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
 if [ "$(uname -s)" = Darwin ] && [ "$(uname -m)" = "$TARCH" ]; then
   # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
   RUNNER=(); info "running functional suite natively"; run_functional
-  # Vulkan is v3-only (MoltenVK + Vulkan-Headers are Apache-2.0). Where we ship it, it must work:
-  # the runner has Metal, so a failure here is a real defect, not a missing-device artefact.
-  # Placed here (not immediately after the earlier check_config calls) because assert_vulkan_device
-  # uses RUNNER/FFMPEG, which are only valid once this native-execution branch has set them —
-  # calling it earlier would dereference an unset RUNNER under `set -u` on a structural-only run.
+  # Where we ship Vulkan (v3) it must actually work: the runner has Metal, so a failure here
+  # is a real defect, not a missing-device artefact. This half stays inside the native branch
+  # because assert_vulkan_device EXECUTES ffmpeg, so it is only meaningful on a native run.
+  # The structural half (a v2 cell must not carry --enable-vulkan) is asserted above, where
+  # it runs regardless of host.
   case " ${CONFIG_STR} " in
     *" --enable-vulkan "*) assert_vulkan_device ;;
-    *)                     check_config_absent "--enable-vulkan" "Vulkan (v2: dropped)" ;;
   esac
 else
   # Never green-wash an unexecuted target: in CI macOS runs on a native Darwin runner, so reaching

@@ -32,11 +32,18 @@ load_config_string "${FWDIR}/libavutil.framework/libavutil" "${FWDIR}/libavcodec
 # app bundle. --enable-vulkan-static makes FFmpeg call vkGetInstanceProcAddr directly.
 case " ${CONFIG_STR} " in
   *" --enable-version3 "*)
-    # Only the -static flag is asserted: lib.sh's check_config pattern matches INSIDE
-    # "--enable-vulkan-static", so a separate "--enable-vulkan" check here could never fail
-    # and would manufacture confidence. FFmpeg declares vulkan_static_deps="vulkan", so
-    # --enable-vulkan-static cannot be accepted unless Vulkan is enabled — coverage is kept.
+    # WIRING GUARD ONLY. check_config greps the embedded ./configure COMMAND LINE, not the
+    # feature set configure actually resolved, and moltenvk.sh appends --enable-vulkan-static
+    # unconditionally on every v3 iOS slice. So this proves the flag was passed; it can never
+    # prove Vulkan survived configure. (It also cannot fail independently of
+    # "--enable-vulkan": the pattern matches INSIDE "--enable-vulkan-static".)
     check_config "--enable-vulkan-static" "Vulkan statically linked (MoltenVK)"
+    # The real gate, read out of the BINARY: av_vkfmt_from_pixfmt is public libavutil API
+    # compiled only under CONFIG_VULKAN, so it is absent entirely — not merely undefined —
+    # if Vulkan silently dropped out of configure. (Not vkGetInstanceProcAddr: check_symbol
+    # falls back to plain `nm`, which also lists UNDEFINED symbols, so that would pass even
+    # on a build where MoltenVK was never linked.)
+    check_symbol "${FWDIR}/libavutil.framework/libavutil" "av_vkfmt_from_pixfmt"
     ;;
   *)
     check_config_absent "--enable-vulkan" "Vulkan (v2: dropped)"

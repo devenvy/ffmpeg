@@ -71,6 +71,12 @@ case "${RID}" in
       echo "  (MoltenVK static packaging moved; look for libMoltenVK.a under Package/)" >&2
       exit 1
     fi
+    # FFmpeg resolves --enable-vulkan-static ONLY via
+    #   check_lib vulkan "vulkan/vulkan.h" vkGetInstanceProcAddr -lvulkan
+    # so the linker must find a library literally named vulkan. iOS builds no Khronos
+    # loader (BUILD_VULKAN_LOADER is macOS-only), so nothing else provides that name —
+    # expose the MoltenVK archive under it. Same bytes, second name.
+    cp "${DEPS_DIR}/lib/libMoltenVK.a" "${DEPS_DIR}/lib/libvulkan.a"
     ;;
 esac
 
@@ -80,15 +86,22 @@ case "${RID}" in
     # by MoltenVK_icd.json. 08_stage_artifacts bundles both beside the dylibs.
     MVK_ICD="$(find Package -name 'MoltenVK_icd.json' 2>/dev/null | head -1)"
     [ -n "${MVK_ICD}" ] && cp "${MVK_ICD}" "${DEPS_DIR}/lib/MoltenVK_icd.json"
+    # Must stay LAST and unconditional: this file is sourced by 06_build_libraries.sh under
+    # `set -euo pipefail`, so ending the arm on the AND-list above would return 1 whenever
+    # MVK_ICD is empty and abort the entire build with no message.
+    echo "MoltenVK staged for ${RID} — bundled by 08_stage_artifacts."
     ;;
   ios-*)
-    # vulkan-headers.sh (sourced BEFORE this script by 06_build_libraries.sh) writes a
-    # header-only vulkan.pc. --enable-vulkan-static needs it to actually link, so append
-    # the archive plus the Apple frameworks MoltenVK itself calls into. Consumers of the
-    # resulting libav* frameworks must link the same system frameworks (see the iOS docs).
-    cat >> "${DEPS_DIR}/lib/pkgconfig/vulkan.pc" <<PKGCONFIG
-Libs: -L\${prefix}/lib -lMoltenVK -lc++ -framework Metal -framework IOSurface -framework Foundation -framework QuartzCore -framework CoreGraphics
-PKGCONFIG
+    # How this actually resolves: configure takes --enable-vulkan-static through
+    #   check_lib vulkan "vulkan/vulkan.h" vkGetInstanceProcAddr -lvulkan
+    # and NEVER reads vulkan.pc's Libs: line for it (the check_pkg_config branch above that
+    # line in FFmpeg's configure passes a "defined VK_VERSION_1_3" cpp condition into the
+    # funcs slot, which cannot compile — so that branch always fails). So: the archive is
+    # exposed as libvulkan.a above, and the libraries MoltenVK itself calls into go through
+    # --extra-libs, which configure appends to the link line of that very check_lib test.
+    # Consumers of the resulting libav* frameworks must link the same system frameworks
+    # (see the iOS docs).
+    EXTRA_LIBS="${EXTRA_LIBS:-} -lc++ -framework Metal -framework IOSurface -framework Foundation -framework QuartzCore -framework CoreGraphics"
     # shellcheck disable=SC2034  # appended here; consumed by steps/07_build_ffmpeg.sh
     CONFIGURE_FLAGS+=(--enable-vulkan-static)
     echo "MoltenVK linked STATICALLY for ${RID} (--enable-vulkan-static; no loader, no ICD)."

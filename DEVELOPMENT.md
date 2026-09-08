@@ -96,7 +96,8 @@ via `gendef` + `llvm-dlltool`, so a Visual Studio / CMake project links the DLLs
   headers). Dev files ship separately as `ffmpeg-{ver}-{variant}-dev.tar.gz` (the `include/`
   headers, plus `lib/*.lib` MSVC import libraries for Windows), so the runtime download stays
   lean and consumers don't pick up headers/import libs at runtime.
-- **Android** — tarball with `include/` headers + jniLibs-style `lib/arm64-v8a/*.so` + `legal/`
+- **Android** — tarball with `include/` headers + jniLibs-style `lib/<abi>/*.so`
+  (`arm64-v8a` for `android-arm64`, `x86_64` for `android-x64`) + `legal/`
   (link-only artifact, so headers stay in the main tarball).
   Sonames are normalized to unversioned `lib*.so` so Android's loader/Gradle accept them.
 - **iOS** — one `.xcframework` per `libav*` library, bundling the device (`ios-arm64`) and
@@ -428,7 +429,7 @@ has broken aarch64 NEON intrinsics:
       "tag": "3.6",
       "reason": "x265 4.0+ ships broken aarch64 NEON intrinsics in intrapred-prim.cpp …",
       "issue": 6,
-      "platforms": ["linux-arm64", "osx-arm64", "ios-arm64", "ios-sim-arm64", "android-arm64"]
+      "platforms": ["linux-arm64", "linux-musl-arm64", "osx-arm64", "ios-arm64", "ios-sim-arm64", "android-arm64"]
     }
   }
 }

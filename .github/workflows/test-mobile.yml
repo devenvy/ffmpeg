@@ -11,8 +11,11 @@ name: Test (mobile)
 #      every RID x license.
 #   2. Runtime — actually execute on an emulator (Android) / simulator (iOS). The Android
 #      emulator is x86_64: android-x64 runs on it natively, android-arm64 runs via the
-#      API-35 image's native bridge (translated). Runtime is license-independent, so it
-#      runs once per platform (lgpl).
+#      API-35 image's native bridge (translated). Gated on `matrix.license == 'lgpl'` with
+#      no license_version restriction, so runtime tests run for BOTH lgpl series (lgplv3 and
+#      lgplv2) per platform, not gpl — their TLS/Vulkan configuration genuinely differs
+#      between v3 and v2, so both are worth exercising; gpl only adds x264/x265, which
+#      the runtime step doesn't touch.
 # Chained after build.yml by ci.yml and release.yml.
 
 permissions:
@@ -40,7 +43,10 @@ jobs:
       matrix:
         rid: [android-arm64, android-x64, ios-arm64, ios-sim-arm64]
         license: [lgpl, gpl]
-        license_version: [3, 2]   # v3 = OpenSSL/Vulkan; v2 = GnuTLS, no Vulkan (App-Store-safe)
+        # v3 = OpenSSL 3.x TLS + Vulkan on Linux/Android. v2 = Vulkan dropped everywhere; on
+        # Linux/Android, gplv2 gets GnuTLS but lgplv2 has NO TLS backend at all. Apple/Windows
+        # keep their native SecureTransport/SChannel TLS in every cell, v3 or v2.
+        license_version: [3, 2]
         include:
           - rid: android-arm64
             # x86_64 emulator on ubuntu-latest, KVM-accelerated; its API-35 image translates our

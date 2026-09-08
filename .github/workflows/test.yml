@@ -33,7 +33,10 @@ jobs:
       matrix:
         rid: [linux-x64, linux-arm64, linux-armhf, linux-musl-x64, linux-musl-arm64, win-x64, osx-x64, osx-arm64]
         license: [lgpl, gpl]
-        license_version: [3, 2]   # v3 = OpenSSL/Vulkan; v2 = GnuTLS, no Vulkan (App-Store-safe)
+        # v3 = OpenSSL 3.x TLS + Vulkan on Linux/Android. v2 = Vulkan dropped everywhere; on
+        # Linux/Android, gplv2 gets GnuTLS but lgplv2 has NO TLS backend at all. Apple/Windows
+        # keep their native SecureTransport/SChannel TLS in every cell, v3 or v2.
+        license_version: [3, 2]
         include:
           # Tests run where the target executes natively. The glibc Linux builds test
           # on the PLAIN Ubuntu runner (not the manylinux build container) — running

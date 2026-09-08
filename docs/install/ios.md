@@ -6,7 +6,7 @@ cross-platform [runtime-dependency overview](./README.md#runtime-dependencies).
 The mobile artifacts are libraries to **link into an app**, not CLI tools. For the **Apple App
 Store**, use the `lgplv2` cell: v3's anti-tivoization terms are incompatible with the App Store,
 so LGPLv2.1 is the App-Store-safe series. The `v2` cells carry **no Vulkan** (Whisper still runs on
-Metal on Apple); the `v3` cells add Vulkan via MoltenVK — see [Vulkan GPU filters](#vulkan-gpu-filters-v3-only)
+Metal on Apple); the `v3` cells add Vulkan via statically-linked MoltenVK — see [Vulkan GPU filters](#vulkan-gpu-filters-v3-only)
 below and the [runtime-dependency overview](./README.md#runtime-dependencies).
 
 ## Install
@@ -23,12 +23,30 @@ encode/WebRTC-VP8/9 on a device.
 
 ## Vulkan GPU filters (v3 only)
 
-The **v3** iOS cells ship **MoltenVK** (Vulkan-over-Metal) as its own `.xcframework` alongside the
-Vulkan loader, so FFmpeg's Vulkan GPU filters (`scale_vulkan`, `gblur_vulkan`, …) work on iOS —
-there's no Metal equivalent in the filtergraph. (The `v2` / App-Store cells drop it: MoltenVK is
-Apache-2.0, incompatible with LGPLv2.1.) Embed the `MoltenVK.xcframework` + `vulkan.xcframework`
-like the `libav*` ones, and set `VK_ICD_FILENAMES` to the bundled `MoltenVK_icd.json` before
-initializing Vulkan (Whisper's Metal path and VideoToolbox decode are unaffected either way).
+The **v3** iOS cells enable FFmpeg's Vulkan GPU filters (`scale_vulkan`, `gblur_vulkan`, …) —
+there's no Metal equivalent in the filtergraph — by **statically linking MoltenVK**
+(Vulkan-over-Metal) into the `libav*` frameworks. There is nothing extra to embed and no
+environment variable to set: FFmpeg calls into MoltenVK directly, exactly like the other static
+dependencies (whisper/ggml, kvazaar, opus). The artifact is the **same six `.xcframework`s** in
+every cell.
+
+MoltenVK links against `Metal`, `IOSurface`, `Foundation`, `QuartzCore` and `CoreGraphics`.
+Because the `libav*` frameworks are dynamic, those are recorded as `libavutil`'s own
+dependencies and the linker resolves them for you. If your build system links the frameworks
+in a mode that does not inherit transitive dependencies, add them explicitly:
+
+```
+-framework Metal -framework IOSurface -framework Foundation -framework QuartzCore -framework CoreGraphics
+```
+
+The `v2` / App-Store cells drop Vulkan entirely (MoltenVK is Apache-2.0, incompatible with
+LGPLv2.1) and need none of the above. Whisper's Metal path and VideoToolbox decode are
+unaffected in either series.
+
+> Earlier documentation described embedding a separate `MoltenVK.xcframework` and
+> `vulkan.xcframework` and pointing `VK_ICD_FILENAMES` at a bundled `MoltenVK_icd.json`. That
+> path never worked and those files were never shipped: the Khronos Vulkan loader does not build
+> against the iOS SDK, so there was no loader to read the ICD file. Static linking replaces it.
 
 ---
 

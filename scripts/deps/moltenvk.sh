@@ -41,19 +41,36 @@ make "${MVK_TARGET}"
 #           libvulkan.1.dylib / libMoltenVK.dylib, none of which resolves from inside an app
 #           bundle. Static linking removes the lookup.
 # Search prefers the platform-matching slice, then falls back to any match.
-find_mvk() { # <name-pattern> <path-hint>...
-  local pat="$1"; shift
+# macOS wants the DYNAMIC binary (loader + ICD path), so a framework-shaped slice is an
+# acceptable match here.
+find_mvk_dynamic() { # <path-hint>...
   local p hit
   for p in "$@"; do
-    hit="$(find Package -path "*${p}*" \( -name "${pat}" -o -path "*MoltenVK.framework/MoltenVK" \) -type f 2>/dev/null | head -1)"
+    hit="$(find Package -path "*${p}*" \( -name 'libMoltenVK.dylib' -o -path "*MoltenVK.framework/MoltenVK" \) -type f 2>/dev/null | head -1)"
     [ -n "${hit}" ] && { echo "${hit}"; return 0; }
   done
-  find Package \( -name "${pat}" -o -path "*MoltenVK.framework/MoltenVK" \) -type f 2>/dev/null | head -1
+  find Package \( -name 'libMoltenVK.dylib' -o -path "*MoltenVK.framework/MoltenVK" \) -type f 2>/dev/null | head -1
+}
+
+# iOS wants the STATIC archive, and must never match a framework binary. MoltenVK's Package
+# tree carries both flavours for the same slice —
+#   Package/Release/MoltenVK/dynamic/MoltenVK.xcframework/<slice>/MoltenVK.framework/MoltenVK
+#   Package/Release/MoltenVK/static/MoltenVK.xcframework/<slice>/libMoltenVK.a
+# — and "dynamic" sorts before "static", so a find that accepts either returns the DYLIB.
+# That is exactly what happened: the archive assertion below caught a Mach-O shared library.
+# Match on the archive name only, preferring the static/ subtree.
+find_mvk_static() { # <path-hint>...
+  local p hit
+  for p in "$@"; do
+    hit="$(find Package -path "*static*" -path "*${p}*" -name 'libMoltenVK.a' -type f 2>/dev/null | head -1)"
+    [ -n "${hit}" ] && { echo "${hit}"; return 0; }
+  done
+  find Package -name 'libMoltenVK.a' -type f 2>/dev/null | head -1
 }
 case "${RID}" in
-  osx-*)         MVK_LIB="$(find_mvk 'libMoltenVK.dylib' macos macOS)" ;;
-  ios-arm64)     MVK_LIB="$(find_mvk 'libMoltenVK.a' ios-arm64 iOS)" ;;
-  ios-sim-arm64) MVK_LIB="$(find_mvk 'libMoltenVK.a' simulator iossim iOS_Simulator)" ;;
+  osx-*)         MVK_LIB="$(find_mvk_dynamic macos macOS)" ;;
+  ios-arm64)     MVK_LIB="$(find_mvk_static ios-arm64 iOS)" ;;
+  ios-sim-arm64) MVK_LIB="$(find_mvk_static simulator iossim iOS_Simulator)" ;;
 esac
 [ -n "${MVK_LIB}" ] && [ -e "${MVK_LIB}" ] \
   || { echo "ERROR: MoltenVK binary (libMoltenVK.dylib or MoltenVK.framework/MoltenVK) not found after build (${RID})" >&2

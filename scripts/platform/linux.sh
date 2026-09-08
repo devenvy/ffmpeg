@@ -191,4 +191,5 @@ case "${RID}" in
     BUILD_TYPE_LABEL="Linux musl (native Alpine, ARM64)"
     ;;
 
+  *) echo "platform/linux.sh: unexpected RID '${RID}' — add a case arm for it" >&2; exit 1 ;;
 esac

@@ -66,16 +66,16 @@ for RID in "${RIDS[@]}"; do
     source scripts/steps/02_configure.sh >/dev/null 2>&1
     # shellcheck source=/dev/null
     source scripts/steps/04_select_license.sh >/dev/null 2>&1
-    # A RID with no CONFIGURE_FLAGS yet (platform script not written for it yet) still
-    # carries the license tokens 04_select_license.sh just appended (--enable-gpl on gpl
-    # cells; --enable-version3 on the v3 series — gplv3 AND lgplv3, since that flag is keyed
-    # on license VERSION, not family; only lgplv2 gets neither token). The first grep matches
-    # whichever of those is present, or nothing on lgplv2; either way the second grep (which
-    # filters license/generic tokens out) is left with nothing to pass and exits 1 under
-    # pipefail+set -e. Each grep stage is guarded to tolerate ONLY exit 1 (no match); exit 2
-    # (a real grep error — invalid regex, read error) still propagates and aborts the script,
-    # as does a real sed/tr failure. Once every RID has real CONFIGURE_FLAGS this guard is
-    # unreachable — it documents grep's semantics, not a permanent condition.
+    # These two grep stages tolerate ONLY grep's own exit 1 (no line matched) — e.g. an
+    # lgplv2 cell, where 04_select_license.sh appends neither --enable-gpl nor
+    # --enable-version3, can legitimately leave the second grep nothing to pass, which
+    # exits 1 under pipefail+set -e. That's all this guard ever claimed to absorb: exit 2
+    # (a real grep error — invalid regex, read error) still propagates and aborts the
+    # script, as does a real sed/tr failure. A RID whose platform script has no case arm
+    # for it is NOT swallowed here: scripts/platform/{android,apple,linux,windows}.sh each
+    # end their case on a rejecting default that echoes the offending RID and exits 1, so
+    # that failure surfaces upstream, at the sourced 02_configure.sh call above, before
+    # CONFIGURE_FLAGS is ever inspected.
     hw=$(printf '%s\n' "${CONFIGURE_FLAGS[@]}" \
          | { grep -oE '^--enable-[a-z0-9_-]+' || [ "$?" -eq 1 ]; } | sed 's/--enable-//' \
          | { grep -vE '^(cross-compile|gpl|version3|hwaccel|decoder|encoder|shared|static|pic|pthreads|w32threads)$' || [ "$?" -eq 1 ]; } \

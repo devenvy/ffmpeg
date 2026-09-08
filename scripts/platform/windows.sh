@@ -67,4 +67,5 @@ case "${RID}" in
     BUILD_TYPE_LABEL="Windows (cross-compiled from Linux)"
     ;;
 
+  *) echo "platform/windows.sh: unexpected RID '${RID}' — add a case arm for it" >&2; exit 1 ;;
 esac

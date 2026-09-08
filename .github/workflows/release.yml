@@ -166,7 +166,7 @@ jobs:
                          # the first to hit it (which is what masked the relink_so bug as 2 failures).
       matrix:
         build: ${{ fromJson(needs.prepare.outputs.builds) }}
-        rid: [linux-x64, linux-arm64, linux-armhf, linux-musl-x64, win-x64, osx-x64, osx-arm64, android-arm64]
+        rid: [linux-x64, linux-arm64, linux-armhf, linux-musl-x64, linux-musl-arm64, win-x64, osx-x64, osx-arm64, android-arm64, android-x64]
         license: [lgpl, gpl]
         license_version: [3, 2]   # → license token {license}v{series}: lgplv3/gplv3/lgplv2/gplv2
     steps:

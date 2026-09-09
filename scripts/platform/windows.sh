@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# Windows platform config (mingw-w64 cross).
+# Windows platform config: win-x64 via mingw-w64, win-arm64 via llvm-mingw.
 # SOURCED by steps/02_configure.sh based on the RID family; shares its environment.
 case "${RID}" in
   win-x64)
@@ -65,6 +65,78 @@ case "${RID}" in
     WHISPER_BACKEND="vulkan"
     # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     BUILD_TYPE_LABEL="Windows (cross-compiled from Linux)"
+    ;;
+
+  win-arm64)
+    # Windows on ARM — cross-compiled from Linux with LLVM-MinGW, not mingw-w64. Debian's
+    # mingw-w64 packages only target x86; the aarch64-w64-mingw32 toolchain comes from
+    # llvm-mingw (mstorsjo), which 03_install_packages.sh fetches and puts on PATH.
+    # It is clang/LLVM-based, so the driver names are -clang/-clang++ rather than -gcc-win32,
+    # and there is no -posix/-win32 split to avoid: llvm-mingw defaults to win32 threads,
+    # so no libwinpthread-1.dll runtime dependency either.
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
+    PKGS=(autoconf automake build-essential gperf libtool
+          cmake git llvm meson ninja-build pkg-config curl xz-utils
+          glslc glslang-tools)
+    CROSS_PREFIX="aarch64-w64-mingw32"
+    export CC="${CROSS_PREFIX}-clang"
+    export CXX="${CROSS_PREFIX}-clang++"
+    export AR="${CROSS_PREFIX}-ar"
+    export RANLIB="${CROSS_PREFIX}-ranlib"
+    export NM="${CROSS_PREFIX}-nm"
+    export STRIP="${CROSS_PREFIX}-strip"
+    # llvm-mingw links compiler-rt + libc++ statically by default for the runtime bits we
+    # need; -static-libgcc/-static-libstdc++ are GCC spellings clang accepts but does not
+    # need here, so they are deliberately NOT passed (unlike win-x64).
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
+    EXTRA_CFLAGS="-O2 -pipe"
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
+    EXTRA_CXXFLAGS="-O2 -pipe"
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
+    EXTRA_LDFLAGS=""
+    CONFIGURE_FLAGS+=(
+      --cross-prefix="${CROSS_PREFIX}-"
+      --cc="${CROSS_PREFIX}-clang"
+      --cxx="${CROSS_PREFIX}-clang++"
+      --pkg-config=pkg-config
+      --arch=aarch64 --target-os=mingw32
+      --enable-cross-compile
+      --enable-d3d11va --enable-dxva2
+      --enable-mediafoundation
+      --enable-schannel   # OS-native TLS/https (no dependency)
+    )
+    # Deliberately NOT enabled here, unlike win-x64 — all three are x86-only vendor stacks
+    # with no Windows-on-ARM implementation: NVIDIA nvcodec (CUDA/NVENC/NVDEC), AMD AMF, and
+    # Intel QSV/libvpl. d3d11va + dxva2 + MediaFoundation are the ARM64 hardware paths.
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
+    HWACCEL_FEATURES="D3D11VA DXVA2 MediaFoundation"
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
+    THREAD_FLAG="--enable-w32threads"
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
+    PIC_FLAG=""  # not applicable to mingw
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
+    BUILD_NVIDIA=0
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
+    BUILD_AMF=0
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
+    BUILD_VPL_SOURCE=0
+    # FFmpeg's Vulkan is header-only + a runtime dlopen of vulkan-1.dll, which Windows-on-ARM
+    # ships where a driver exists (Adreno). Keeping it costs nothing when no driver is present.
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
+    BUILD_VULKAN=1
+    # SVT-AV1 is x86-only (its asm is hand-written for SSE/AVX); AV1 encode is covered by
+    # libaom, decode by dav1d. Same exclusion linux-armhf and the Android arm targets take.
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
+    BUILD_LIBSVTAV1=0
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
+    BUILD_FONTCONFIG=0  # as win-x64: libass uses DirectWrite, drawtext uses fontfile=.
+    # Whisper starts on CPU here. The ggml-vulkan path on Windows needs a dlltool-synthesised
+    # vulkan-1 import library (see deps/whisper.sh), which is written for the x86 mingw
+    # toolchain; wiring it for llvm-mingw/aarch64 is follow-up work, not a launch blocker.
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
+    WHISPER_BACKEND="cpu"
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
+    BUILD_TYPE_LABEL="Windows on ARM (cross-compiled from Linux, llvm-mingw)"
     ;;
 
   *) echo "platform/windows.sh: unexpected RID '${RID}' — add a case arm for it" >&2; exit 1 ;;

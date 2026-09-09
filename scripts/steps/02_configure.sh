@@ -152,6 +152,7 @@ CROSS_HOST=""
 # shellcheck disable=SC2034  # CROSS_HOST is consumed by the sourced autotools dep scripts
 case "${RID}" in
   win-x64)                 CROSS_HOST=x86_64-w64-mingw32 ;;
+  win-arm64)               CROSS_HOST=aarch64-w64-mingw32 ;;
   linux-armhf)             CROSS_HOST=arm-linux-gnueabihf ;;
   android-arm64)           CROSS_HOST=aarch64-linux-android ;;
   android-x64)             CROSS_HOST=x86_64-linux-android ;;

@@ -22,7 +22,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${ROOT_DIR}"
 
-RIDS=(linux-x64 linux-arm64 linux-armhf linux-musl-x64 linux-musl-arm64 win-x64 osx-x64 osx-arm64 android-arm64 android-x64 ios-arm64 ios-sim-arm64)
+RIDS=(linux-x64 linux-arm64 linux-armhf linux-musl-x64 linux-musl-arm64 win-x64 win-arm64 osx-x64 osx-arm64 android-arm64 android-x64 ios-arm64 ios-sim-arm64)
 
 # FFmpeg configure for EVERY maintained version (deps.json's .ffmpeg list) — the source of
 # truth for each version's library universe. Each is rendered to its own files.
@@ -128,11 +128,14 @@ for line in open(sys.argv[2]):
 MAJORS = sorted(by_major, key=int)
 OUTDIR = sys.argv[3]
 
-RIDS = ["linux-x64","linux-arm64","linux-armhf","linux-musl-x64","linux-musl-arm64","win-x64",
+RIDS = ["linux-x64","linux-arm64","linux-armhf","linux-musl-x64","linux-musl-arm64","win-x64","win-arm64",
         "osx-x64","osx-arm64","android-arm64","android-x64","ios-arm64","ios-sim-arm64"]
 ALL = set(RIDS)
 LINUX = {r for r in RIDS if r.startswith("linux")}
-WIN = {"win-x64"}; APPLE = {"osx-x64","osx-arm64","ios-arm64","ios-sim-arm64"}
+WIN = {"win-x64","win-arm64"}
+# The x86-only vendor stacks (NVIDIA nvcodec, AMD AMF, Intel QSV) have no
+# Windows-on-ARM implementation, so they apply to the x64 Windows RID alone.
+WINX86 = {"win-x64"}; APPLE = {"osx-x64","osx-arm64","ios-arm64","ios-sim-arm64"}
 MAC = {"osx-x64","osx-arm64"}; IOS = {"ios-arm64","ios-sim-arm64"}
 ANDROID = {"android-arm64","android-x64"}; DESKTOP = LINUX | WIN | MAC
 
@@ -291,10 +294,10 @@ DESC = {
   "schannel":"SChannel — TLS/https (OS-native)","securetransport":"SecureTransport — TLS/https (OS-native)",
 }
 APPLIES = {
-  "cuda":LINUX|WIN,"cuda_llvm":LINUX|WIN,"cuvid":LINUX|WIN,"nvenc":LINUX|WIN,
-  "nvdec":LINUX|WIN,"ffnvcodec":LINUX|WIN,"vaapi":LINUX,"vdpau":{"linux-x64"},
-  "libdrm":LINUX,"v4l2_m2m":LINUX,"libvpl":LINUX|WIN,"libmfx":LINUX|WIN,
-  "d3d11va":WIN,"d3d12va":WIN,"dxva2":WIN,"amf":WIN,"mediafoundation":WIN,
+  "cuda":LINUX|WINX86,"cuda_llvm":LINUX|WINX86,"cuvid":LINUX|WINX86,"nvenc":LINUX|WINX86,
+  "nvdec":LINUX|WINX86,"ffnvcodec":LINUX|WINX86,"vaapi":LINUX,"vdpau":{"linux-x64"},
+  "libdrm":LINUX,"v4l2_m2m":LINUX,"libvpl":LINUX|WINX86,"libmfx":LINUX|WINX86,
+  "d3d11va":WIN,"d3d12va":WIN,"dxva2":WIN,"amf":WINX86,"mediafoundation":WIN,
   "videotoolbox":APPLE,"audiotoolbox":MAC,"mediacodec":ANDROID,"vulkan":ALL,
   # Only iOS links Vulkan statically. Every other platform reaches a Vulkan driver at
   # runtime — the Khronos loader on macOS/Linux, the system libvulkan on Android/Windows —
@@ -312,6 +315,7 @@ TITLES = [("video","Video codecs"),("audio","Audio codecs"),
 DEFCAT = {"hw":"hw","lib":"other"}
 SHORT = {"linux-x64":"lin-x64","linux-arm64":"lin-a64","linux-armhf":"lin-hf",
          "linux-musl-x64":"musl","linux-musl-arm64":"musl-a64","win-x64":"win",
+         "win-arm64":"win-a64",
          "osx-x64":"osx-x64","osx-arm64":"osx-a64","android-arm64":"android",
          "android-x64":"android-x64","ios-arm64":"ios","ios-sim-arm64":"ios-sim"}
 

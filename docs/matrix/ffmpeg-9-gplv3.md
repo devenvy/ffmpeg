@@ -168,13 +168,14 @@ _16 of 22 built._
 | VDPAU |  | — | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
 
 ### Other / miscellaneous  
-_3 of 23 built._
+_4 of 23 built._
 
 | Feature | Version | lin-x64 | lin-a64 | lin-hf | musl | musl-a64 | win | osx-x64 | osx-a64 | android | android-x64 | ios | ios-sim |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | JNI (Android bridge) |  | — | — | — | — | — | — | — | — | ✓ | ✓ | — | — |
 | libxml2 — DASH/IMF parse | v2.15.3 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | MediaCodec (Android) |  | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | ✓ | ✓ | n/a | n/a |
+| Vulkan (static ICD) | v1.4.2 | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | ✓ | ✓ |
 | AviSynth — frameserver (GPL) |  | — | — | — | — | — | — | — | — | — | — | — | — |
 | FireWire capture |  | — | — | — | — | — | — | — | — | — | — | — | — |
 | JACK — audio I/O |  | — | — | — | — | — | — | — | — | — | — | — | — |
@@ -194,7 +195,6 @@ _3 of 23 built._
 | quirc — QR decode |  | — | — | — | — | — | — | — | — | — | — | — | — |
 | rkmpp |  | — | — | — | — | — | — | — | — | — | — | — | — |
 | Video4Linux2 |  | — | — | — | — | — | — | — | — | — | — | — | — |
-| Vulkan (static ICD) |  | — | — | — | — | — | — | — | — | — | — | — | — |
 
 [^tls]: TLS/https backend — depends on the license SERIES. v3 builds link OpenSSL 3.x (Apache-2.0, requires --enable-version3) on Linux/Android. The App-Store-safe v2 builds instead use GnuTLS on gpl-2 (its GMP/nettle deps are fine under GPLv2) and DROP TLS ENTIRELY on lgpl-2 (GMP/nettle are never LGPLv2.1 and no other backend is either). Windows uses SChannel and Apple uses SecureTransport (OS-native) in every series. All enable the `https`/`tls` protocols EXCEPT lgpl-2 on Linux/Android, which has no TLS.
 [^d3d12]: Not built: FFmpeg's `d3d12va` needs `ID3D12VideoDecoder` from `d3d12video.h`, which the mingw-w64 cross-toolchain doesn't ship (it has `d3d12.h` only). Windows hw decode is covered by D3D11VA + DXVA2.

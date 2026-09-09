@@ -160,10 +160,10 @@ case "${RID}" in
               glslang shaderc)
     # (m4 for GMP's configure; xxd for libvmaf's model embedding — see linux-musl-x64.)
     # nasm/yasm are DELIBERATELY dropped here (unlike the linux-musl-x64 list this block was
-    # otherwise copied from): both are x86-only assemblers, aarch64 targets use gas instead, and
-    # 03_install_packages.sh runs `apk add --no-cache "${PKGS_APK[@]}"` as ONE call — a package
-    # missing from Alpine's aarch64 repo would hard-fail the whole install for a tool this RID
-    # never uses.
+    # otherwise copied from): both are x86-only assemblers and aarch64 targets use gas instead,
+    # so installing them is dead weight. NOTE: both ARE published for Alpine aarch64 (verified
+    # against the aarch64 APKINDEX), so this is not a workaround for an unavailable package —
+    # dropping them is purely about not installing tools this RID cannot use.
     CONFIGURE_FLAGS+=(
       --enable-cuda --enable-cuvid --enable-nvenc --enable-nvdec --enable-ffnvcodec
       --enable-vaapi --enable-libdrm

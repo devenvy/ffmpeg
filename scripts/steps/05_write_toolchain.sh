@@ -35,6 +35,24 @@ set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
 CMAKE
     CMAKE_CROSS_ARGS+=(-DCMAKE_TOOLCHAIN_FILE="${ARMHF_TOOLCHAIN}")
     ;;
+  win-arm64)
+    # llvm-mingw is clang-based: the drivers are -clang/-clang++ (not -gcc/-g++), and it
+    # provides llvm-windres under the same triple prefix. ARM64 is the CMake spelling of
+    # the processor for Windows-on-ARM.
+    TOOLCHAIN_FILE="${WORK_DIR}/llvm-mingw-toolchain.cmake"
+    cat > "${TOOLCHAIN_FILE}" <<CMAKE
+set(CMAKE_SYSTEM_NAME Windows)
+set(CMAKE_SYSTEM_PROCESSOR ARM64)
+set(CMAKE_C_COMPILER ${CROSS_PREFIX}-clang)
+set(CMAKE_CXX_COMPILER ${CROSS_PREFIX}-clang++)
+set(CMAKE_RC_COMPILER ${CROSS_PREFIX}-windres)
+set(CMAKE_FIND_ROOT_PATH ${DEPS_DIR})
+set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+CMAKE
+    CMAKE_CROSS_ARGS+=(-DCMAKE_TOOLCHAIN_FILE="${TOOLCHAIN_FILE}")
+    ;;
   win-x64)
     TOOLCHAIN_FILE="${WORK_DIR}/mingw-toolchain.cmake"
     cat > "${TOOLCHAIN_FILE}" <<CMAKE
@@ -78,6 +96,26 @@ esac
 # Native builds leave MESON_CROSS_FILE empty; the meson deps skip --cross-file.
 MESON_CROSS_FILE=""
 case "${RID}" in
+  win-arm64)
+    MESON_CROSS_FILE="${WORK_DIR}/llvm-mingw-meson-cross.ini"
+    cat > "${MESON_CROSS_FILE}" <<MESON
+[binaries]
+c = '${CROSS_PREFIX}-clang'
+cpp = '${CROSS_PREFIX}-clang++'
+ar = '${CROSS_PREFIX}-ar'
+strip = '${CROSS_PREFIX}-strip'
+windres = '${CROSS_PREFIX}-windres'
+pkg-config = 'pkg-config'
+[host_machine]
+system = 'windows'
+cpu_family = 'aarch64'
+cpu = 'aarch64'
+endian = 'little'
+[properties]
+pkg_config_libdir = '${DEPS_DIR}/lib/pkgconfig'
+needs_exe_wrapper = true
+MESON
+    ;;
   win-x64)
     MESON_CROSS_FILE="${WORK_DIR}/mingw-meson-cross.ini"
     cat > "${MESON_CROSS_FILE}" <<MESON

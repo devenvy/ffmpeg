@@ -12,6 +12,32 @@ Apache-2.0 deps (OpenSSL TLS + Vulkan); `v2` (GPLv2 / LGPLv2.1) is the App-Store
 no Vulkan, and its `lgplv2` cell has no TLS at all (see [Runtime dependencies](#runtime-dependencies)).
 The per-platform pages below each use one cell in their examples; substitute the one you need.
 
+## Verifying a download
+
+Releases carry a `SHA256SUMS` asset covering every other artifact on that release, in standard
+`sha256sum` format. **Releases published before this was added do not have one** — check the
+release's asset list; for those, the per-asset digests are still available from the GitHub
+releases API.
+
+Fetch it alongside whatever you downloaded, and check from the directory containing the
+downloads:
+
+```bash
+gh release download <tag> --repo <owner>/<repo> --pattern 'SHA256SUMS'
+sha256sum -c --ignore-missing SHA256SUMS          # Linux (GNU coreutils >= 8.25)
+shasum -a 256 -c --ignore-missing SHA256SUMS      # macOS (no sha256sum; shasum ships with it)
+```
+
+On Windows, `Get-FileHash <file> -Algorithm SHA256` prints the hash to compare against the
+matching line, or use `sha256sum` from Git Bash / WSL.
+
+`--ignore-missing` checks only the files you actually downloaded. Drop it to require the full
+set — useful when mirroring a release or staging it for an air-gapped install.
+
+The manifest does not list itself. Its trust root is the GitHub release it is attached to; the
+same per-asset digests are also available from the releases API if you prefer to check one file
+without fetching the manifest.
+
 ### Which cell do I pick?
 
 - **Shipping into a closed-source app** → an **`lgpl`** cell (a GPL build obligates your whole app

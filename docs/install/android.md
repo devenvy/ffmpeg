@@ -38,11 +38,13 @@ drop whichever is newer and remove the duplicate.
 Hardware decode uses Android **MediaCodec** (`--enable-mediacodec --enable-jni`); link the
 system framework at app build time.
 
-> **Minimum SDK: Android 9 (API 28) for the `v3` cells.** Those link Vulkan 1.1 symbols (the
-> Whisper filter's GPU backend and FFmpeg's own Vulkan), so an app using a `v3` build needs
-> `minSdkVersion` **28+**; on a device with no Vulkan GPU, Whisper falls back to CPU
-> automatically. The `v2` cells carry no Vulkan, so they don't impose the API-28 floor (and run
-> Whisper on CPU).
+> **Minimum SDK: Android 9 (API 28) — every cell, both series.** The NDK compiler is pinned to
+> `…-linux-android28-clang` for all Android builds, so `minSdkVersion` **28+** applies to any
+> artifact here, `v2` included. API 28 was chosen *because* the `v3` cells link Vulkan 1.1
+> symbols (the Whisper filter's GPU backend and FFmpeg's own Vulkan) — the `v2` cells carry no
+> Vulkan and run Whisper on CPU, so they don't *need* the floor, but they are still built
+> against it and do not lower it. On a `v3` build running on a device with no Vulkan GPU,
+> Whisper falls back to CPU automatically.
 
 ---
 

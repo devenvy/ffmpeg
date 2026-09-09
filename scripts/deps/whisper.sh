@@ -98,9 +98,11 @@ esac
 # mingw-w64 headers lack the Win10 THREAD_POWER_THROTTLING_* definitions that ggml-cpu.c
 # uses unconditionally on _WIN32 (they exist in the real Windows SDK but are gated out at
 # MinGW's default NTDDI level). Force-include a shim so ggml-cpu compiles. ggml-cpu is built
-# by EVERY backend, so this applies to all of win-x64 — hoisted out of the vulkan branch so
+# by EVERY backend, so this applies to all Windows RIDs — hoisted out of the vulkan branch so
 # the v2 series (Vulkan dropped → cpu backend) gets it too, not just the v3/vulkan path.
-if [ "${RID}" = win-x64 ]; then
+# win-* rather than win-x64: llvm-mingw (win-arm64) bundles the same mingw-w64 headers with
+# the same NTDDI gating, so ggml-cpu.c fails there identically.
+case "${RID}" in win-*)
   cat > "${WORK_DIR}/win_ggml_compat.h" <<'SHIM'
 #ifndef WHISPER_WIN_GGML_COMPAT_H
 #define WHISPER_WIN_GGML_COMPAT_H
@@ -117,7 +119,8 @@ typedef struct _THREAD_POWER_THROTTLING_STATE {
 SHIM
   WHISPER_CMAKE+=(-DCMAKE_C_FLAGS="-include ${WORK_DIR}/win_ggml_compat.h"
                   -DCMAKE_CXX_FLAGS="-include ${WORK_DIR}/win_ggml_compat.h")
-fi
+  ;;
+esac
 
 cmake -B build "${WHISPER_CMAKE[@]}" \
   ${CMAKE_CROSS_ARGS[@]+"${CMAKE_CROSS_ARGS[@]}"}

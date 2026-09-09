@@ -26,6 +26,9 @@ if [[ "${BUILD_LIBX264}" == "1" ]]; then
     win-x64)
       X264_ARGS+=(--cross-prefix="${CROSS_PREFIX}-" --host=x86_64-w64-mingw32)
       ;;
+    win-arm64)
+      X264_ARGS+=(--cross-prefix="${CROSS_PREFIX}-" --host=aarch64-w64-mingw32)
+      ;;
     android-arm64)
       X264_ARGS+=(--host=aarch64-linux-android --sysroot="${TOOLCHAIN}/sysroot")
       ;;

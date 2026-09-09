@@ -20,7 +20,6 @@ edit. See the vocabulary note at the bottom.
 | OS/runtime | RID | Lift |
 |---|---|---|
 | **Web / WASM** | `browser-wasm` | Emscripten (`emcc`) toolchain; thread/syscall/HW-accel constraints. **Highest-value** for a media/DVR product — in-browser playback, no install (cf. `ffmpeg.wasm`). Own spike. |
-| Windows ARM64 | `win-arm64` | Needs `llvm-mingw` (mingw-w64 arm64 is weak). Windows-on-ARM is growing. |
 
 ## On-demand niche
 `linux-riscv64`, `linux-ppc64le`, `linux-loongarch64`, `android-arm` (32-bit), Mac

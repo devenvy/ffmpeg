@@ -17,6 +17,7 @@ cd zimg || exit 1
 ZIMG_ARGS=(--prefix="${DEPS_DIR}" --disable-shared --enable-static --with-pic)
 case "${RID}" in
   win-x64)       ZIMG_ARGS+=(--host=x86_64-w64-mingw32) ;;
+  win-arm64)     ZIMG_ARGS+=(--host=aarch64-w64-mingw32) ;;
   linux-armhf)   ZIMG_ARGS+=(--host=arm-linux-gnueabihf) ;;
   android-arm64) ZIMG_ARGS+=(--host=aarch64-linux-android) ;;
   android-x64)   ZIMG_ARGS+=(--host=x86_64-linux-android) ;;

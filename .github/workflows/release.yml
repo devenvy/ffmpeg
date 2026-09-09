@@ -296,9 +296,6 @@ jobs:
               -framework "artifacts/ios-sim-arm64/frameworks/${name}.framework" \
               -output "bundle/${name}.xcframework"
           done
-          # MoltenVK ICD (v3 Vulkan cells): point VK_ICD_FILENAMES at it in the consuming app.
-          [ -f artifacts/ios-arm64/frameworks/MoltenVK_icd.json ] \
-            && cp artifacts/ios-arm64/frameworks/MoltenVK_icd.json bundle/
           cp -r artifacts/ios-arm64/legal bundle/legal
           tar -czf "ffmpeg-${VERSION}-ios-${{ matrix.license }}v${{ matrix.license_version }}.tar.gz" -C bundle .
 

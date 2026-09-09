@@ -270,6 +270,11 @@ APPLIES = {
   "libdrm":LINUX,"v4l2_m2m":LINUX,"libvpl":LINUX|WIN,"libmfx":LINUX|WIN,
   "d3d11va":WIN,"d3d12va":WIN,"dxva2":WIN,"amf":WIN,"mediafoundation":WIN,
   "videotoolbox":APPLE,"audiotoolbox":MAC,"mediacodec":ANDROID,"vulkan":ALL,
+  # Only iOS links Vulkan statically. Every other platform reaches a Vulkan driver at
+  # runtime — the Khronos loader on macOS/Linux, the system libvulkan on Android/Windows —
+  # so --enable-vulkan-static is added by moltenvk.sh's ios-* arm alone. Without this entry
+  # the token falls back to ALL and the matrix claims static Vulkan on every RID.
+  "vulkan_static":IOS,
   "mmal":LINUX,"omx":LINUX,"schannel":WIN,"securetransport":APPLE,
   "libsvtav1":ALL-{"linux-armhf","android-arm64","ios-arm64","ios-sim-arm64"},
   "libwebp":DESKTOP, "libfontconfig":LINUX|MAC,

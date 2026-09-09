@@ -23,6 +23,14 @@ edit. See the vocabulary note at the bottom.
 `linux-riscv64`, `linux-ppc64le`, `linux-loongarch64`, `android-arm` (32-bit), Mac
 Catalyst, FreeBSD (`freebsd-x64`).
 
+## Known asymmetries (not platform gaps, but worth fixing)
+- **iOS device vs. simulator filter set.** `04_select_license.sh` disables libplacebo
+  on `ios-sim-arm64` only (the deliberately lean simulator slice), so the two slices
+  inside one `.xcframework` expose different filters — a `libplacebo` filtergraph that
+  works on device silently isn't available in the simulator. Consumers building a
+  capability table need to know. Fixing it means paying the shaderc+libplacebo build
+  cost on the simulator slice.
+
 ## Vocabulary (keep consistent)
 - **RID** = atomic build target `{os}-{arch}[-variant]` — one RID → one build → one
   artifact; it's `${RID}`, the matrix axis, and the artifact-name middle. Use it for

@@ -194,7 +194,7 @@ _3 of 23 built._
 | quirc — QR decode |  | — | — | — | — | — | — | — | — | — | — |
 | rkmpp |  | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
 | Video4Linux2 |  | — | — | — | — | — | — | — | — | — | — |
-| Vulkan (static ICD) |  | — | — | — | — | — | — | — | — | — | — |
+| Vulkan (static ICD) |  | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | — | — |
 
 [^tls]: TLS/https backend — depends on the license SERIES. v3 builds link OpenSSL 3.x (Apache-2.0, requires --enable-version3) on Linux/Android. The App-Store-safe v2 builds instead use GnuTLS on gpl-2 (its GMP/nettle deps are fine under GPLv2) and DROP TLS ENTIRELY on lgpl-2 (GMP/nettle are never LGPLv2.1 and no other backend is either). Windows uses SChannel and Apple uses SecureTransport (OS-native) in every series. All enable the `https`/`tls` protocols EXCEPT lgpl-2 on Linux/Android, which has no TLS.
 [^d3d12]: Not built: FFmpeg's `d3d12va` needs `ID3D12VideoDecoder` from `d3d12video.h`, which the mingw-w64 cross-toolchain doesn't ship (it has `d3d12.h` only). Windows hw decode is covered by D3D11VA + DXVA2.

@@ -426,6 +426,24 @@ probe_hwaccel() {
   fi
 }
 
+# STRICT Vulkan check — the opposite of probe_hwaccel's tolerance. probe_hwaccel exists for
+# hwaccels that genuinely have no device on a CI runner (VAAPI, QSV, AMF), so it classifies a
+# "driver loaded, no device" message as a pass. That tolerance is wrong for Apple: MoltenVK is
+# a software-reachable driver over Metal, and the macOS runner HAS Metal — so if Vulkan cannot
+# initialise here, consumers cannot either, and we want a red build rather than a green one.
+assert_vulkan_device() {
+  local out rc
+  out="$("${RUNNER[@]}" "$FFMPEG" -hide_banner -v error \
+          -init_hw_device "vulkan=vk" -f lavfi -i "testsrc=size=320x240:rate=25:duration=1" \
+          -vf "format=nv12,hwupload,scale_vulkan=160:120,hwdownload,format=nv12" \
+          -f null - 2>&1)"; rc=$?
+  if [ "$rc" -eq 0 ]; then
+    pass "Vulkan: initialised a real device and ran scale_vulkan"
+  else
+    fail "Vulkan: FAILED to initialise on a Metal-capable host — $(tr '\n' ' ' <<<"$out" | cut -c1-200)"
+  fi
+}
+
 # --- functional suite (parameterized launcher) --------------------------------
 # Set RUNNER=() for native, (wine) for Windows, (qemu-aarch64 -L <sysroot>) etc.
 # Requires FFMPEG and FFPROBE (paths) and RUNNER to be set by the caller.

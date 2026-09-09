@@ -22,6 +22,73 @@ done
 
 # Feature/license from the embedded config (present in each framework's binary).
 load_config_string "${FWDIR}/libavutil.framework/libavutil" "${FWDIR}/libavcodec.framework/libavcodec"
+
+# Vulkan is v3-only (MoltenVK + Vulkan-Headers are Apache-2.0, dropped from the v2
+# App-Store series). The embedded --enable-version3 flag distinguishes the series.
+#
+# On iOS, Vulkan is STATICALLY linked: MoltenVK is the driver and we don't build the Khronos
+# loader for iOS here (vulkan-loader.sh supplies no iOS CMake toolchain — upstream does
+# support iOS, this is our configuration), so FFmpeg's dlopen path (which only ever tries the
+# leaf names libvulkan.dylib / libvulkan.1.dylib / libMoltenVK.dylib) can never resolve inside
+# an app bundle. --enable-vulkan-static makes FFmpeg call vkGetInstanceProcAddr directly.
+case " ${CONFIG_STR} " in
+  *" --enable-version3 "*)
+    # WIRING GUARD ONLY. check_config greps the embedded ./configure COMMAND LINE, not the
+    # feature set configure actually resolved, and moltenvk.sh appends --enable-vulkan-static
+    # unconditionally on every v3 iOS slice. So this proves the flag was passed; it can never
+    # prove Vulkan survived configure. (It also cannot fail independently of
+    # "--enable-vulkan": the pattern matches INSIDE "--enable-vulkan-static".)
+    check_config "--enable-vulkan-static" "Vulkan statically linked (MoltenVK)"
+    # The real gate, read out of the BINARY: av_vkfmt_from_pixfmt is public libavutil API
+    # compiled only under CONFIG_VULKAN, so it is absent entirely — not merely undefined —
+    # if Vulkan silently dropped out of configure. (Not vkGetInstanceProcAddr: check_symbol
+    # falls back to plain `nm`, which also lists UNDEFINED symbols, so that would pass even
+    # on a build where MoltenVK was never linked.)
+    check_symbol "${FWDIR}/libavutil.framework/libavutil" "av_vkfmt_from_pixfmt"
+    ;;
+  *)
+    check_config_absent "--enable-vulkan" "Vulkan (v2: dropped)"
+    check_config_absent "--enable-vulkan-static" "Vulkan static (v2: dropped)"
+    ;;
+esac
+
+# L1/L2: MoltenVK is Apache-2.0. It must be folded into the libav* frameworks on v3 and
+# be entirely absent on v2. Either way it must NEVER ship as its own framework, and the
+# Khronos loader / ICD JSON must never appear (we don't build the loader for iOS, and
+# upstream MoltenVK only emits the ICD JSON for its macOS slice).
+for stray in "${FWDIR}/MoltenVK.framework" "${FWDIR}/vulkan.framework" "${FWDIR}/MoltenVK_icd.json"; do
+  [ -e "${stray}" ] \
+    && fail "unexpected artifact $(basename "${stray}") — iOS links Vulkan statically" \
+    || pass "no stray $(basename "${stray}") in the framework set"
+done
+
+# L3: attribution must survive the switch to static linking. The MoltenVK binary is no
+# longer a visible file in the artifact, so this is the only thing proving its Apache-2.0
+# text still ships. v2 never builds MoltenVK, so it must NOT carry the text either.
+case " ${CONFIG_STR} " in
+  *" --enable-version3 "*)
+    if compgen -G "${DIR}/legal/licenses/MoltenVK/*" >/dev/null 2>&1; then
+      pass "MoltenVK Apache-2.0 text present (legal/licenses/MoltenVK/)"
+    else
+      fail "MoltenVK is linked in but legal/licenses/MoltenVK/ is missing — attribution lost"
+    fi
+    ;;
+  *)
+    [ -d "${DIR}/legal/licenses/MoltenVK" ] \
+      && fail "v2 cell carries MoltenVK attribution — Apache-2.0 leaked into an LGPLv2.1 build" \
+      || pass "no MoltenVK attribution in the v2 cell (correct: not built)"
+    ;;
+esac
+
+# Record which Apple system frameworks libavutil itself loads. Static MoltenVK links Metal /
+# IOSurface / Foundation / QuartzCore / CoreGraphics into libavutil; if they show up here they
+# are libavutil's own recorded dependencies and a consumer does NOT have to re-link them. This
+# is informational — it decides what the install docs claim, and it is not a gate.
+if command -v otool >/dev/null 2>&1 && [ -e "${FWDIR}/libavutil.framework/libavutil" ]; then
+  info "libavutil load commands: $(otool -L "${FWDIR}/libavutil.framework/libavutil" \
+    | awk 'NR>1{print $1}' | grep -oE '[A-Za-z]+\.framework' | sort -u | tr '\n' ' ')"
+fi
+
 check_config "--enable-videotoolbox" "VideoToolbox"
 check_config "--enable-whisper" "Whisper ASR filter"
 check_tls
@@ -60,7 +127,7 @@ if command -v xcrun >/dev/null 2>&1; then
     -framework VideoToolbox -framework AudioToolbox -framework CoreMedia \
     -framework CoreVideo -framework CoreFoundation -framework CoreServices \
     -framework Security -framework Foundation -framework Metal -framework MetalKit \
-    -framework Accelerate -framework QuartzCore \
+    -framework Accelerate -framework QuartzCore -framework IOSurface -framework UIKit \
     -lc++ -liconv -lz
 else
   skip "smoke link: Xcode/xcrun not available (run in the macOS build job)"

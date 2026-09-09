@@ -1,24 +1,33 @@
 #!/usr/bin/env bash
-# Windows (win-x64) test. Structural always (PE arch, import libs, embedded
+# Windows test (win-x64 / win-arm64). Structural always (PE arch, import libs, embedded
 # config). Functional via Wine when available (the -win32 mingw build has no
 # libwinpthread dependency, so nothing extra is needed to run it under Wine).
 set -uo pipefail
-DIR="${1:?usage: win.sh <artifact-native-dir>}"
+RID="${1:?usage: win.sh <rid> <artifact-native-dir>}"
+DIR="${2:?usage: win.sh <rid> <artifact-native-dir>}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # llvm-readobj reads PE export tables (nm cannot) and ships with the preinstalled LLVM on the
 # Windows runner; put it on PATH so check_pe_export can verify DLL exports. No-op elsewhere.
 [ -d "/c/Program Files/LLVM/bin" ] && export PATH="/c/Program Files/LLVM/bin:${PATH}"
 . "${HERE}/lib.sh"
-info "Windows x64 structural checks (${DIR})"
+
+# `file` reports an ARM64 PE as "PE32+ ... Aarch64", not x86-64, so the arch assertion has to
+# follow the RID — otherwise a correct win-arm64 artifact fails as though it were mis-built.
+case "$RID" in
+  win-x64)   ARCH_RE='PE32\+.*x86-64' ;;
+  win-arm64) ARCH_RE='PE32\+.*Aarch64' ;;
+  *) echo "win.sh: unexpected RID $RID" >&2; exit 2 ;;
+esac
+info "Windows structural checks (${RID}, ${DIR})"
 
 for base in avcodec avformat avutil avfilter swscale swresample; do
   dll="$(ls "${DIR}/${base}"-*.dll 2>/dev/null | head -1)"
   [ -n "$dll" ] || { fail "missing ${base}-*.dll"; continue; }
-  check_arch "$dll" 'PE32\+.*x86-64'
+  check_arch "$dll" "$ARCH_RE"
   check_shared_object "$dll"
   check_pe_export "$dll" "${base}_version"   # verify the DLL's export table (not just the file type)
 done
-check_arch "${DIR}/ffmpeg.exe" 'PE32\+.*x86-64'
+check_arch "${DIR}/ffmpeg.exe" "$ARCH_RE"
 
 # MSVC import libraries live in the native tree (packaged into the -dev tarball).
 n_lib=$(ls "${DIR}"/lib/*.lib 2>/dev/null | wc -l)

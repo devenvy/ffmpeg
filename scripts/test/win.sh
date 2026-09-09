@@ -51,7 +51,7 @@ elif command -v wine >/dev/null 2>&1; then
 else
   # Never green-wash an unexecuted target: in CI win-x64 runs on a native Windows runner, so
   # reaching here (not Windows, no Wine) is a real capability gap that must fail, not skip.
-  fail "functional suite: cannot execute win-x64 target — not on Windows and no Wine (refusing to skip)"
+  fail "functional suite: cannot execute ${RID} target — not on Windows and no Wine (refusing to skip)"
 fi
 
 finish

@@ -91,7 +91,12 @@ case "${RID}" in
     # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     EXTRA_CFLAGS="-O2 -pipe"
     # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
-    EXTRA_CXXFLAGS="-O2 -pipe"
+    # -include system_error: FFmpeg 8.1.x's libavfilter/vsrc_gfxcapture_winrt.cpp uses
+    # std::system_error without including <system_error>. libstdc++ pulls it in transitively
+    # via <thread>/<mutex>, so win-x64 never notices; libc++ does not, so the llvm-mingw build
+    # fails to compile it. Fixed upstream in 9.0.x, which includes the header — this flag is
+    # therefore a no-op there and can go when the 8.x line is retired.
+    EXTRA_CXXFLAGS="-O2 -pipe -include system_error"
     # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     EXTRA_LDFLAGS=""
     CONFIGURE_FLAGS+=(

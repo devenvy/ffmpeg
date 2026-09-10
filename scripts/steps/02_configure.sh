@@ -127,6 +127,11 @@ BUILD_GNUTLS=0         # GnuTLS TLS (v2 series replacement for OpenSSL; set by 0
 EXTRA_CFLAGS=""
 # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
 EXTRA_CXXFLAGS=""
+# The C++ runtime the dep scripts should add to EXTRA_LIBS for FFmpeg's final link.
+# Unset here on purpose: each dep falls back to its historical default (-lstdc++ on
+# GNU/mingw, -lc++ on Apple/NDK). A platform sets it only to override that — win-arm64
+# sets it EMPTY because -static-libstdc++ already links libc++ statically, and adding
+# -lstdc++ on top pulls libc++.dll.a in as well and the link dies on duplicate symbols.
 # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
 EXTRA_LDFLAGS=""
 # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
@@ -152,6 +157,7 @@ CROSS_HOST=""
 # shellcheck disable=SC2034  # CROSS_HOST is consumed by the sourced autotools dep scripts
 case "${RID}" in
   win-x64)                 CROSS_HOST=x86_64-w64-mingw32 ;;
+  win-arm64)               CROSS_HOST=aarch64-w64-mingw32 ;;
   linux-armhf)             CROSS_HOST=arm-linux-gnueabihf ;;
   android-arm64)           CROSS_HOST=aarch64-linux-android ;;
   android-x64)             CROSS_HOST=x86_64-linux-android ;;

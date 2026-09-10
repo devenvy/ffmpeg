@@ -23,7 +23,7 @@ jobs:
     strategy:
       fail-fast: ${{ inputs.fail_fast }}
       matrix:
-        rid: [linux-x64, linux-arm64, linux-armhf, linux-musl-x64, linux-musl-arm64, win-x64, osx-x64, osx-arm64, android-arm64, android-x64, ios-arm64, ios-sim-arm64]
+        rid: [linux-x64, linux-arm64, linux-armhf, linux-musl-x64, linux-musl-arm64, win-x64, win-arm64, osx-x64, osx-arm64, android-arm64, android-x64, ios-arm64, ios-sim-arm64]
         license: [lgpl, gpl]
         # License version series. 3 = (L)GPLv3 (OpenSSL 3.x TLS + Vulkan on Linux/Android, both
         # Apache-2.0). 2 = LGPLv2.1 / GPLv2 (App-Store-safe): Vulkan dropped everywhere; on
@@ -48,6 +48,8 @@ jobs:
           - rid: linux-musl-arm64
             runner: ubuntu-24.04-arm
           - rid: win-x64
+            runner: ubuntu-latest
+          - rid: win-arm64
             runner: ubuntu-latest
           - rid: osx-x64
             runner: macos-15-intel

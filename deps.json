@@ -186,6 +186,16 @@
       "tag": "v1.6.1",
       "datasource": "github-tags"
     },
+    "llvm-mingw": {
+      "origin": "https://github.com/mstorsjo/llvm-mingw.git",
+      "tag": "20260908",
+      "datasource": "github-tags"
+    },
+    "patchelf": {
+      "origin": "https://github.com/NixOS/patchelf.git",
+      "tag": "0.18.0",
+      "datasource": "github-tags"
+    },
     "shaderc": {
       "origin": "https://github.com/google/shaderc.git",
       "tag": "v2026.3",

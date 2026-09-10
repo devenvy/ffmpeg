@@ -31,7 +31,7 @@ jobs:
     strategy:
       fail-fast: ${{ inputs.fail_fast }}
       matrix:
-        rid: [linux-x64, linux-arm64, linux-armhf, linux-musl-x64, linux-musl-arm64, win-x64, osx-x64, osx-arm64]
+        rid: [linux-x64, linux-arm64, linux-armhf, linux-musl-x64, linux-musl-arm64, win-x64, win-arm64, osx-x64, osx-arm64]
         license: [lgpl, gpl]
         # v3 = OpenSSL 3.x TLS + Vulkan on Linux/Android. v2 = Vulkan dropped everywhere; on
         # Linux/Android, gplv2 gets GnuTLS but lgplv2 has NO TLS backend at all. Apple/Windows
@@ -60,6 +60,10 @@ jobs:
             runner: ubuntu-24.04-arm
           - rid: win-x64
             runner: windows-latest
+          # GitHub's Windows-on-ARM runner: the artifact is an ARM64 binary, so it
+          # executes natively here rather than under emulation.
+          - rid: win-arm64
+            runner: windows-11-arm
           - rid: osx-x64
             runner: macos-15-intel
           - rid: osx-arm64

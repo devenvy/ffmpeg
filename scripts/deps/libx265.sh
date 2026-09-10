@@ -36,6 +36,14 @@ if [[ "${BUILD_LIBX265}" == "1" ]]; then
     win-x64)     X265_EXTRA+=(-DCMAKE_SYSTEM_PROCESSOR=x86_64
                    -DCMAKE_C_FLAGS="-static-libgcc -O2"
                    -DCMAKE_CXX_FLAGS="-static-libgcc -static-libstdc++ -O2") ;;
+    # CROSS_COMPILE_ARM64 is x265's own switch for an aarch64 cross build; its CMakeLists gates
+    # the NEON sources on it (or on a detected ARM64). The -static-libgcc/-static-libstdc++ pair
+    # the x64 arm carries is omitted here only because this is a static library; the
+    # runtime linkage that matters is on FFmpeg's own link (platform/windows.sh).
+    win-arm64)   X265_EXTRA+=(-DCMAKE_SYSTEM_PROCESSOR=aarch64
+                   -DCROSS_COMPILE_ARM64=ON
+                   -DCMAKE_C_FLAGS="-O2"
+                   -DCMAKE_CXX_FLAGS="-O2") ;;
   esac
 
   cmake -B build -S source \

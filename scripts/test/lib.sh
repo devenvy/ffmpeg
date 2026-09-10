@@ -450,10 +450,16 @@ assert_vulkan_device() {
 run_functional() {
   local tmp; tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' RETURN
 
-  if "${RUNNER[@]}" "$FFMPEG" -hide_banner -version >/dev/null 2>&1; then
-    pass "ffmpeg runs ($("${RUNNER[@]}" "$FFMPEG" -hide_banner -version 2>/dev/null | head -1))"
+  # Capture output+status instead of discarding them: when this gate trips it is the ONLY
+  # signal, and ">/dev/null 2>&1" reduced a missing-DLL load failure to "does not run" with no
+  # hint which library was absent. On Windows a failed module load prints nothing at all, so the
+  # exit status carries the diagnosis (0xC0000135 / 3221225781 = STATUS_DLL_NOT_FOUND).
+  local vout vrc
+  vout="$("${RUNNER[@]}" "$FFMPEG" -hide_banner -version 2>&1)"; vrc=$?
+  if [ "$vrc" -eq 0 ]; then
+    pass "ffmpeg runs ($(head -1 <<<"$vout"))"
   else
-    fail "ffmpeg does not run under [${RUNNER[*]:-native}] — skipping remaining functional checks"
+    fail "ffmpeg does not run under [${RUNNER[*]:-native}] (exit ${vrc}): $(tr '\n' ' ' <<<"$vout" | cut -c1-300) — skipping remaining functional checks"
     return
   fi
   "${RUNNER[@]}" "$FFPROBE" -hide_banner -version >/dev/null 2>&1 \

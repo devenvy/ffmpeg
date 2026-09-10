@@ -8,7 +8,7 @@ set -euo pipefail
 #   BUILD_RID              - Runtime identifier (required):
 #                            linux-x64, linux-arm64, linux-armhf,
 #                            linux-musl-x64, linux-musl-arm64,
-#                            win-x64, osx-x64, osx-arm64,
+#                            win-x64, win-arm64, osx-x64, osx-arm64,
 #                            android-arm64, android-x64,
 #                            ios-arm64, ios-sim-arm64
 #   BUILD_LICENSE          - License family: gpl or lgpl (default: lgpl)

@@ -36,6 +36,13 @@ if [[ "${BUILD_LIBVPX}" == "1" ]]; then
       VPX_ARGS+=(--target=x86_64-win64-gcc --extra-cflags="-static-libgcc")
       VPX_CROSS="${CROSS_PREFIX}-"
       ;;
+    win-arm64)
+      # libvpx's arm64-win64-gcc target covers any GCC-style driver, llvm-mingw's clang
+      # included. This builds a static .a, so the runtime-linkage flags that matter live on
+      # FFmpeg's own link — see platform/windows.sh's EXTRA_LDFLAGS.
+      VPX_ARGS+=(--target=arm64-win64-gcc)
+      VPX_CROSS="${CROSS_PREFIX}-"
+      ;;
     android-arm64)
       VPX_ARGS+=(--target=arm64-android-gcc --extra-cflags="-fPIC")
       ;;

@@ -10,7 +10,7 @@ governing license text and each bundled dependency's license under `legal/`.
 
 | OS | RIDs |
 |----|------|
-| Windows | `win-x64` |
+| Windows | `win-x64`, `win-arm64` |
 | Linux (glibc) | `linux-x64`, `linux-arm64`, `linux-armhf` |
 | Linux (musl / Alpine) | `linux-musl-x64`, `linux-musl-arm64` |
 | macOS | `osx-x64`, `osx-arm64` |

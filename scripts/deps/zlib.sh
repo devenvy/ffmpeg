@@ -22,6 +22,12 @@ if [[ "${BUILD_ZLIB}" == "1" ]]; then
         CHOST="${CROSS_PREFIX}" \
         ./configure --prefix="${DEPS_DIR}" --static
       ;;
+    win-arm64)
+      # llvm-mingw's driver is -clang, not -gcc; zlib's configure honours CC/CHOST directly.
+      CC="${CROSS_PREFIX}-clang" AR="${CROSS_PREFIX}-ar" RANLIB="${CROSS_PREFIX}-ranlib" \
+        CHOST="${CROSS_PREFIX}" \
+        ./configure --prefix="${DEPS_DIR}" --static
+      ;;
     android-arm64|android-x64|ios-arm64|ios-sim-arm64)
       CFLAGS="${EXTRA_CFLAGS:-}" ./configure --prefix="${DEPS_DIR}" --static
       ;;

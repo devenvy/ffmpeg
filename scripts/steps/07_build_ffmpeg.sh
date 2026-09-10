@@ -59,6 +59,32 @@ if [[ "${RID}" == win-* ]]; then
     # → "multiple definition of _Unwind_Resume" at the DLL link. Idempotent; must run BEFORE the
     # -Bstatic skip below, since srt.pc already carries -Bstatic (so the skip would pass it over).
     sed -i -e 's/ -lgcc_s / /g' -e 's/ -lgcc_s$//' "$pc"
+    # llvm-mingw (win-arm64) needs a different rule than mingw-w64's -Bstatic wrap:
+    # rewrite every runtime that defaults to SHARED into its static archive.
+    #
+    #   -lc++/-lstdc++ -> libc++.a   Deps built by clang advertise -lc++, which resolves to
+    #     libc++.dll.a and collides with the static libc++ this RID links:
+    #       ld.lld: error: duplicate symbol: std::exception::~exception()
+    #         defined at libc++.a(stdlib_exception.cpp.obj) / libc++.dll.a(libc++.dll)
+    #     configure reports that as a bogus "libjxl >= 0.7.0 not found using pkg-config".
+    #   -lunwind, -l[win]pthread -> libunwind.a / libwinpthread.a   Same over-capture of the
+    #     implicit compiler link line that leaks -lgcc_s above, but spelled the llvm-mingw way.
+    #     These survived as DLL imports (libunwind.dll, libwinpthread-1.dll) in avcodec/avfilter/
+    #     avformat, neither of which we ship, so Windows refused to load them and ffmpeg.exe died
+    #     before main -- "ffmpeg does not run under [native]". -static-libgcc does NOT cover this:
+    #     the driver ignores it when linking -shared, which is the whole reason this patch exists.
+    #
+    # -lc++abi is deliberately left alone: it has no import-library twin, so it is already static.
+    # Not the -Bstatic wrap, because that leaves the shared/static choice to link order.
+    # The sed loops because a plain /g skips the second of two adjacent matches (shared space).
+    if [[ "${RID}" == "win-arm64" ]]; then
+      sed -i -E ':a
+s/(^|[[:space:]])-l(std)?c\+\+([[:space:]]|$)/\1-l:libc++.a\3/
+s/(^|[[:space:]])-lunwind([[:space:]]|$)/\1-l:libunwind.a\2/
+s/(^|[[:space:]])-l(win)?pthread([[:space:]]|$)/\1-l:libwinpthread.a\3/
+ta' "$pc"
+      continue
+    fi
     grep -q -- '-Wl,-Bstatic' "$pc" && continue
     sed -i \
       -e 's/-lpthread/-Wl,-Bstatic -lpthread -Wl,-Bdynamic/g' \
@@ -105,7 +131,22 @@ CONFIGURE_CMD=(
 )
 
 echo "Configuring FFmpeg..."
-"${CONFIGURE_CMD[@]}"
+# On failure configure just prints "<lib> not found" and points at ffbuild/config.log,
+# which never leaves the runner. Without the log a failed probe is indistinguishable
+# from a missing .pc, a bad version or a broken link line, so diagnosing one costs a
+# full CI round-trip per guess. Dump the tail -- it ends with the failing command and
+# the linker's actual error -- and keep configure's exit status.
+if ! "${CONFIGURE_CMD[@]}"; then
+  rc=$?
+  if [ -f ffbuild/config.log ]; then
+    echo "───── ffbuild/config.log (last 120 lines) ─────" >&2
+    tail -n 120 ffbuild/config.log >&2
+    echo "───── end config.log ─────" >&2
+  else
+    echo "(no ffbuild/config.log was produced)" >&2
+  fi
+  exit "${rc}"
+fi
 
 echo "Building FFmpeg..."
 make -j"$(${NPROC})"

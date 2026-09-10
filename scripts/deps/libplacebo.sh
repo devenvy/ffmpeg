@@ -40,7 +40,7 @@ meson install -C build
 # mingw-w64, libc++ on Apple (clang) and the Android NDK.
 case "${PLATFORM:-linux}" in
   apple|android) EXTRA_LIBS="${EXTRA_LIBS:-} -lc++" ;;  # clang libc++ (matches whisper/x265)
-  *)             EXTRA_LIBS="${EXTRA_LIBS:-} -lstdc++" ;;
+  *)             EXTRA_LIBS="${EXTRA_LIBS:-} ${CXX_RT_LIB--lstdc++}" ;;
 esac
 CONFIGURE_FLAGS+=(--enable-libplacebo)
 echo "libplacebo (GPU HDR tone-map + scaling) enabled."

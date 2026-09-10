@@ -35,6 +35,24 @@ set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
 CMAKE
     CMAKE_CROSS_ARGS+=(-DCMAKE_TOOLCHAIN_FILE="${ARMHF_TOOLCHAIN}")
     ;;
+  win-arm64)
+    # llvm-mingw is clang-based: the drivers are -clang/-clang++ (not -gcc/-g++), and it
+    # provides llvm-windres under the same triple prefix. ARM64 is the CMake spelling of
+    # the processor for Windows-on-ARM.
+    TOOLCHAIN_FILE="${WORK_DIR}/llvm-mingw-toolchain.cmake"
+    cat > "${TOOLCHAIN_FILE}" <<CMAKE
+set(CMAKE_SYSTEM_NAME Windows)
+set(CMAKE_SYSTEM_PROCESSOR ARM64)
+set(CMAKE_C_COMPILER ${CROSS_PREFIX}-clang)
+set(CMAKE_CXX_COMPILER ${CROSS_PREFIX}-clang++)
+set(CMAKE_RC_COMPILER ${CROSS_PREFIX}-windres)
+set(CMAKE_FIND_ROOT_PATH ${DEPS_DIR})
+set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+CMAKE
+    CMAKE_CROSS_ARGS+=(-DCMAKE_TOOLCHAIN_FILE="${TOOLCHAIN_FILE}")
+    ;;
   win-x64)
     TOOLCHAIN_FILE="${WORK_DIR}/mingw-toolchain.cmake"
     cat > "${TOOLCHAIN_FILE}" <<CMAKE
@@ -78,6 +96,26 @@ esac
 # Native builds leave MESON_CROSS_FILE empty; the meson deps skip --cross-file.
 MESON_CROSS_FILE=""
 case "${RID}" in
+  win-arm64)
+    MESON_CROSS_FILE="${WORK_DIR}/llvm-mingw-meson-cross.ini"
+    cat > "${MESON_CROSS_FILE}" <<MESON
+[binaries]
+c = '${CROSS_PREFIX}-clang'
+cpp = '${CROSS_PREFIX}-clang++'
+ar = '${CROSS_PREFIX}-ar'
+strip = '${CROSS_PREFIX}-strip'
+windres = '${CROSS_PREFIX}-windres'
+pkg-config = 'pkg-config'
+[host_machine]
+system = 'windows'
+cpu_family = 'aarch64'
+cpu = 'aarch64'
+endian = 'little'
+[properties]
+pkg_config_libdir = '${DEPS_DIR}/lib/pkgconfig'
+needs_exe_wrapper = true
+MESON
+    ;;
   win-x64)
     MESON_CROSS_FILE="${WORK_DIR}/mingw-meson-cross.ini"
     cat > "${MESON_CROSS_FILE}" <<MESON
@@ -165,3 +203,21 @@ needs_exe_wrapper = true
 MESON
     ;;
 esac
+
+# ── Toolchain sanity: fail here, not 200 lines into the first dependency ──────────
+# A cross RID whose compiler is missing from PATH otherwise surfaces as an opaque error
+# from whichever dep configures first — win-arm64 shipped a provisioning bug that read
+# "Unable to invoke compiler: aarch64-w64-mingw32-clang" out of libvpx's configure, with
+# no hint that 03_install_packages.sh was the culprit. Check it once, here, where the
+# message can name the actual cause.
+#
+# Deliberately in 05 rather than 02: gen-matrix.sh simulates 02_configure + 04_select_license
+# on a runner that has no cross toolchains at all, so a hard check there would break the
+# coverage-matrix job for every cross RID.
+if [ -n "${CC:-}" ] && ! command -v "${CC}" >/dev/null 2>&1 && [ ! -x "${CC}" ]; then
+  echo "ERROR: the compiler this RID configured is not executable: CC=${CC}" >&2
+  echo "  RID=${RID}. Check that scripts/steps/03_install_packages.sh installed and PATH-exported" >&2
+  echo "  the toolchain for this RID (it is sourced, so its 'export PATH' reaches this step)." >&2
+  exit 1
+fi
+echo "Toolchain OK for ${RID}: ${CC:-<native>}"

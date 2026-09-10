@@ -26,11 +26,6 @@ case "${RID}" in
     EXTRA_CXXFLAGS="-static-libgcc -static-libstdc++ -O2 -pipe"
     # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     EXTRA_LDFLAGS="-static-libgcc -static-libstdc++"
-    # -static-libstdc++ above already links libc++ statically. The dep scripts would
-    # otherwise also append -lstdc++, which llvm-mingw resolves to libc++.dll.a, and the
-    # link then fails on duplicate symbols (std::exception::~exception and friends).
-    # shellcheck disable=SC2034  # set here; consumed by the sourced dep scripts
-    CXX_RT_LIB=""
     CONFIGURE_FLAGS+=(
       --cross-prefix="${CROSS_PREFIX}-"
       --cc="${CROSS_PREFIX}-gcc-win32"
@@ -106,6 +101,11 @@ case "${RID}" in
     EXTRA_CXXFLAGS="-static-libgcc -static-libstdc++ -O2 -pipe -include system_error"
     # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     EXTRA_LDFLAGS="-static-libgcc -static-libstdc++"
+    # -static-libstdc++ above already links libc++ statically. The dep scripts would
+    # otherwise also append -lstdc++, which llvm-mingw resolves to libc++.dll.a, and the
+    # link then fails on duplicate symbols (std::exception::~exception and friends).
+    # shellcheck disable=SC2034  # set here; consumed by the sourced dep scripts
+    CXX_RT_LIB=""
     CONFIGURE_FLAGS+=(
       --cross-prefix="${CROSS_PREFIX}-"
       --cc="${CROSS_PREFIX}-clang"

@@ -81,6 +81,16 @@ case "${RID}" in
       sudo python3 -m pip install --break-system-packages --upgrade meson ninja \
         || sudo python3 -m pip install --upgrade meson ninja
     fi
+    ;;
+  *)
+    sudo apt-get update
+    sudo apt-get install -y --no-install-recommends "${PKGS[@]}" jq
+    # fontconfig 2.18+ (and other newer Meson projects) require meson >= 1.11; the distro's
+    # apt meson is older (Ubuntu 24.04 ships 1.3.2). Pull a current meson/ninja from PyPI —
+    # same approach the manylinux path uses. PEP-668 marks the system env externally-managed
+    # on newer Ubuntu, so allow the override, with a plain-pip fallback for older hosts.
+    sudo python3 -m pip install --break-system-packages --upgrade meson ninja \
+      || sudo python3 -m pip install --upgrade meson ninja
     # Windows-on-ARM needs LLVM-MinGW: Debian/Ubuntu's mingw-w64 packages provide only the
     # x86 targets (i686/x86_64-w64-mingw32) and no aarch64-w64-mingw32 at all, so win-arm64
     # cannot be built from the distro toolchain. llvm-mingw ships prebuilt cross toolchains
@@ -104,16 +114,6 @@ case "${RID}" in
         || { echo "ERROR: llvm-mingw unpacked but aarch64-w64-mingw32-clang is not on PATH" >&2; exit 1; }
       echo "llvm-mingw ready: $(aarch64-w64-mingw32-clang --version | head -1)"
     fi
-    ;;
-  *)
-    sudo apt-get update
-    sudo apt-get install -y --no-install-recommends "${PKGS[@]}" jq
-    # fontconfig 2.18+ (and other newer Meson projects) require meson >= 1.11; the distro's
-    # apt meson is older (Ubuntu 24.04 ships 1.3.2). Pull a current meson/ninja from PyPI —
-    # same approach the manylinux path uses. PEP-668 marks the system env externally-managed
-    # on newer Ubuntu, so allow the override, with a plain-pip fallback for older hosts.
-    sudo python3 -m pip install --break-system-packages --upgrade meson ninja \
-      || sudo python3 -m pip install --upgrade meson ninja
     ;;
 esac
 else

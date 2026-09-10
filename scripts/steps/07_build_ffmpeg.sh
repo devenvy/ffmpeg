@@ -105,7 +105,22 @@ CONFIGURE_CMD=(
 )
 
 echo "Configuring FFmpeg..."
-"${CONFIGURE_CMD[@]}"
+# On failure configure just prints "<lib> not found" and points at ffbuild/config.log,
+# which never leaves the runner. Without the log a failed probe is indistinguishable
+# from a missing .pc, a bad version or a broken link line, so diagnosing one costs a
+# full CI round-trip per guess. Dump the tail -- it ends with the failing command and
+# the linker's actual error -- and keep configure's exit status.
+if ! "${CONFIGURE_CMD[@]}"; then
+  rc=$?
+  if [ -f ffbuild/config.log ]; then
+    echo "───── ffbuild/config.log (last 120 lines) ─────" >&2
+    tail -n 120 ffbuild/config.log >&2
+    echo "───── end config.log ─────" >&2
+  else
+    echo "(no ffbuild/config.log was produced)" >&2
+  fi
+  exit "${rc}"
+fi
 
 echo "Building FFmpeg..."
 make -j"$(${NPROC})"

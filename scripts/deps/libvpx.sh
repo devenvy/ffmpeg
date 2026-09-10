@@ -38,7 +38,8 @@ if [[ "${BUILD_LIBVPX}" == "1" ]]; then
       ;;
     win-arm64)
       # libvpx's arm64-win64-gcc target covers any GCC-style driver, llvm-mingw's clang
-      # included. No -static-libgcc here: llvm-mingw is compiler-rt based, not libgcc.
+      # included. This builds a static .a, so the runtime-linkage flags that matter live on
+      # FFmpeg's own link — see platform/windows.sh's EXTRA_LDFLAGS.
       VPX_ARGS+=(--target=arm64-win64-gcc)
       VPX_CROSS="${CROSS_PREFIX}-"
       ;;

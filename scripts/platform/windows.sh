@@ -85,20 +85,22 @@ case "${RID}" in
     export RANLIB="${CROSS_PREFIX}-ranlib"
     export NM="${CROSS_PREFIX}-nm"
     export STRIP="${CROSS_PREFIX}-strip"
-    # llvm-mingw links compiler-rt + libc++ statically by default for the runtime bits we
-    # need; -static-libgcc/-static-libstdc++ are GCC spellings clang accepts but does not
-    # need here, so they are deliberately NOT passed (unlike win-x64).
+    # llvm-mingw does NOT link its runtimes statically by default: a bare link imports
+    # libc++.dll and libunwind.dll, which the artifact does not ship, so every binary fails to
+    # start on a clean machine. clang accepts the GCC spellings and honours them, so use the
+    # same pair win-x64 does — verified by objdump'ing a cross-linked test binary, which drops
+    # to system DLLs only once both are passed.
     # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
-    EXTRA_CFLAGS="-O2 -pipe"
+    EXTRA_CFLAGS="-static-libgcc -O2 -pipe"
     # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     # -include system_error: FFmpeg 8.1.x's libavfilter/vsrc_gfxcapture_winrt.cpp uses
     # std::system_error without including <system_error>. libstdc++ pulls it in transitively
     # via <thread>/<mutex>, so win-x64 never notices; libc++ does not, so the llvm-mingw build
     # fails to compile it. Fixed upstream in 9.0.x, which includes the header — this flag is
     # therefore a no-op there and can go when the 8.x line is retired.
-    EXTRA_CXXFLAGS="-O2 -pipe -include system_error"
+    EXTRA_CXXFLAGS="-static-libgcc -static-libstdc++ -O2 -pipe -include system_error"
     # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
-    EXTRA_LDFLAGS=""
+    EXTRA_LDFLAGS="-static-libgcc -static-libstdc++"
     CONFIGURE_FLAGS+=(
       --cross-prefix="${CROSS_PREFIX}-"
       --cc="${CROSS_PREFIX}-clang"

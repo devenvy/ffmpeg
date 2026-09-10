@@ -15,7 +15,8 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # follow the RID — otherwise a correct win-arm64 artifact fails as though it were mis-built.
 case "$RID" in
   win-x64)   ARCH_RE='PE32\+.*x86-64' ;;
-  win-arm64) ARCH_RE='PE32\+.*Aarch64' ;;
+  # `file` labels ARM64 PEs "ARM64" (not "Aarch64", which is the ELF spelling).
+  win-arm64) ARCH_RE='PE32\+.*ARM64' ;;
   *) echo "win.sh: unexpected RID $RID" >&2; exit 2 ;;
 esac
 info "Windows structural checks (${RID}, ${DIR})"

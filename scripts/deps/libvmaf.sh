@@ -14,6 +14,19 @@ cd "${WORK_DIR}" || exit 1
 rm -rf vmaf
 clone_dep libvmaf "${WORK_DIR}/vmaf"
 cd vmaf/libvmaf || exit 1     # meson project is in the libvmaf/ subdir
+# libvmaf bundles libsvm, whose src/svm.cpp defines a global
+#   template <class T> static inline void swap(T&, T&)
+# Because svm_node lives in the global namespace, ADL makes that a candidate alongside
+# std::swap wherever libc++ calls swap() unqualified inside <vector>, and every
+# std::vector<svm_node>::push_back instantiation fails with "call to 'swap' is ambiguous".
+# libstdc++ does not trip it (its internals qualify the call), which is why only llvm-mingw
+# sees this. Rename libsvm's helper and its 26 call sites together — they are all its own,
+# svm.cpp pulls in no std::swap of its own. Verified by cross-building libvmaf v3.2.0 for
+# aarch64-w64-mingw32 with and without the rename.
+if [[ "${RID}" == "win-arm64" ]]; then
+  sed -i "s/\bswap(/libsvm_swap(/g" "${WORK_DIR}/vmaf/libvmaf/src/svm.cpp"
+  echo "libvmaf: renamed libsvm's global swap (libc++ ADL ambiguity on win-arm64)"
+fi
 VMAF_ARGS=(--prefix="${DEPS_DIR}" --libdir=lib --default-library=static
            --buildtype=release
            -Denable_tests=false -Denable_docs=false

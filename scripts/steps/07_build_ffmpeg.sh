@@ -59,6 +59,20 @@ if [[ "${RID}" == win-* ]]; then
     # → "multiple definition of _Unwind_Resume" at the DLL link. Idempotent; must run BEFORE the
     # -Bstatic skip below, since srt.pc already carries -Bstatic (so the skip would pass it over).
     sed -i -e 's/ -lgcc_s / /g' -e 's/ -lgcc_s$//' "$pc"
+    # llvm-mingw (win-arm64) needs a different rule than mingw-w64's -Bstatic wrap.
+    # Deps built by clang advertise -lc++ (not -lstdc++) in their .pc, and a bare -lc++
+    # resolves to the SHARED libc++.dll.a. That collides with the static libc++.a this RID
+    # links via CXX_RT_LIB/-static-libstdc++:
+    #   ld.lld: error: duplicate symbol: std::exception::~exception()
+    #     defined at libc++.a(stdlib_exception.cpp.obj) / libc++.dll.a(libc++.dll)
+    # which surfaces as a bogus "libjxl >= 0.7.0 not found using pkg-config". Point every
+    # spelling at the one static archive instead. -lc++abi is deliberately left alone: it
+    # has no import-library twin, so it is already static. Not the -Bstatic wrap, because
+    # that leaves the shared/static choice to link order, which is what broke here.
+    if [[ "${RID}" == "win-arm64" ]]; then
+      sed -i -E ':a; s/(^|[[:space:]])-l(std)?c\+\+([[:space:]]|$)/\1-l:libc++.a\3/; ta' "$pc"
+      continue
+    fi
     grep -q -- '-Wl,-Bstatic' "$pc" && continue
     sed -i \
       -e 's/-lpthread/-Wl,-Bstatic -lpthread -Wl,-Bdynamic/g' \

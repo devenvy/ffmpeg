@@ -154,6 +154,7 @@ case "${RID}" in
   win-x64)                 CROSS_HOST=x86_64-w64-mingw32 ;;
   linux-armhf)             CROSS_HOST=arm-linux-gnueabihf ;;
   android-arm64)           CROSS_HOST=aarch64-linux-android ;;
+  android-x64)             CROSS_HOST=x86_64-linux-android ;;
   ios-arm64|ios-sim-arm64) CROSS_HOST=aarch64-apple-darwin ;;
 esac
 

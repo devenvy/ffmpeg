@@ -22,18 +22,24 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${ROOT_DIR}"
 
-RIDS=(linux-x64 linux-arm64 linux-armhf linux-musl-x64 win-x64 osx-x64 osx-arm64 android-arm64 ios-arm64 ios-sim-arm64)
+RIDS=(linux-x64 linux-arm64 linux-armhf linux-musl-x64 linux-musl-arm64 win-x64 osx-x64 osx-arm64 android-arm64 android-x64 ios-arm64 ios-sim-arm64)
 
 # FFmpeg configure for EVERY maintained version (deps.json's .ffmpeg list) — the source of
 # truth for each version's library universe. Each is rendered to its own files.
-mapfile -t VERSIONS < <(jq -r '.ffmpeg[]' deps.json)
+# tr -d '\r': jq built for Windows emits CRLF, which would make the version
+# "8.1.2\r" and the fetch URL below 404 with its error suppressed by 2>/dev/null.
+# A no-op on Linux/macOS, where jq already emits LF.
+mapfile -t VERSIONS < <(jq -r '.ffmpeg[]' deps.json | tr -d '\r')
 [ "${#VERSIONS[@]}" -gt 0 ] || { echo "ERROR: no versions in deps.json .ffmpeg" >&2; exit 1; }
+# A native Windows python cannot open an MSYS path like /tmp/xyz. Where cygpath exists
+# (Git Bash / MSYS2) hand it a Windows path instead; elsewhere this is a passthrough.
+topath() { if command -v cygpath >/dev/null 2>&1; then cygpath -m "$1"; else printf '%s' "$1"; fi; }
 CONF_DIR="$(mktemp -d)"; MANIFEST_FILE="$(mktemp)"; : > "${MANIFEST_FILE}"
 for V in "${VERSIONS[@]}"; do
   CF="${CONF_DIR}/${V}.configure"
   if curl -fsSL --retry 3 --retry-connrefused \
        "https://raw.githubusercontent.com/FFmpeg/FFmpeg/n${V}/configure" -o "${CF}" 2>/dev/null; then
-    printf '%s\t%s\n' "${V}" "${CF}" >> "${MANIFEST_FILE}"
+    printf '%s\t%s\n' "${V}" "$(topath "${CF}")" >> "${MANIFEST_FILE}"
   else
     echo "ERROR: could not fetch FFmpeg n${V} configure — cannot build the matrix." >&2
     exit 1
@@ -66,9 +72,19 @@ for RID in "${RIDS[@]}"; do
     source scripts/steps/02_configure.sh >/dev/null 2>&1
     # shellcheck source=/dev/null
     source scripts/steps/04_select_license.sh >/dev/null 2>&1
+    # These two grep stages tolerate ONLY grep's own exit 1 (no line matched) — e.g. an
+    # lgplv2 cell, where 04_select_license.sh appends neither --enable-gpl nor
+    # --enable-version3, can legitimately leave the second grep nothing to pass, which
+    # exits 1 under pipefail+set -e. That's all this guard ever claimed to absorb: exit 2
+    # (a real grep error — invalid regex, read error) still propagates and aborts the
+    # script, as does a real sed/tr failure. A RID whose platform script has no case arm
+    # for it is NOT swallowed here: scripts/platform/{android,apple,linux,windows}.sh each
+    # end their case on a rejecting default that echoes the offending RID and exits 1, so
+    # that failure surfaces upstream, at the sourced 02_configure.sh call above, before
+    # CONFIGURE_FLAGS is ever inspected.
     hw=$(printf '%s\n' "${CONFIGURE_FLAGS[@]}" \
-         | grep -oE '^--enable-[a-z0-9_-]+' | sed 's/--enable-//' \
-         | grep -vE '^(cross-compile|gpl|version3|hwaccel|decoder|encoder|shared|static|pic|pthreads|w32threads)$' \
+         | { grep -oE '^--enable-[a-z0-9_-]+' || [ "$?" -eq 1 ]; } | sed 's/--enable-//' \
+         | { grep -vE '^(cross-compile|gpl|version3|hwaccel|decoder|encoder|shared|static|pic|pthreads|w32threads)$' || [ "$?" -eq 1 ]; } \
          | tr '\n' ' ')
     flags=""
     for v in ${!BUILD_@}; do [ "${!v}" = 1 ] && flags="$flags ${v}"; done
@@ -78,7 +94,17 @@ for RID in "${RIDS[@]}"; do
 done
 
 mkdir -p docs/matrix
-python3 - "$simfile" "$MANIFEST_FILE" "${ROOT_DIR}/docs" <<'PY'
+# Resolve an interpreter that actually RUNS: on Windows `python3` is often a Microsoft
+# Store alias stub that sits on PATH but exits non-zero, so presence alone is not enough.
+PYBIN=""
+for _py in python3 python; do
+  if command -v "${_py}" >/dev/null 2>&1 && "${_py}" -c 'import sys' >/dev/null 2>&1; then
+    PYBIN="${_py}"; break
+  fi
+done
+[ -n "${PYBIN}" ] || { echo "ERROR: no working python3/python on PATH." >&2; exit 1; }
+
+"${PYBIN}" - "$(topath "$simfile")" "$(topath "$MANIFEST_FILE")" "$(topath "${ROOT_DIR}/docs")" <<'PY'
 import sys, re, glob, os
 
 # --- per-(RID, license) enabled sets ------------------------------------------
@@ -102,13 +128,13 @@ for line in open(sys.argv[2]):
 MAJORS = sorted(by_major, key=int)
 OUTDIR = sys.argv[3]
 
-RIDS = ["linux-x64","linux-arm64","linux-armhf","linux-musl-x64","win-x64",
-        "osx-x64","osx-arm64","android-arm64","ios-arm64","ios-sim-arm64"]
+RIDS = ["linux-x64","linux-arm64","linux-armhf","linux-musl-x64","linux-musl-arm64","win-x64",
+        "osx-x64","osx-arm64","android-arm64","android-x64","ios-arm64","ios-sim-arm64"]
 ALL = set(RIDS)
 LINUX = {r for r in RIDS if r.startswith("linux")}
 WIN = {"win-x64"}; APPLE = {"osx-x64","osx-arm64","ios-arm64","ios-sim-arm64"}
 MAC = {"osx-x64","osx-arm64"}; IOS = {"ios-arm64","ios-sim-arm64"}
-ANDROID = {"android-arm64"}; DESKTOP = LINUX | WIN | MAC
+ANDROID = {"android-arm64","android-x64"}; DESKTOP = LINUX | WIN | MAC
 
 # HAVE_* backends FFmpeg supports but that aren't in any *_LIBRARY_LIST.
 EXTRA = {"mediafoundation": "hw", "schannel": "net", "securetransport": "net"}
@@ -276,7 +302,7 @@ APPLIES = {
   # the token falls back to ALL and the matrix claims static Vulkan on every RID.
   "vulkan_static":IOS,
   "mmal":LINUX,"omx":LINUX,"schannel":WIN,"securetransport":APPLE,
-  "libsvtav1":ALL-{"linux-armhf","android-arm64","ios-arm64","ios-sim-arm64"},
+  "libsvtav1":ALL-{"linux-armhf","android-arm64","android-x64","ios-arm64","ios-sim-arm64"},
   "libwebp":DESKTOP, "libfontconfig":LINUX|MAC,
 }
 TITLES = [("video","Video codecs"),("audio","Audio codecs"),
@@ -285,8 +311,9 @@ TITLES = [("video","Video codecs"),("audio","Audio codecs"),
           ("hw","Hardware acceleration"),("other","Other / miscellaneous")]
 DEFCAT = {"hw":"hw","lib":"other"}
 SHORT = {"linux-x64":"lin-x64","linux-arm64":"lin-a64","linux-armhf":"lin-hf",
-         "linux-musl-x64":"musl","win-x64":"win","osx-x64":"osx-x64",
-         "osx-arm64":"osx-a64","android-arm64":"android","ios-arm64":"ios","ios-sim-arm64":"ios-sim"}
+         "linux-musl-x64":"musl","linux-musl-arm64":"musl-a64","win-x64":"win",
+         "osx-x64":"osx-x64","osx-arm64":"osx-a64","android-arm64":"android",
+         "android-x64":"android-x64","ios-arm64":"ios","ios-sim-arm64":"ios-sim"}
 
 # Footnotes: rendered as GitHub [^ref] superscripts inline on the row, auto-listed
 # and auto-numbered (by first appearance) at the bottom of the file.

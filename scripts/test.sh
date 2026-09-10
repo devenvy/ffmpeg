@@ -13,7 +13,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 case "$RID" in
   linux-*)   exec bash "${HERE}/test/linux.sh"   "$RID" "$DIR" ;;
   win-*)     exec bash "${HERE}/test/win.sh"            "$DIR" ;;
-  android-*) exec bash "${HERE}/test/android.sh"        "$DIR" ;;
+  android-*) exec bash "${HERE}/test/android.sh" "$RID" "$DIR" ;;
   osx-*)     exec bash "${HERE}/test/macos.sh"   "$RID" "$DIR" ;;
   ios-*)     exec bash "${HERE}/test/ios.sh"     "$RID" "$DIR" ;;
   *) echo "test.sh: unknown RID '$RID'" >&2; exit 2 ;;

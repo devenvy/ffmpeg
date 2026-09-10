@@ -50,7 +50,7 @@ set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
 CMAKE
     CMAKE_CROSS_ARGS+=(-DCMAKE_TOOLCHAIN_FILE="${TOOLCHAIN_FILE}")
     ;;
-  android-arm64)
+  android-arm64|android-x64)
     CMAKE_CROSS_ARGS+=(
       -DCMAKE_TOOLCHAIN_FILE="${ANDROID_NDK_HOME}/build/cmake/android.toolchain.cmake"
       -DANDROID_ABI="${ANDROID_ABI}"
@@ -98,8 +98,12 @@ pkg_config_libdir = '${DEPS_DIR}/lib/pkgconfig'
 needs_exe_wrapper = true
 MESON
     ;;
-  android-arm64)
+  android-arm64|android-x64)
     MESON_CROSS_FILE="${WORK_DIR}/android-meson-cross.ini"
+    case "${RID}" in
+      android-arm64) MESON_CPU_FAMILY=aarch64; MESON_CPU=aarch64 ;;
+      android-x64)   MESON_CPU_FAMILY=x86_64;  MESON_CPU=x86_64 ;;
+    esac
     cat > "${MESON_CROSS_FILE}" <<MESON
 [binaries]
 c = '${CC}'
@@ -109,8 +113,8 @@ strip = '${STRIP}'
 pkg-config = 'pkg-config'
 [host_machine]
 system = 'android'
-cpu_family = 'aarch64'
-cpu = 'aarch64'
+cpu_family = '${MESON_CPU_FAMILY}'
+cpu = '${MESON_CPU}'
 endian = 'little'
 [properties]
 pkg_config_libdir = '${DEPS_DIR}/lib/pkgconfig'

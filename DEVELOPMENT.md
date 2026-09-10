@@ -53,14 +53,16 @@ license cells — `gplv3`, `gplv2`, `lgplv3`, `lgplv2` — not one:
 | `linux-arm64` | Linux glibc ARM64 | manylinux container (ARM runner) | shared libs + `ffmpeg`/`ffprobe` |
 | `linux-armhf` | Linux glibc ARMv7 (Raspberry Pi) | Cross-compiled | shared libs + `ffmpeg`/`ffprobe` |
 | `linux-musl-x64` | Alpine / musl x86_64 | Native (Alpine container) | shared libs + `ffmpeg`/`ffprobe` |
+| `linux-musl-arm64` | Alpine / musl ARM64 | Native (Alpine container, ARM runner) | shared libs + `ffmpeg`/`ffprobe` |
 | `win-x64` | Windows x86_64 | Cross-compiled (mingw-w64) | DLLs + `.lib` import libs + `ffmpeg.exe`/`ffprobe.exe` |
 | `osx-x64` | macOS Intel | Native | dylibs + `ffmpeg`/`ffprobe` |
 | `osx-arm64` | macOS Apple Silicon | Native | dylibs + `ffmpeg`/`ffprobe` |
 | `android-arm64` | Android arm64-v8a | Cross-compiled (Android NDK) | `lib/arm64-v8a/*.so` (unversioned) + `include/`, no binaries |
+| `android-x64` | Android x86_64 | Cross-compiled (Android NDK) | `lib/x86_64/*.so` (unversioned) + `include/`, no binaries |
 | `ios-arm64` | iOS device (arm64) | Cross-compiled (iOS SDK, on macOS) | dynamic `*.dylib` + `include/`, no binaries |
 | `ios-sim-arm64` | iOS simulator (Apple Silicon) | Cross-compiled (simulator SDK) | dynamic `*.dylib` + `include/` (lean slice) |
 
-Each RID is built in 4 license cells: `{rid}-{gplv3,gplv2,lgplv3,lgplv2}` (10 RIDs × 4 = 40 build
+Each RID is built in 4 license cells: `{rid}-{gplv3,gplv2,lgplv3,lgplv2}` (12 RIDs × 4 = 48 build
 jobs). The two axes are **family** — `gpl` (`--enable-gpl`, includes x264 + x265) vs `lgpl`
 (`--disable-gpl`, kvazaar for HEVC, no x264/x265) — and **version** — `v3` (`--enable-version3`,
 may link Apache-2.0 deps like OpenSSL and Vulkan) vs `v2` (GPLv2 / LGPLv2.1, no `--enable-version3`,
@@ -94,7 +96,8 @@ via `gendef` + `llvm-dlltool`, so a Visual Studio / CMake project links the DLLs
   headers). Dev files ship separately as `ffmpeg-{ver}-{variant}-dev.tar.gz` (the `include/`
   headers, plus `lib/*.lib` MSVC import libraries for Windows), so the runtime download stays
   lean and consumers don't pick up headers/import libs at runtime.
-- **Android** — tarball with `include/` headers + jniLibs-style `lib/arm64-v8a/*.so` + `legal/`
+- **Android** — tarball with `include/` headers + jniLibs-style `lib/<abi>/*.so`
+  (`arm64-v8a` for `android-arm64`, `x86_64` for `android-x64`) + `legal/`
   (link-only artifact, so headers stay in the main tarball).
   Sonames are normalized to unversioned `lib*.so` so Android's loader/Gradle accept them.
 - **iOS** — one `.xcframework` per `libav*` library, bundling the device (`ios-arm64`) and
@@ -153,7 +156,7 @@ The unified build script (`scripts/build.sh`) accepts environment variables:
 
 | Variable | Required | Default | Values |
 |---|---|---|---|
-| `BUILD_RID` | Yes | — | `linux-x64`, `linux-arm64`, `linux-armhf`, `linux-musl-x64`, `win-x64`, `osx-x64`, `osx-arm64`, `android-arm64`, `ios-arm64`, `ios-sim-arm64` |
+| `BUILD_RID` | Yes | — | `linux-x64`, `linux-arm64`, `linux-armhf`, `linux-musl-x64`, `linux-musl-arm64`, `win-x64`, `osx-x64`, `osx-arm64`, `android-arm64`, `android-x64`, `ios-arm64`, `ios-sim-arm64` |
 | `BUILD_LICENSE` | No | `lgpl` | `lgpl`, `gpl` — family (`--disable-gpl` vs `--enable-gpl`) |
 | `BUILD_LICENSE_VERSION` | No | `3` | `3` (`--enable-version3`) or `2` (GPLv2 / LGPLv2.1, no version3) |
 | `ANDROID_NDK_HOME` | for `android-*` | — | path to the Android NDK (r26+) |
@@ -211,7 +214,8 @@ however it's built:
   present on the runner).
   Executing it is the **runtime** layer: `test/ios-run.sh` runs it on the iOS **simulator** via
   `simctl` (native on the Apple-Silicon runner), and `test/android-run.sh` runs it on an
-  **arm64-v8a emulator**. The on-device run is what caught the missing `libc++_shared.so`
+  **x86_64 emulator** — `android-x64` natively, `android-arm64` via the API-35 image's native
+  bridge (translated). The on-device run is what caught the missing `libc++_shared.so`
   bundling — a gap structural checks can't see.
 
 ## CI/CD
@@ -374,8 +378,9 @@ additions broke CI, usually only on one platform.
 
 8. **Vet locally on ALL cross-compilable platforms before the PR.** CI rounds are ~2.5h; local
    cross builds catch the platform breaks in ~30-60 min. Build **linux-x64, linux-arm64,
-   linux-musl-x64 (Alpine — genuinely different), linux-armhf, win-x64, android-arm64** — not just
-   linux-x64. Only **osx/ios** need a macOS runner. Done = the lib compiles on every buildable
+   linux-musl-x64 (Alpine — genuinely different), linux-musl-arm64, linux-armhf, win-x64,
+   android-arm64, android-x64** — not just linux-x64. Only **osx/ios** need a macOS runner.
+   Done = the lib compiles on every buildable
    cell and FFmpeg's `config.h` shows `CONFIG_MYLIB=1` (a lib that fails to link is silently
    autodetect-disabled). Local-env notes: the harness lives in the **Ubuntu-24.04** WSL distro
    (`wsl.exe -d Ubuntu-24.04`); **⚠ root-clean reused build dirs** (`docker run --rm -v "$DST:/work"
@@ -424,7 +429,7 @@ has broken aarch64 NEON intrinsics:
       "tag": "3.6",
       "reason": "x265 4.0+ ships broken aarch64 NEON intrinsics in intrapred-prim.cpp …",
       "issue": 6,
-      "platforms": ["linux-arm64", "osx-arm64", "ios-arm64", "ios-sim-arm64", "android-arm64"]
+      "platforms": ["linux-arm64", "linux-musl-arm64", "osx-arm64", "ios-arm64", "ios-sim-arm64", "android-arm64"]
     }
   }
 }

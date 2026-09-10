@@ -31,9 +31,12 @@ jobs:
     strategy:
       fail-fast: ${{ inputs.fail_fast }}
       matrix:
-        rid: [linux-x64, linux-arm64, linux-armhf, linux-musl-x64, win-x64, osx-x64, osx-arm64]
+        rid: [linux-x64, linux-arm64, linux-armhf, linux-musl-x64, linux-musl-arm64, win-x64, osx-x64, osx-arm64]
         license: [lgpl, gpl]
-        license_version: [3, 2]   # v3 = OpenSSL/Vulkan; v2 = GnuTLS, no Vulkan (App-Store-safe)
+        # v3 = OpenSSL 3.x TLS + Vulkan on Linux/Android. v2 = Vulkan dropped everywhere; on
+        # Linux/Android, gplv2 gets GnuTLS but lgplv2 has NO TLS backend at all. Apple/Windows
+        # keep their native SecureTransport/SChannel TLS in every cell, v3 or v2.
+        license_version: [3, 2]
         include:
           # Tests run where the target executes natively. The glibc Linux builds test
           # on the PLAIN Ubuntu runner (not the manylinux build container) — running
@@ -49,6 +52,12 @@ jobs:
           - rid: linux-musl-x64
             runner: ubuntu-latest
             container: alpine:latest
+          # No container: here (unlike linux-musl-x64) — GitHub only supports
+          # JavaScript actions in Alpine containers on x64 runners, so this RID
+          # instead docker-runs alpine:latest itself in the Test artifact step
+          # below, keeping actions/checkout etc. on the host's glibc Node runtime.
+          - rid: linux-musl-arm64
+            runner: ubuntu-24.04-arm
           - rid: win-x64
             runner: windows-latest
           - rid: osx-x64
@@ -66,7 +75,7 @@ jobs:
 
     steps:
       - name: Bootstrap Alpine container
-        if: matrix.rid == 'linux-musl-x64'
+        if: matrix.container
         # file: arch check. binutils: nm for symbol checks. libstdc++/libgcc: whisper's
         # C++ runtime, which the (shared) libav* link — a standard runtime dep present on
         # any real musl host (`apk add libstdc++ libgcc`), not something we can avoid.
@@ -135,8 +144,22 @@ jobs:
       - name: Test artifact
         shell: bash
         run: |
+          set -euo pipefail
           chmod +x scripts/test.sh scripts/test/*.sh
-          bash scripts/test.sh "${BUILD_RID}" "artifacts/${BUILD_RID}/native"
+          if [[ "${BUILD_RID}" == "linux-musl-arm64" ]]; then
+            # Same reasoning as the build job: GitHub only supports JavaScript
+            # actions in Alpine containers on x64 runners, so this arm64 runner
+            # docker-runs alpine:latest for the test itself instead of using
+            # `container:` on the job (which breaks actions/checkout — see
+            # linux-musl-x64, which stays on `container:` because its x64
+            # runner *is* supported).
+            docker run --rm -v "${PWD}:/work" -w /work \
+              -e BUILD_RID -e WHISPER_MODEL \
+              alpine:latest \
+              sh -c 'apk add --no-cache bash git file binutils libstdc++ libgcc curl && chmod +x scripts/test.sh scripts/test/*.sh && bash scripts/test.sh "${BUILD_RID}" "artifacts/${BUILD_RID}/native"'
+          else
+            bash scripts/test.sh "${BUILD_RID}" "artifacts/${BUILD_RID}/native"
+          fi
 
   # Gate job — single required status check for branch protection.
   all-tests:

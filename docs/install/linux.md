@@ -3,12 +3,14 @@
 Part of the [install docs](./README.md). See there for the four-cell variant naming and the
 cross-platform [runtime-dependency overview](./README.md#runtime-dependencies).
 
-> **Important:** The `linux-x64`, `linux-arm64`, and `linux-armhf` builds are **self-contained** —
-> the hardware-acceleration libraries (VAAPI/QSV/libdrm) are statically linked and the Vulkan
-> loader is bundled in the tarball, so `ffmpeg` starts on a bare system with **no `apt`/`dnf`
-> install**. *Using* hardware acceleration or GPU transcription still needs the system GPU
-> **driver**, but nothing is required just to run. The `linux-musl-x64` (Alpine) build is the one
-> exception — see [Runtime dependencies](#runtime-dependencies).
+> **Important:** Every Linux build — `linux-x64`, `linux-arm64`, `linux-armhf`, `linux-musl-x64`,
+> and `linux-musl-arm64` — is **self-contained** for hardware acceleration: the
+> hardware-acceleration libraries (VAAPI/QSV/libdrm) are statically linked and the Vulkan loader
+> is bundled in the tarball, so `ffmpeg` starts with **no `apt`/`dnf`/`apk` install** needed for
+> those. *Using* hardware acceleration or GPU transcription still needs the system GPU **driver**,
+> but nothing is required just to run. The `linux-musl-*` (Alpine) builds have one *unrelated*
+> runtime requirement — Alpine's minimal base image ships no C++ runtime — see
+> [Runtime dependencies](#runtime-dependencies).
 
 ## Install
 
@@ -24,7 +26,8 @@ echo "/opt/ffmpeg" > /etc/ld.so.conf.d/ffmpeg.conf
 ldconfig
 ```
 
-For Alpine containers, use the `linux-musl-x64` variant instead of `linux-x64`.
+For Alpine containers, use a `linux-musl-*` variant (`-x64` or `-arm64`) instead of
+`linux-x64`/`linux-arm64`.
 
 ## Runtime dependencies
 
@@ -38,11 +41,19 @@ To actually **use** hardware acceleration or GPU Whisper you additionally need t
 for Vulkan/GPU transcription. Without one, hardware paths are simply unavailable and Whisper
 falls back to CPU, so treat drivers as optional `Recommends`, never a hard dependency.
 
-**`linux-musl-x64` (Alpine)** still links its hwaccel libraries dynamically, so it needs:
+**`linux-musl-x64`/`linux-musl-arm64` (Alpine)** — the latter is the Alpine-on-ARM build (AWS
+Graviton, Ampere, and Docker Desktop on Apple Silicon, which defaults to arm64 containers) — are
+self-contained in the same way as the glibc builds above: the hwaccel dispatch libraries
+(libdrm/libva/libvpl/Vulkan-Loader) are built from source and statically linked or bundled
+directly in the tarball, not taken from Alpine's `-dev` packages, so they carry no
+`libva.so`/`libvpl.so`/`libvulkan.so` runtime dependency either. The only thing Alpine's minimal
+base image doesn't ship is a C++ runtime, which whisper needs:
 
 ```bash
-apk add libva libdrm libvpl vulkan-loader
+apk add libstdc++ libgcc
 ```
+
+on either musl host.
 
 TLS and Vulkan availability depend on which license cell you picked — see the cross-platform
 [TLS and the license cell](./README.md#runtime-dependencies) overview.

@@ -149,4 +149,47 @@ case "${RID}" in
     BUILD_TYPE_LABEL="Linux musl (native Alpine)"
     ;;
 
+  linux-musl-arm64)
+    # musl/Alpine on ARM64 — native build inside the Alpine container on an arm64 runner.
+    # The intersection of linux-musl-x64 (apk toolchain, static hwaccel dispatch libs so the
+    # artifact starts on a stock musl system) and linux-arm64 (no QSV — libvpl is x86-only),
+    # plus V4L2-M2M from linux-arm64, which musl-x64 does not carry.
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
+    PKGS_APK=(autoconf automake libtool build-base cmake curl diffutils gperf git linux-headers
+              m4 meson ninja patchelf perl pkgconf xz xxd
+              glslang shaderc)
+    # (m4 for GMP's configure; xxd for libvmaf's model embedding — see linux-musl-x64.)
+    # nasm/yasm are DELIBERATELY dropped here (unlike the linux-musl-x64 list this block was
+    # otherwise copied from): both are x86-only assemblers and aarch64 targets use gas instead,
+    # so installing them is dead weight. NOTE: both ARE published for Alpine aarch64 (verified
+    # against the aarch64 APKINDEX), so this is not a workaround for an unavailable package —
+    # dropping them is purely about not installing tools this RID cannot use.
+    CONFIGURE_FLAGS+=(
+      --enable-cuda --enable-cuvid --enable-nvenc --enable-nvdec --enable-ffnvcodec
+      --enable-vaapi --enable-libdrm
+      --enable-v4l2-m2m
+    )
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
+    HWACCEL_FEATURES="CUDA NVENC NVDEC VAAPI libdrm V4L2-M2M"
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
+    BUILD_NVIDIA=1
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
+    BUILD_VULKAN=1
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
+    BUILD_LIBDRM_SOURCE=1
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
+    BUILD_LIBVA_SOURCE=1
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
+    BUILD_VULKAN_LOADER=1
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
+    WHISPER_BACKEND="vulkan"
+    # Force -fPIC on static deps — see linux-musl-x64: default-PIE does not fix the TLS
+    # model, and GnuTLS's file-static _Thread_local won't link into the shared libav*.so.
+    export CFLAGS="${CFLAGS:+${CFLAGS} }-fPIC"
+    export CXXFLAGS="${CXXFLAGS:+${CXXFLAGS} }-fPIC"
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
+    BUILD_TYPE_LABEL="Linux musl (native Alpine, ARM64)"
+    ;;
+
+  *) echo "platform/linux.sh: unexpected RID '${RID}' — add a case arm for it" >&2; exit 1 ;;
 esac

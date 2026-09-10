@@ -37,7 +37,7 @@ case "${WHISPER_BACKEND}" in
     # and point ggml's find_package at them. The loader lib still comes from the
     # toolchain/system (mingw import-lib, NDK sysroot, or apk vulkan-loader-dev).
     case "${RID}" in
-      win-x64|android-arm64|linux-musl-x64|linux-x64|linux-arm64)
+      win-x64|android-arm64|android-x64|linux-musl-x64|linux-musl-arm64|linux-x64|linux-arm64)
         [ -d "${DEPS_DIR}/include/vulkan" ] || {
           rm -rf "${WORK_DIR}/Vulkan-Headers-ggml"   # clone_dep git-clones into this dir; clear a stale one (retry/re-run) so the clone can't abort under set -e
           clone_dep vulkan-headers "${WORK_DIR}/Vulkan-Headers-ggml"
@@ -65,7 +65,7 @@ case "${WHISPER_BACKEND}" in
         WHISPER_CMAKE+=(-DVulkan_LIBRARY="${DEPS_DIR}/lib/libvulkan-1.dll.a")
         WHISPER_SYS_LIBS="-l:libvulkan-1.dll.a -lstdc++ -lm"
         ;;
-      android-arm64)
+      android-arm64|android-x64)
         # NDK API-28 sysroot libvulkan.so exports the Vulkan 1.1 symbols ggml links directly.
         WHISPER_CMAKE+=(-DVulkan_LIBRARY="${TOOLCHAIN}/sysroot/usr/lib/${ANDROID_TRIPLE}/${API}/libvulkan.so")
         WHISPER_SYS_LIBS="-lvulkan -lc++ -lm"

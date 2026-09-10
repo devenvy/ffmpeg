@@ -82,4 +82,5 @@ case "${RID}" in
     BUILD_TYPE_LABEL="iOS (SDK cross)"
     ;;
 
+  *) echo "platform/apple.sh: unexpected RID '${RID}' — add a case arm for it" >&2; exit 1 ;;
 esac

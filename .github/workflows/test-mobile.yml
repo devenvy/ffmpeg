@@ -9,8 +9,13 @@ name: Test (mobile)
 #   1. ABI link-check — compile the smoke program against the built libraries
 #      (toolchain present on the runner); proves no undefined symbols. Runs for
 #      every RID x license.
-#   2. Runtime — actually execute on an arm64 emulator (Android) / simulator (iOS).
-#      Runtime is license-independent, so it runs once per platform (lgpl).
+#   2. Runtime — actually execute on an emulator (Android) / simulator (iOS). The Android
+#      emulator is x86_64: android-x64 runs on it natively, android-arm64 runs via the
+#      API-35 image's native bridge (translated). Gated on `matrix.license == 'lgpl'` with
+#      no license_version restriction, so runtime tests run for BOTH lgpl series (lgplv3 and
+#      lgplv2) per platform, not gpl — their TLS/Vulkan configuration genuinely differs
+#      between v3 and v2, so both are worth exercising; gpl only adds x264/x265, which
+#      the runtime step doesn't touch.
 # Chained after build.yml by ci.yml and release.yml.
 
 permissions:
@@ -36,14 +41,21 @@ jobs:
     strategy:
       fail-fast: ${{ inputs.fail_fast }}
       matrix:
-        rid: [android-arm64, ios-arm64, ios-sim-arm64]
+        rid: [android-arm64, android-x64, ios-arm64, ios-sim-arm64]
         license: [lgpl, gpl]
-        license_version: [3, 2]   # v3 = OpenSSL/Vulkan; v2 = GnuTLS, no Vulkan (App-Store-safe)
+        # v3 = OpenSSL 3.x TLS + Vulkan on Linux/Android. v2 = Vulkan dropped everywhere; on
+        # Linux/Android, gplv2 gets GnuTLS but lgplv2 has NO TLS backend at all. Apple/Windows
+        # keep their native SecureTransport/SChannel TLS in every cell, v3 or v2.
+        license_version: [3, 2]
         include:
           - rid: android-arm64
             # x86_64 emulator on ubuntu-latest, KVM-accelerated; its API-35 image translates our
             # arm64 code via the native bridge (an actual arm64-v8a emulator has no accel on any
             # hosted runner: foreign-arch on x86, no emulator binary on arm64-Linux, HVF blocked on mac).
+            runner: ubuntu-latest
+          - rid: android-x64
+            # NATIVE on the KVM-accelerated x86_64 emulator — no native-bridge translation,
+            # unlike android-arm64, whose arm64 binaries the API-35 x86_64 image translates.
             runner: ubuntu-latest
           - rid: ios-arm64
             runner: macos-latest
@@ -104,7 +116,7 @@ jobs:
       # needs permission via this udev rule — the standard, documented step). Tolerant: reports if
       # /dev/kvm is somehow absent instead of hard-failing.
       - name: Enable KVM
-        if: matrix.rid == 'android-arm64' && matrix.license == 'lgpl'
+        if: startsWith(matrix.rid, 'android-') && matrix.license == 'lgpl'
         run: |
           if [ -e /dev/kvm ]; then
             echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
@@ -116,11 +128,11 @@ jobs:
             echo "WARNING: /dev/kvm absent — emulator will be un-accelerated"
           fi
 
-      # Android runtime smoke — KVM-accelerated x86_64 emulator whose API-35 image translates our
-      # arm64 code (native bridge). GATING. Boots in ~40s; arm64 binary runs via translation; the
-      # remaining work is on-device native-lib resolution (see android-run.sh / the handoff).
+      # Android runtime smoke — KVM-accelerated x86_64 emulator. GATING. Boots in ~40s; android-x64
+      # runs natively on it, android-arm64 runs via the API-35 image's native bridge (translated);
+      # the remaining work is on-device native-lib resolution (see android-run.sh / the handoff).
       - name: Android emulator runtime smoke
-        if: matrix.rid == 'android-arm64' && matrix.license == 'lgpl'
+        if: startsWith(matrix.rid, 'android-') && matrix.license == 'lgpl'
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2
         with:
           api-level: 35
@@ -133,7 +145,7 @@ jobs:
           emulator-options: -no-snapshot-load -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
           script: |
             export ANDROID_NDK_HOME="${ANDROID_NDK_HOME:-$ANDROID_NDK_LATEST_HOME}"
-            bash scripts/test/android-run.sh "artifacts/${BUILD_RID}/native"
+            bash scripts/test/android-run.sh "${BUILD_RID}" "artifacts/${BUILD_RID}/native"
 
   # Gate job — single required status check for branch protection.
   all-mobile-tests:

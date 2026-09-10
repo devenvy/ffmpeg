@@ -9,6 +9,7 @@
 //   5. https/tls are present IFF this build has a TLS backend (license-aware — lgplv2 has none)
 // Exit 0 = all good; non-zero with a message = the first failure.
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <libavcodec/avcodec.h>
 #include <libavcodec/bsf.h>
@@ -16,7 +17,9 @@
 #include <libavformat/avformat.h>
 #include <libavformat/avio.h>
 #include <libavutil/avutil.h>
+#include <libavutil/error.h>
 #include <libavutil/frame.h>
+#include <libavutil/hwcontext.h>
 #include <libavutil/imgutils.h>
 
 #define DIE(...) do { fprintf(stderr, "smoke: " __VA_ARGS__); return 1; } while (0)
@@ -149,6 +152,38 @@ static int has_tls(void) {
     return 0;
 }
 
+// 6. Vulkan actually INITIALISES — not merely that it was compiled in.
+//
+// Everything else here is reachable from the configure string or `nm`. This is not: it is the
+// only check that runs Vulkan. It matters most on iOS, where MoltenVK is linked STATICALLY
+// (--enable-vulkan-static) because FFmpeg's runtime dlopen only tries the leaf names
+// libvulkan.dylib / libvulkan.1.dylib / libMoltenVK.dylib, none of which resolves from inside
+// an app bundle. A symbol check proves the code is present; only this proves a device is real.
+//
+// Strictness is the caller's decision, via SMOKE_REQUIRE_VULKAN:
+//   set    -> a build advertising Vulkan MUST produce a device, else fail (iOS: MoltenVK runs
+//             over Metal, which the simulator host always has, so absence is a genuine defect)
+//   unset  -> report only (Android emulators expose Vulkan depending on the -gpu mode, which
+//             is a property of the test host, not of the artifact)
+// Builds without Vulkan (every v2 cell) return ENOSYS here and are silently fine either way.
+static int vulkan_probe(void) {
+    AVBufferRef *ctx = NULL;
+    int r = av_hwdevice_ctx_create(&ctx, AV_HWDEVICE_TYPE_VULKAN, NULL, NULL, 0);
+    if (r >= 0) {
+        av_buffer_unref(&ctx);
+        printf("smoke: Vulkan device created OK\n");
+        return 0;
+    }
+    char err[AV_ERROR_MAX_STRING_SIZE] = {0};
+    av_strerror(r, err, sizeof(err));
+    if (getenv("SMOKE_REQUIRE_VULKAN")) {
+        fprintf(stderr, "smoke: Vulkan REQUIRED here but no device could be created: %s\n", err);
+        return 1;
+    }
+    printf("smoke: Vulkan device unavailable (%s) — not required on this host\n", err);
+    return 0;
+}
+
 int main(void) {
     printf("smoke: avcodec %u avformat %u avutil %u avfilter %u\n",
            avcodec_version(), avformat_version(), avutil_version(), avfilter_version());
@@ -156,6 +191,7 @@ int main(void) {
     rc = enumerate();      if (rc) return rc;
     rc = has_whisper();    if (rc) return rc;
     rc = has_tls();        if (rc) return rc;
+    rc = vulkan_probe();   if (rc) return rc;
     printf("smoke: ALL PASS\n");
     return 0;
 }

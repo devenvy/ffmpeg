@@ -46,8 +46,9 @@ ffmpeg -i input.mp4 -vn \
 Linux / Windows / Android and **Metal** on macOS / iOS. The **`v2`** cells carry no Vulkan, so on
 Linux / Windows / Android they transcribe on the **CPU** (macOS / iOS still use Metal). When no
 compatible GPU is present, transcription also runs on the CPU automatically (`tiny`/`base` models
-are roughly real-time on CPU). On the glibc Linux `v3` builds the Vulkan loader is **bundled** in
-the tarball; only the Alpine (`linux-musl-x64`) build needs it from the system — see
+are roughly real-time on CPU). On every Linux `v3` build — glibc and Alpine
+(`linux-musl-x64`/`linux-musl-arm64`) alike — the Vulkan loader is **bundled** in the tarball, so
+none of them needs it from the system — see
 [Linux runtime dependencies](./linux.md#runtime-dependencies).
 
 ---

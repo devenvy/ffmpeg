@@ -28,7 +28,7 @@ build_cmake_dep srt "${SRT_ARGS[@]}"
 # but adding it here keeps the ordering right for FFmpeg's configure link tests.
 case "${PLATFORM:-linux}" in
   apple|android) EXTRA_LIBS="${EXTRA_LIBS:-} -lc++" ;;
-  *)             EXTRA_LIBS="${EXTRA_LIBS:-} -lstdc++" ;;
+  *)             EXTRA_LIBS="${EXTRA_LIBS:-} ${CXX_RT_LIB--lstdc++}" ;;
 esac
 CONFIGURE_FLAGS+=(--enable-libsrt)
 echo "libsrt (SRT transport, enclib=${SRT_ENCLIB:-off}) enabled."

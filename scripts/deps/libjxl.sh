@@ -35,7 +35,7 @@ build_cmake_dep libjxl \
 case "${PLATFORM:-linux}" in
   apple)   EXTRA_LIBS="${EXTRA_LIBS:-} -lc++" ;;
   android) EXTRA_LIBS="${EXTRA_LIBS:-} -lc++ -llog" ;;
-  *)       EXTRA_LIBS="${EXTRA_LIBS:-} -lstdc++" ;;
+  *)       EXTRA_LIBS="${EXTRA_LIBS:-} ${CXX_RT_LIB--lstdc++}" ;;
 esac
 CONFIGURE_FLAGS+=(--enable-libjxl)
 echo "libjxl (JPEG XL) enabled."

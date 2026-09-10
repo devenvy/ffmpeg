@@ -24,7 +24,7 @@ build_cmake_dep chromaprint \
 # GNU/mingw, libc++ on Apple/NDK).
 case "${PLATFORM:-linux}" in
   apple|android) EXTRA_LIBS="${EXTRA_LIBS:-} -lc++" ;;
-  *)             EXTRA_LIBS="${EXTRA_LIBS:-} -lstdc++" ;;
+  *)             EXTRA_LIBS="${EXTRA_LIBS:-} ${CXX_RT_LIB--lstdc++}" ;;
 esac
 
 # On Windows/mingw, chromaprint.h decorates its API with __declspec(dllimport) unless

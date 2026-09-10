@@ -39,7 +39,7 @@ meson install -C build
 # static --enable-libvmaf link (libstdc++ on GNU/Linux + mingw, libc++ on Apple/NDK).
 case "${PLATFORM:-linux}" in
   apple|android) EXTRA_LIBS="${EXTRA_LIBS:-} -lc++" ;;
-  *)             EXTRA_LIBS="${EXTRA_LIBS:-} -lstdc++" ;;
+  *)             EXTRA_LIBS="${EXTRA_LIBS:-} ${CXX_RT_LIB--lstdc++}" ;;
 esac
 CONFIGURE_FLAGS+=(--enable-libvmaf)
 echo "libvmaf (vmaf quality metric) enabled."

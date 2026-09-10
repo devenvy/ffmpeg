@@ -90,10 +90,11 @@ case "${WHISPER_BACKEND}" in
           # ("whisper not found"). v2 drops Vulkan → Android takes THIS cpu fallback, so it
           # must use -lc++. Linux (glibc/musl) keeps libstdc++.
           case "${RID}" in
-            # win-arm64 lands here too (llvm-mingw, cpu backend). There -static-libstdc++
-            # already links libc++ statically and win32 threads are built in, so -lstdc++ and
-            # -lpthread must NOT be added: the first duplicates libc++ via libc++.dll.a, the
-            # second does not exist. CXX_RT_LIB is empty on that RID.
+            # win-arm64 lands here too (llvm-mingw, cpu backend). A bare -lstdc++ must NOT
+            # be added there: llvm-mingw resolves it to libc++.dll.a, which then collides
+            # with the static libc++ from -static-libstdc++. CXX_RT_LIB carries the archive
+            # this RID actually wants (-l:libc++.a). -lpthread is likewise omitted -- it does
+            # not exist under mingw, whose threading is built in.
             android-*) WHISPER_SYS_LIBS="-lc++ -lm" ;;
             win-arm64) WHISPER_SYS_LIBS="${CXX_RT_LIB-} -lm" ;;
             *)         WHISPER_SYS_LIBS="-lstdc++ -lm -lpthread" ;;

@@ -203,3 +203,21 @@ needs_exe_wrapper = true
 MESON
     ;;
 esac
+
+# ── Toolchain sanity: fail here, not 200 lines into the first dependency ──────────
+# A cross RID whose compiler is missing from PATH otherwise surfaces as an opaque error
+# from whichever dep configures first — win-arm64 shipped a provisioning bug that read
+# "Unable to invoke compiler: aarch64-w64-mingw32-clang" out of libvpx's configure, with
+# no hint that 03_install_packages.sh was the culprit. Check it once, here, where the
+# message can name the actual cause.
+#
+# Deliberately in 05 rather than 02: gen-matrix.sh simulates 02_configure + 04_select_license
+# on a runner that has no cross toolchains at all, so a hard check there would break the
+# coverage-matrix job for every cross RID.
+if [ -n "${CC:-}" ] && ! command -v "${CC}" >/dev/null 2>&1 && [ ! -x "${CC}" ]; then
+  echo "ERROR: the compiler this RID configured is not executable: CC=${CC}" >&2
+  echo "  RID=${RID}. Check that scripts/steps/03_install_packages.sh installed and PATH-exported" >&2
+  echo "  the toolchain for this RID (it is sourced, so its 'export PATH' reaches this step)." >&2
+  exit 1
+fi
+echo "Toolchain OK for ${RID}: ${CC:-<native>}"

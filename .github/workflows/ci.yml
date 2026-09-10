@@ -82,7 +82,9 @@ jobs:
   # — you do NOT select those in branch protection; select the aggregate `build`/`test` gates
   # below, which reflect the whole matrix in one check each.
   build-matrix:
-    needs: resolve
+    # docs-matrix is ~1 minute and build-matrix is hours; gating on it means a stale
+    # coverage matrix fails fast instead of after the whole fan-out has run.
+    needs: [resolve, docs-matrix]
     if: needs.resolve.outputs.any == 'true'
     strategy:
       fail-fast: false

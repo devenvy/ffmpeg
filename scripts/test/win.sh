@@ -30,6 +30,30 @@ for base in avcodec avformat avutil avfilter swscale swresample; do
 done
 check_arch "${DIR}/ffmpeg.exe" "$ARCH_RE"
 
+# A toolchain runtime DLL we do not ship is fatal at LOAD time, not link time: Windows refuses
+# to map the module and every binary that pulls it dies before main. That surfaces only as
+# "ffmpeg does not run", with no hint which library was missing -- win-arm64 shipped
+# avcodec/avfilter/avformat importing libunwind.dll and libwinpthread-1.dll exactly this way.
+# Assert it structurally instead, so the failure names the offending DLL.
+audit_runtime_dll_imports() {
+  local f imp bad=""
+  command -v llvm-readobj >/dev/null 2>&1 || { info "llvm-readobj unavailable — skipping DLL-import audit"; return; }
+  for f in "${DIR}"/*.dll "${DIR}"/*.exe; do
+    [ -f "$f" ] || continue
+    while read -r imp; do
+      [ -n "$imp" ] || continue
+      [ -f "${DIR}/${imp}" ] && continue          # shipped alongside → fine
+      case "$imp" in
+        libunwind*|libwinpthread*|libgcc_s*|libstdc++*|libc++*|libssp*|libatomic*|libgomp*)
+          bad="${bad} $(basename "$f")→${imp}" ;;
+      esac
+    done < <(llvm-readobj --coff-imports "$f" 2>/dev/null | grep -oE 'Name: [^ ]+' | awk '{print $2}')
+  done
+  [ -z "$bad" ] && pass "no unshipped toolchain runtime DLL imports" \
+                || fail "unshipped toolchain runtime DLL imports:${bad}"
+}
+audit_runtime_dll_imports
+
 # MSVC import libraries live in the native tree (packaged into the -dev tarball).
 n_lib=$(ls "${DIR}"/lib/*.lib 2>/dev/null | wc -l)
 [ "$n_lib" -ge 6 ] && pass "MSVC import libs present (${n_lib} .lib)" || fail "missing .lib import libs (found ${n_lib})"

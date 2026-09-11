@@ -425,7 +425,7 @@ exercise_whisper() {
   if [ "$ec" -eq 0 ] && [ -e "${tmp}/out.txt" ]; then
     pass "whisper inference: af_whisper ran a CPU forward pass to completion"
   else
-    fail "whisper inference: af_whisper did not complete (exit ${ec}) — $(printf '%s' "$out" | tr '\n' ' ' | tail -c 400)"
+    fail "whisper inference: af_whisper did not complete (exit ${ec}; exit 139 is the known intermittent segfault, see issue #20 — re-run before investigating) — $(printf '%s' "$out" | tr '\n' ' ' | tail -c 400)"
   fi
   rm -rf "$tmp"
 }

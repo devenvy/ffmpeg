@@ -38,17 +38,22 @@ jobs:
           bash scripts/ci/renovate-coverage-test.sh
           bash scripts/ci/renovate-config-test.sh
 
-      # Our dep scripts are SOURCED by build.sh and share its environment, so many
-      # variables are assigned by the parent, not the script itself. -x follows
-      # sourced files; SC2154 (referenced-but-not-assigned) is excluded to avoid
-      # false positives on that pattern. Severity floor is 'warning'.
+      # Our dep scripts are SOURCED by build.sh and share its environment, so many variables
+      # are assigned by the parent, not the script itself; -x follows sourced files so
+      # ShellCheck sees those assignments. SC2154 (referenced-but-not-assigned) used to be
+      # excluded wholesale for that pattern, but it produces ZERO findings across all 94
+      # scripts, so the exclusion bought nothing and hid real bugs: it silently passed
+      # `stage_pkgconfig "${prefix}"`, where ${prefix} is a pkg-config variable with no shell
+      # counterpart, which aborted staging on every RID under set -u. If a genuine false
+      # positive ever appears, disable it INLINE at that reference with a reason, never
+      # repo-wide. Severity floor is 'warning'.
       - name: Run ShellCheck (SARIF for the Security tab)
         run: |
           set -euo pipefail
           mapfile -t FILES < <(find scripts -name '*.sh' -type f | sort)
           echo "Linting ${#FILES[@]} scripts..."
           # ShellCheck has no native SARIF formatter; convert its JSON to SARIF inline.
-          shellcheck -x -e SC2154 -S warning -f json1 "${FILES[@]}" > sc.json || true
+          shellcheck -x -S warning -f json1 "${FILES[@]}" > sc.json || true
           python3 - <<'PY'
           import json
           data = json.load(open('sc.json'))
@@ -86,4 +91,4 @@ jobs:
       #   run: |
       #     set -euo pipefail
       #     mapfile -t FILES < <(find scripts -name '*.sh' -type f | sort)
-      #     shellcheck -x -e SC2154 -S warning "${FILES[@]}"
+      #     shellcheck -x -S warning "${FILES[@]}"

@@ -83,6 +83,43 @@ audit_import_lib_arch() {
 }
 audit_import_lib_arch
 
+# The -dev archive (include/ + lib/*.lib) is what MSVC/CMake consumers build against, and
+# nothing used to compile or link against it -- mobile ran this check, desktop did not,
+# which is how a wrong-architecture import library shipped. Build smoke.c against the
+# SHIPPED headers and link it against the SHIPPED import libraries, the way a consumer
+# will. clang targeting MSVC drives lld-link and honours the .lib machine type, so an x64
+# lib inside an ARM64 archive fails here with "machine type x64 conflicts".
+case "$RID" in
+  win-x64)   SMOKE_TRIPLE="x86_64-pc-windows-msvc" ;;
+  win-arm64) SMOKE_TRIPLE="aarch64-pc-windows-msvc" ;;
+  *)         SMOKE_TRIPLE="" ;;
+esac
+if [ ! -d "${DIR}/include" ]; then
+  fail "no include/ in the artifact -- the -dev archive would ship empty"
+elif [ -n "${SMOKE_TRIPLE}" ]; then
+  SMOKE_LIBS=()
+  for _b in avformat avcodec avfilter avutil swscale swresample; do
+    [ -f "${DIR}/lib/${_b}.lib" ] && SMOKE_LIBS+=("${DIR}/lib/${_b}.lib")
+  done
+  if [ "${#SMOKE_LIBS[@]}" -eq 0 ]; then
+    fail "no .lib import libraries to link a consumer against"
+  else
+    # Pre-flight: the msvc triple needs a discoverable Visual Studio installation for the
+    # CRT headers. It is present on the GitHub Windows images, but a missing/undiscoverable
+    # one is an ENVIRONMENT problem, not a defect in the artifact -- degrade to a skip so it
+    # cannot redden the build. audit_import_lib_arch above still runs unconditionally and
+    # catches the wrong-architecture case on its own.
+    _pf="$(mktemp -d)"; printf 'int main(void){return 0;}
+' > "${_pf}/pf.c"
+    if clang --target="${SMOKE_TRIPLE}" "${_pf}/pf.c" -o "${_pf}/pf.exe" >/dev/null 2>&1; then
+      check_smoke_link "clang --target=${SMOKE_TRIPLE}" "${DIR}/include" "${_pf}/smoke.exe" "${SMOKE_LIBS[@]}"
+    else
+      info "no usable ${SMOKE_TRIPLE} toolchain (Visual Studio CRT not discoverable) — skipping consumer link test"
+    fi
+    rm -rf "${_pf}"
+  fi
+fi
+
 load_config_string "${DIR}"/avcodec-*.dll "${DIR}"/avutil-*.dll
 check_config "--enable-whisper" "Whisper ASR filter"
 check_config "--enable-mediafoundation" "MediaFoundation"

@@ -43,36 +43,6 @@
     },
     {
       "customType": "regex",
-      "description": "Tarball deps whose listing page links the archives themselves (GNU FTP, quut.com, SourceForge projects that upload files flat). hrefs appear as 'gmp-6.3.0.tar.xz', an absolute URL, or '<file>.tar.gz/download', so the version pattern tolerates a leading path and a trailing segment.",
-      "managerFilePatterns": [
-        "/^deps\\.json$/"
-      ],
-      "matchStringsStrategy": "recursive",
-      "matchStrings": [
-        "\"defaults\"\\s*:\\s*\\{([\\s\\S]*?)\\}\\s*,\\s*\"overrides\"",
-        "\"(?<depName>[A-Za-z0-9._-]+)\"\\s*:\\s*\\{\\s*\"origin\"\\s*:\\s*\"[^\"]+\"\\s*,\\s*\"tag\"\\s*:\\s*\"(?<currentValue>[^\"]+)\"\\s*,\\s*\"releasesUrl\"\\s*:\\s*\"(?<registryUrl>[^\"]+)\"\\s*,\\s*\"releasesStyle\"\\s*:\\s*\"tarball\""
-      ],
-      "datasourceTemplate": "custom.tarball-listing",
-      "versioningTemplate": "loose",
-      "extractVersionTemplate": "[A-Za-z0-9._+-]+?-(?<version>[0-9][0-9A-Za-z.]*)\\.tar\\.(?:gz|xz|bz2)(?:/|$)"
-    },
-    {
-      "customType": "regex",
-      "description": "Tarball deps whose SourceForge project publishes one directory per release (lame) rather than flat files, so the version is the directory name under /files/<project>/. Numeric-dot only, which also drops the 3.88beta/3.89beta directories in the lame listing: 'loose' would treat a higher-numbered beta as stable, since it records a trailing suffix rather than a prerelease.",
-      "managerFilePatterns": [
-        "/^deps\\.json$/"
-      ],
-      "matchStringsStrategy": "recursive",
-      "matchStrings": [
-        "\"defaults\"\\s*:\\s*\\{([\\s\\S]*?)\\}\\s*,\\s*\"overrides\"",
-        "\"(?<depName>[A-Za-z0-9._-]+)\"\\s*:\\s*\\{\\s*\"origin\"\\s*:\\s*\"[^\"]+\"\\s*,\\s*\"tag\"\\s*:\\s*\"(?<currentValue>[^\"]+)\"\\s*,\\s*\"releasesUrl\"\\s*:\\s*\"(?<registryUrl>[^\"]+)\"\\s*,\\s*\"releasesStyle\"\\s*:\\s*\"directory\""
-      ],
-      "datasourceTemplate": "custom.tarball-listing",
-      "versioningTemplate": "loose",
-      "extractVersionTemplate": "/files/[A-Za-z0-9._-]+/(?<version>[0-9]+(?:\\.[0-9]+)*)/"
-    },
-    {
-      "customType": "regex",
       "description": "Deps pinned to a reviewed commit rather than a tag (x264 publishes no release tags; amf is held off-tag per issue #7). Tracked as git-refs digests against the branch the pin actually follows -- x264's pin is stable, not master, so a HEAD assumption would have offered commits off the wrong branch. The key is digestBranch, NOT branch: the ledger treats tag/branch/commit as mutually exclusive ref types (scripts/deps/lib.sh picks the first one present), so a second ref key would fail ledger-validate and could change which ref actually gets built.",
       "managerFilePatterns": [
         "/^deps\\.json$/"
@@ -83,6 +53,94 @@
         "\"(?<depName>[A-Za-z0-9._-]+)\"\\s*:\\s*\\{\\s*\"origin\"\\s*:\\s*\"(?<packageName>https?://[^\"]+)\"\\s*,\\s*\"commit\"\\s*:\\s*\"(?<currentDigest>[0-9a-f]{40})\"\\s*,\\s*\"digestBranch\"\\s*:\\s*\"(?<currentValue>[^\"]+)\""
       ],
       "datasourceTemplate": "git-refs"
+    },
+    {
+      "customType": "regex",
+      "description": "gmp: no git remote, so versions come from the upstream release listing via the html custom datasource. The extractVersion is anchored to gmp's OWN artifact name -- an html listing exposes every link on the page, so a shape-only pattern would accept an unrelated project's archive that happens to sit on a shared listing (SourceForge hosts opencore-amr and vo-amrwbenc under one project). Numeric-dot only: 'loose' records a trailing suffix as suffix rather than prerelease, so a future 3.102beta would otherwise rank as stable.",
+      "managerFilePatterns": [
+        "/^deps\\.json$/"
+      ],
+      "matchStringsStrategy": "recursive",
+      "matchStrings": [
+        "\"defaults\"\\s*:\\s*\\{([\\s\\S]*?)\\}\\s*,\\s*\"overrides\"",
+        "\"(?<depName>gmp)\"\\s*:\\s*\\{\\s*\"origin\"\\s*:\\s*\"[^\"]+\"\\s*,\\s*\"tag\"\\s*:\\s*\"(?<currentValue>[^\"]+)\"\\s*,\\s*\"releasesUrl\"\\s*:\\s*\"(?<registryUrl>[^\"]+)\"\\s*,\\s*\"releasesStyle\"\\s*:\\s*\"tarball\""
+      ],
+      "datasourceTemplate": "custom.tarball-listing",
+      "versioningTemplate": "loose",
+      "extractVersionTemplate": "gmp-(?<version>[0-9]+(?:\\.[0-9]+)*)\\.tar\\.(?:gz|xz|bz2)(?:/|$)"
+    },
+    {
+      "customType": "regex",
+      "description": "libgsm: no git remote, so versions come from the upstream release listing via the html custom datasource. The extractVersion is anchored to libgsm's OWN artifact name -- an html listing exposes every link on the page, so a shape-only pattern would accept an unrelated project's archive that happens to sit on a shared listing (SourceForge hosts opencore-amr and vo-amrwbenc under one project). Numeric-dot only: 'loose' records a trailing suffix as suffix rather than prerelease, so a future 3.102beta would otherwise rank as stable.",
+      "managerFilePatterns": [
+        "/^deps\\.json$/"
+      ],
+      "matchStringsStrategy": "recursive",
+      "matchStrings": [
+        "\"defaults\"\\s*:\\s*\\{([\\s\\S]*?)\\}\\s*,\\s*\"overrides\"",
+        "\"(?<depName>libgsm)\"\\s*:\\s*\\{\\s*\"origin\"\\s*:\\s*\"[^\"]+\"\\s*,\\s*\"tag\"\\s*:\\s*\"(?<currentValue>[^\"]+)\"\\s*,\\s*\"releasesUrl\"\\s*:\\s*\"(?<registryUrl>[^\"]+)\"\\s*,\\s*\"releasesStyle\"\\s*:\\s*\"tarball\""
+      ],
+      "datasourceTemplate": "custom.tarball-listing",
+      "versioningTemplate": "loose",
+      "extractVersionTemplate": "gsm-(?<version>[0-9]+(?:\\.[0-9]+)*)\\.tar\\.(?:gz|xz|bz2)(?:/|$)"
+    },
+    {
+      "customType": "regex",
+      "description": "opencore-amr: no git remote, so versions come from the upstream release listing via the html custom datasource. The extractVersion is anchored to opencore-amr's OWN artifact name -- an html listing exposes every link on the page, so a shape-only pattern would accept an unrelated project's archive that happens to sit on a shared listing (SourceForge hosts opencore-amr and vo-amrwbenc under one project). Numeric-dot only: 'loose' records a trailing suffix as suffix rather than prerelease, so a future 3.102beta would otherwise rank as stable.",
+      "managerFilePatterns": [
+        "/^deps\\.json$/"
+      ],
+      "matchStringsStrategy": "recursive",
+      "matchStrings": [
+        "\"defaults\"\\s*:\\s*\\{([\\s\\S]*?)\\}\\s*,\\s*\"overrides\"",
+        "\"(?<depName>opencore-amr)\"\\s*:\\s*\\{\\s*\"origin\"\\s*:\\s*\"[^\"]+\"\\s*,\\s*\"tag\"\\s*:\\s*\"(?<currentValue>[^\"]+)\"\\s*,\\s*\"releasesUrl\"\\s*:\\s*\"(?<registryUrl>[^\"]+)\"\\s*,\\s*\"releasesStyle\"\\s*:\\s*\"tarball\""
+      ],
+      "datasourceTemplate": "custom.tarball-listing",
+      "versioningTemplate": "loose",
+      "extractVersionTemplate": "opencore-amr-(?<version>[0-9]+(?:\\.[0-9]+)*)\\.tar\\.(?:gz|xz|bz2)(?:/|$)"
+    },
+    {
+      "customType": "regex",
+      "description": "vo-amrwbenc: no git remote, so versions come from the upstream release listing via the html custom datasource. The extractVersion is anchored to vo-amrwbenc's OWN artifact name -- an html listing exposes every link on the page, so a shape-only pattern would accept an unrelated project's archive that happens to sit on a shared listing (SourceForge hosts opencore-amr and vo-amrwbenc under one project). Numeric-dot only: 'loose' records a trailing suffix as suffix rather than prerelease, so a future 3.102beta would otherwise rank as stable.",
+      "managerFilePatterns": [
+        "/^deps\\.json$/"
+      ],
+      "matchStringsStrategy": "recursive",
+      "matchStrings": [
+        "\"defaults\"\\s*:\\s*\\{([\\s\\S]*?)\\}\\s*,\\s*\"overrides\"",
+        "\"(?<depName>vo-amrwbenc)\"\\s*:\\s*\\{\\s*\"origin\"\\s*:\\s*\"[^\"]+\"\\s*,\\s*\"tag\"\\s*:\\s*\"(?<currentValue>[^\"]+)\"\\s*,\\s*\"releasesUrl\"\\s*:\\s*\"(?<registryUrl>[^\"]+)\"\\s*,\\s*\"releasesStyle\"\\s*:\\s*\"tarball\""
+      ],
+      "datasourceTemplate": "custom.tarball-listing",
+      "versioningTemplate": "loose",
+      "extractVersionTemplate": "vo-amrwbenc-(?<version>[0-9]+(?:\\.[0-9]+)*)\\.tar\\.(?:gz|xz|bz2)(?:/|$)"
+    },
+    {
+      "customType": "regex",
+      "description": "libmp3lame: no git remote, so versions come from the upstream release listing via the html custom datasource. The extractVersion is anchored to libmp3lame's OWN artifact name -- an html listing exposes every link on the page, so a shape-only pattern would accept an unrelated project's archive that happens to sit on a shared listing (SourceForge hosts opencore-amr and vo-amrwbenc under one project). Numeric-dot only: 'loose' records a trailing suffix as suffix rather than prerelease, so a future 3.102beta would otherwise rank as stable.",
+      "managerFilePatterns": [
+        "/^deps\\.json$/"
+      ],
+      "matchStringsStrategy": "recursive",
+      "matchStrings": [
+        "\"defaults\"\\s*:\\s*\\{([\\s\\S]*?)\\}\\s*,\\s*\"overrides\"",
+        "\"(?<depName>libmp3lame)\"\\s*:\\s*\\{\\s*\"origin\"\\s*:\\s*\"[^\"]+\"\\s*,\\s*\"tag\"\\s*:\\s*\"(?<currentValue>[^\"]+)\"\\s*,\\s*\"releasesUrl\"\\s*:\\s*\"(?<registryUrl>[^\"]+)\"\\s*,\\s*\"releasesStyle\"\\s*:\\s*\"directory\""
+      ],
+      "datasourceTemplate": "custom.tarball-listing",
+      "versioningTemplate": "loose",
+      "extractVersionTemplate": "/files/lame/(?<version>[0-9]+(?:\\.[0-9]+)*)/"
+    },
+    {
+      "customType": "regex",
+      "description": "Pinning the ACTION (renovatebot/github-action) does not pin Renovate itself: the action's default renovate-version pulls a moving major tag, so the tool that maintains every other pin was itself unpinned and untracked. renovate.yml now pins a full version and this manager keeps it updated from the published container tags.",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/renovate\\.yml$/"
+      ],
+      "matchStrings": [
+        "renovate-version:\\s*'?(?<currentValue>[0-9]+\\.[0-9]+\\.[0-9]+)'?"
+      ],
+      "datasourceTemplate": "docker",
+      "depNameTemplate": "renovate/renovate",
+      "versioningTemplate": "semver"
     }
   ],
   "packageRules": [
@@ -126,6 +184,14 @@
       ],
       "matchCurrentVersion": "/^9\\./",
       "allowedVersions": "/^9\\./"
+    },
+    {
+      "description": "Hold mbedTLS on 3.x. FFmpeg's libavformat/tls_mbedtls.c includes <mbedtls/ctr_drbg.h> and <mbedtls/entropy.h> and calls mbedtls_ctr_drbg_seed/mbedtls_entropy_init/mbedtls_entropy_func unconditionally, with no version guard; mbedTLS 4.x removed those headers when that work moved to PSA Crypto, so 4.x cannot compile against any FFmpeg line we ship. Without this the grouped PR would be permanently red on an impossible bump, which is worse than not offering it. Remove once FFmpeg's mbedTLS backend supports 4.x. Tracked in issue #18.",
+      "matchPackageNames": [
+        "https://github.com/Mbed-TLS/mbedtls.git"
+      ],
+      "allowedVersions": "<4.0.0",
+      "issue": 18
     }
   ],
   "customDatasources": {

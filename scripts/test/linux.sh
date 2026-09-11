@@ -29,6 +29,17 @@ load_config_string "${DIR}/libavcodec.so" "${DIR}/libavutil.so"
 check_config "--enable-whisper" "Whisper ASR filter"
 check_tls
 check_license_boundary
+
+# The -dev archive (include/ + the shared libraries) is what downstream consumers
+# actually build against, and until now nothing on desktop ever compiled or linked
+# against it -- mobile ran this check, linux/macOS/Windows did not. That is the gap
+# that let a wrong-architecture import library ship on win-arm64. Compile and link
+# smoke.c against the SHIPPED headers and libraries, exactly as a consumer would.
+if [ -d "${DIR}/include" ]; then
+  check_smoke_link "${CC:-cc}" "${DIR}/include" "$(mktemp -d)/smoke"     -L "${DIR}" -lavformat -lavcodec -lavfilter -lavutil -lswscale -lswresample
+else
+  fail "no include/ in the artifact — the -dev archive would ship empty"
+fi
 case "$RID" in
   linux-x64|linux-arm64|linux-musl-x64|linux-musl-arm64) check_config "--enable-vaapi" "VAAPI" ;;
 esac

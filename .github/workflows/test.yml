@@ -148,7 +148,10 @@ jobs:
         shell: bash
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -q qemu-user libc6-armhf-cross libstdc++6-armhf-cross libgcc-s1-armhf-cross \n              gcc-arm-linux-gnueabihf   # cross-compiler: the -dev smoke link needs to BUILD for armv7, not just run it
+          # gcc-arm-linux-gnueabihf: the -dev smoke link must BUILD for armv7, not just run it
+          # under qemu. Keep the package list on ONE line: an escaped newline written into this
+          # file literally becomes an argument, and apt then reports it as a missing package.
+          sudo apt-get install -y -q qemu-user libc6-armhf-cross libstdc++6-armhf-cross libgcc-s1-armhf-cross gcc-arm-linux-gnueabihf
 
       - name: Test artifact
         shell: bash

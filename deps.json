@@ -148,7 +148,7 @@
     "amf": {
       "origin": "https://github.com/GPUOpen-LibrariesAndSDKs/AMF.git",
       "commit": "c35f613aea2e5057a688c979e75b1cf24253297e",
-      "branch": "master",
+      "digestBranch": "master",
       "datasource": "github-tags",
       "reason": "amf's latest release tag v1.4.36 ships DisplayCapture.h with an unguarded extern \"C\" that breaks C compilation of FFmpeg's vsrc_amf.c under mingw (issue #7); v1.4.35 is too old for FFmpeg's AMF version check. master carries the __cplusplus guard fix but has no newer tag yet, so pin a reviewed master commit. Bump to the next release tag once it includes the fix."
     },
@@ -220,7 +220,7 @@
     "x264": {
       "origin": "https://code.videolan.org/videolan/x264.git",
       "commit": "b35605ace3ddf7c1a5d67a2eb553f034aef41d55",
-      "branch": "stable",
+      "digestBranch": "stable",
       "datasource": "git-refs",
       "reason": "x264 has no release tags; pinned reviewed stable HEAD"
     },

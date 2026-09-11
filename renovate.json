@@ -73,14 +73,14 @@
     },
     {
       "customType": "regex",
-      "description": "Deps pinned to a reviewed commit rather than a tag (x264 publishes no release tags; amf is held off-tag per issue #7). Tracked as git-refs digests against the branch the pin actually follows -- x264's pin is stable, not master, so a HEAD assumption would have offered commits off the wrong branch.",
+      "description": "Deps pinned to a reviewed commit rather than a tag (x264 publishes no release tags; amf is held off-tag per issue #7). Tracked as git-refs digests against the branch the pin actually follows -- x264's pin is stable, not master, so a HEAD assumption would have offered commits off the wrong branch. The key is digestBranch, NOT branch: the ledger treats tag/branch/commit as mutually exclusive ref types (scripts/deps/lib.sh picks the first one present), so a second ref key would fail ledger-validate and could change which ref actually gets built.",
       "managerFilePatterns": [
         "/^deps\\.json$/"
       ],
       "matchStringsStrategy": "recursive",
       "matchStrings": [
         "\"defaults\"\\s*:\\s*\\{([\\s\\S]*?)\\}\\s*,\\s*\"overrides\"",
-        "\"(?<depName>[A-Za-z0-9._-]+)\"\\s*:\\s*\\{\\s*\"origin\"\\s*:\\s*\"(?<packageName>https?://[^\"]+)\"\\s*,\\s*\"commit\"\\s*:\\s*\"(?<currentDigest>[0-9a-f]{40})\"\\s*,\\s*\"branch\"\\s*:\\s*\"(?<currentValue>[^\"]+)\""
+        "\"(?<depName>[A-Za-z0-9._-]+)\"\\s*:\\s*\\{\\s*\"origin\"\\s*:\\s*\"(?<packageName>https?://[^\"]+)\"\\s*,\\s*\"commit\"\\s*:\\s*\"(?<currentDigest>[0-9a-f]{40})\"\\s*,\\s*\"digestBranch\"\\s*:\\s*\"(?<currentValue>[^\"]+)\""
       ],
       "datasourceTemplate": "git-refs"
     }

@@ -21,6 +21,11 @@
 #include <libavutil/frame.h>
 #include <libavutil/hwcontext.h>
 #include <libavutil/imgutils.h>
+/* swscale + swresample are linked by every consumer and shipped in every -dev archive, but
+ * nothing here referenced them, so a broken/missing import library for either would link
+ * clean and pass. Touch one symbol from each so the ABI check actually covers all six. */
+#include <libswscale/swscale.h>
+#include <libswresample/swresample.h>
 
 #define DIE(...) do { fprintf(stderr, "smoke: " __VA_ARGS__); return 1; } while (0)
 
@@ -83,6 +88,13 @@ static int roundtrip(void) {
     ec->width = 160; ec->height = 120; ec->pix_fmt = AV_PIX_FMT_YUV420P;
     ec->time_base = (AVRational){1, 25}; ec->framerate = (AVRational){25, 1};
     if (avcodec_open2(ec, enc, NULL) < 0) DIE("open encoder failed\n");
+
+    /* force a swscale + swresample symbol into the link */
+    if (swscale_version() == 0 || swresample_version() == 0) {
+        fprintf(stderr, "smoke: swscale/swresample reported version 0\n");
+        return 1;
+    }
+
 
     AVFrame *fr = av_frame_alloc();
     fr->format = ec->pix_fmt; fr->width = ec->width; fr->height = ec->height;

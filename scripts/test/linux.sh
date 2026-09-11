@@ -35,10 +35,20 @@ check_license_boundary
 # against it -- mobile ran this check, linux/macOS/Windows did not. That is the gap
 # that let a wrong-architecture import library ship on win-arm64. Compile and link
 # smoke.c against the SHIPPED headers and libraries, exactly as a consumer would.
-if [ -d "${DIR}/include" ]; then
-  check_smoke_link "${CC:-cc}" "${DIR}/include" "$(mktemp -d)/smoke"     -L "${DIR}" -lavformat -lavcodec -lavfilter -lavutil -lswscale -lswresample
+# linux-armhf is 32-bit ARM but its test job runs on an x86-64 host under qemu-user, so the
+# native cc CANNOT link against the ARM32 artifact -- it needs the cross-compiler that job
+# installs alongside qemu. Every other linux RID tests on a matching host.
+case "${RID}" in
+  linux-armhf) SMOKE_CC="arm-linux-gnueabihf-gcc" ;;
+  *)           SMOKE_CC="${CC:-cc}" ;;
+esac
+if [ ! -d "${DIR}/include" ]; then
+  fail "no include/ in the artifact -- the -dev archive would ship empty"
+elif ! command -v "${SMOKE_CC}" >/dev/null 2>&1; then
+  fail "smoke link: ${SMOKE_CC} not installed on this runner (the -dev archive would go untested)"
 else
-  fail "no include/ in the artifact — the -dev archive would ship empty"
+  check_smoke_link "${SMOKE_CC}" "${DIR}/include" "$(mktemp -d)/smoke" \
+    -L "${DIR}" -lavformat -lavcodec -lavfilter -lavutil -lswscale -lswresample
 fi
 case "$RID" in
   linux-x64|linux-arm64|linux-musl-x64|linux-musl-arm64) check_config "--enable-vaapi" "VAAPI" ;;

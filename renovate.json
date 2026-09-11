@@ -190,8 +190,7 @@
       "matchPackageNames": [
         "https://github.com/Mbed-TLS/mbedtls.git"
       ],
-      "allowedVersions": "<4.0.0",
-      "issue": 18
+      "allowedVersions": "<4.0.0"
     }
   ],
   "customDatasources": {

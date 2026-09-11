@@ -87,6 +87,12 @@ set(CMAKE_OSX_SYSROOT ${MCAT_SYSROOT})
 set(CMAKE_OSX_ARCHITECTURES ${MCAT_ARCH})
 set(CMAKE_C_FLAGS_INIT "-target ${MCAT_TARGET}")
 set(CMAKE_CXX_FLAGS_INIT "-target ${MCAT_TARGET}")
+# Objective-C/C++ need the target too. Setting only C/CXX left ggml's Metal backend
+# (ggml-metal.m) compiled for plain macOS, and the link then failed with
+#   ld: building for 'macCatalyst', but linking in object file (libggml-metal.a)
+# which surfaced as a bogus "whisper >= 1.7.5 not found using pkg-config".
+set(CMAKE_OBJC_FLAGS_INIT "-target ${MCAT_TARGET}")
+set(CMAKE_OBJCXX_FLAGS_INIT "-target ${MCAT_TARGET}")
 set(CMAKE_EXE_LINKER_FLAGS_INIT "-target ${MCAT_TARGET}")
 set(CMAKE_SHARED_LINKER_FLAGS_INIT "-target ${MCAT_TARGET}")
 # The SDK sits on the find root path beside DEPS_DIR so SDK FRAMEWORKS resolve while host

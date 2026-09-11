@@ -35,6 +35,7 @@ jobs:
           bash scripts/ci/select-versions-test.sh
           bash scripts/ci/gen-manifest-test.sh
           bash scripts/ci/pinned-deps-test.sh
+          bash scripts/ci/renovate-coverage-test.sh
 
       # Our dep scripts are SOURCED by build.sh and share its environment, so many
       # variables are assigned by the parent, not the script itself. -x follows

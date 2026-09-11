@@ -14,7 +14,7 @@
   "customManagers": [
     {
       "customType": "regex",
-      "description": "Bump the DEFAULTS block of the dependency ledger (deps.json). The recursive first matchString scopes extraction to defaults only — the overrides block (per-version / per-platform holds) is deliberately outside the region, so Renovate never touches a pinned hold. Only tag-pinned entries with a datasource are matched; commit pins (x264, amf) and tarball deps (gmp, libmp3lame) are hand-managed.",
+      "description": "Bump the DEFAULTS block of the dependency ledger (deps.json). The recursive first matchString scopes extraction to defaults only — the overrides block (per-version / per-platform holds) is deliberately outside the region, so Renovate never touches a pinned hold. Only tag-pinned entries with a datasource are matched; commit pins (x264, amf) and tarball deps (gmp, libmp3lame, libgsm, opencore-amr, vo-amrwbenc) are picked up by the dedicated managers below instead, so every ledger dep is tracked by exactly one manager -- asserted by scripts/ci/renovate-coverage-test.sh.",
       "managerFilePatterns": [
         "/^deps\\.json$/"
       ],
@@ -58,7 +58,7 @@
     },
     {
       "customType": "regex",
-      "description": "Tarball deps whose SourceForge project publishes one directory per release (lame) rather than flat files, so the version is the directory name under /files/<project>/.",
+      "description": "Tarball deps whose SourceForge project publishes one directory per release (lame) rather than flat files, so the version is the directory name under /files/<project>/. Numeric-dot only, which also drops the 3.88beta/3.89beta directories in the lame listing: 'loose' would treat a higher-numbered beta as stable, since it records a trailing suffix rather than a prerelease.",
       "managerFilePatterns": [
         "/^deps\\.json$/"
       ],
@@ -69,7 +69,7 @@
       ],
       "datasourceTemplate": "custom.tarball-listing",
       "versioningTemplate": "loose",
-      "extractVersionTemplate": "/files/[A-Za-z0-9._-]+/(?<version>[0-9][0-9A-Za-z.]*)/"
+      "extractVersionTemplate": "/files/[A-Za-z0-9._-]+/(?<version>[0-9]+(?:\\.[0-9]+)*)/"
     },
     {
       "customType": "regex",

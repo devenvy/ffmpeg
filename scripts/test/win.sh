@@ -58,6 +58,31 @@ audit_runtime_dll_imports
 n_lib=$(ls "${DIR}"/lib/*.lib 2>/dev/null | wc -l)
 [ "$n_lib" -ge 6 ] && pass "MSVC import libs present (${n_lib} .lib)" || fail "missing .lib import libs (found ${n_lib})"
 
+# Counting the .lib files is not enough: they are well-formed COFF either way, so a
+# wrong -m on llvm-dlltool produces x64 import libraries inside the ARM64 dev archive
+# and link.exe rejects them only once a consumer tries to build. Assert the machine
+# type matches the RID instead.
+audit_import_lib_arch() {
+  local want f m bad=""
+  case "$RID" in
+    win-x64)   want="IMAGE_FILE_MACHINE_AMD64" ;;
+    win-arm64) want="IMAGE_FILE_MACHINE_ARM64" ;;
+    *) return ;;
+  esac
+  command -v llvm-readobj >/dev/null 2>&1 || { info "llvm-readobj unavailable — skipping import-lib arch audit"; return; }
+  for f in "${DIR}"/lib/*.lib; do
+    [ -f "$f" ] || continue
+    m="$(llvm-readobj --file-headers "$f" 2>/dev/null | grep -m1 -oE 'IMAGE_FILE_MACHINE_[A-Z0-9]+')"
+    [ "$m" = "$want" ] || bad="${bad} $(basename "$f")=${m:-unknown}"
+  done
+  if [ -z "$bad" ]; then
+    pass "MSVC import libs are ${want}"
+  else
+    fail "MSVC import libs have the wrong machine type (want ${want}):${bad}"
+  fi
+}
+audit_import_lib_arch
+
 load_config_string "${DIR}"/avcodec-*.dll "${DIR}"/avutil-*.dll
 check_config "--enable-whisper" "Whisper ASR filter"
 check_config "--enable-mediafoundation" "MediaFoundation"

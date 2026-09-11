@@ -63,7 +63,7 @@ license cells — `gplv3`, `gplv2`, `lgplv3`, `lgplv2` — not one:
 | `ios-arm64` | iOS device (arm64) | Cross-compiled (iOS SDK, on macOS) | dynamic `*.dylib` + `include/`, no binaries |
 | `ios-sim-arm64` | iOS simulator (Apple Silicon) | Cross-compiled (simulator SDK) | dynamic `*.dylib` + `include/` (lean slice) |
 
-Each RID is built in 4 license cells: `{rid}-{gplv3,gplv2,lgplv3,lgplv2}` (12 RIDs × 4 = 48 build
+Each RID is built in 4 license cells: `{rid}-{gplv3,gplv2,lgplv3,lgplv2}` (13 RIDs × 4 = 52 build
 jobs). The two axes are **family** — `gpl` (`--enable-gpl`, includes x264 + x265) vs `lgpl`
 (`--disable-gpl`, kvazaar for HEVC, no x264/x265) — and **version** — `v3` (`--enable-version3`,
 may link Apache-2.0 deps like OpenSSL and Vulkan) vs `v2` (GPLv2 / LGPLv2.1, no `--enable-version3`,
@@ -472,14 +472,19 @@ clone the wrong thing. `bash scripts/deps/ledger-validate.sh` checks the ledger'
 
 - **Automatically:** self-hosted **Renovate** ([`renovate.json`](renovate.json) +
   [`.github/workflows/renovate.yml`](.github/workflows/renovate.yml)) watches, weekly:
-  - the `defaults` block of `deps.json` (scoped there only — it never edits an override, a commit
-    pin like x264/amf, or a tarball dep like gmp/libmp3lame), and
+  - every dependency in the `defaults` block of `deps.json` — tag pins via git-tags, tarball deps
+    with no git remote (gmp, libmp3lame, libgsm, opencore-amr, vo-amrwbenc) via a custom datasource
+    reading the upstream release listing, and commit pins (x264, amf) as git-refs digests against
+    the branch recorded in `digestBranch`. Scoped to `defaults` only: it never edits an **override**,
+    which is where a deliberate platform hold like x265-on-ARM64 lives, and
   - each **FFmpeg** line in the `.ffmpeg` list in `deps.json`, constrained to **its own major**
     — any newer release within the major, patch or minor alike (9.0.1 → 9.0.2 → 9.1.0), never a
     cross-major jump (9.x → 10.x).
 
-  It batches all of these — libraries **and** FFmpeg point bumps — into **one grouped PR** per run
-  (major *library* bumps stay separate for individual review). CI builds that PR across every
+  It batches all of these — libraries **and** FFmpeg point bumps, major/minor/patch/digest alike —
+  into **one grouped PR** per run. Majors used to be split out for individual review, but every
+  update edits `deps.json`, so concurrent PRs only conflict; hold a specific major back by pinning
+  it in `overrides` with a tracking issue instead.
   affected line before you merge. Workflow **actions** are handled separately by **Dependabot**
   ([`.github/dependabot.yml`](.github/dependabot.yml)); Renovate never touches them.
 - **A new FFmpeg major line** (e.g. 10.0) is the one thing Renovate can't do — it edits

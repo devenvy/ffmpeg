@@ -30,13 +30,23 @@ case "${RID}" in
     # Named by base soname (avcodec.lib, not avcodec-62.lib) so MSVC/CMake find them.
     LLVM_DLLTOOL="$(command -v llvm-dlltool || ls /usr/lib/llvm-*/bin/llvm-dlltool 2>/dev/null | sort -V | tail -1 || true)"
     [ -n "${LLVM_DLLTOOL}" ] || { echo "ERROR: llvm-dlltool not found (install the 'llvm' package)"; exit 1; }
+    # The import library's machine type must match the RID, not the build host.
+    # -m i386:x86-64 maps to IMAGE_FILE_MACHINE_AMD64, so using it for win-arm64 put
+    # x64 .lib files inside the ARM64 dev archive, which link.exe rejects for an ARM64
+    # target. Nothing caught it: the files exist and are well-formed COFF, they are
+    # simply the wrong architecture, and the test only counted them.
+    case "${RID}" in
+      win-x64)   DLLTOOL_MACHINE="i386:x86-64" ;;
+      win-arm64) DLLTOOL_MACHINE="arm64" ;;
+      *) echo "ERROR: no llvm-dlltool machine mapping for RID ${RID}" >&2; exit 1 ;;
+    esac
     for dll in "${OUT_DIR}/"*.dll; do
       [ -e "${dll}" ] || continue
       dllbase="$(basename "${dll}")"   # e.g. avcodec-62.dll
       stem="${dllbase%.dll}"           # e.g. avcodec-62
       libbase="${stem%-*}"             # e.g. avcodec
       gendef - "${dll}" > "${WORK_DIR}/${stem}.def"
-      "${LLVM_DLLTOOL}" -m i386:x86-64 \
+      "${LLVM_DLLTOOL}" -m "${DLLTOOL_MACHINE}" \
         -d "${WORK_DIR}/${stem}.def" \
         -D "${dllbase}" \
         -l "${OUT_DIR}/lib/${libbase}.lib"

@@ -2,8 +2,10 @@ name: Renovate
 
 # Self-hosted Renovate: runs the Renovate CLI as a scheduled Action in this repo (no
 # external service), same trust model as check-updates.yml. It reads renovate.json, which
-# scopes a custom regex manager to the DEFAULTS block of deps.json and opens a PR when an
-# upstream publishes a newer tag. CI (build + docs-matrix) then validates that bump across
+# scopes custom regex managers to the DEFAULTS block of deps.json and opens a PR when an
+# upstream publishes a newer version -- a newer git tag, a newer tarball on a release listing
+# (gmp, libmp3lame, libgsm, opencore-amr, vo-amrwbenc, which have no git remote), or a newer
+# commit on the branch a digest pin follows (x264, amf). CI (build + docs-matrix) then validates that bump across
 # every FFmpeg line before it can merge; if a line can't take the new version, add an
 # overrides.<major>[.platforms] hold in the same PR (Renovate never edits overrides).
 

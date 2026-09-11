@@ -78,7 +78,7 @@ jobs:
       # Embedded into legal/SOURCE_OFFER.txt so the corresponding-source notice
       # points at this exact repo + commit.
       SOURCE_REPO_URL: ${{ github.server_url }}/${{ github.repository }}
-      SOURCE_REPO_REF: ${{ github.sha }}
+      SOURCE_REPO_REF: ${{ inputs.ref || github.sha }}
 
     steps:
       - name: Bootstrap Alpine container

@@ -95,7 +95,9 @@
     "gmp": {
       "origin": "https://ftp.gnu.org/gnu/gmp/gmp-6.3.0.tar.xz",
       "tag": "6.3.0",
-      "reason": "gmp.sh downloads a GNU tarball (GMP_VER=6.3.0) via dep_version, not git; no canonical git mirror with a matching v6.3.0 tag was found (checked github.com/alisw/GMP and git.savannah.gnu.org/git/gmp — neither has it), so origin/tag here describe the tarball, not a clonable git ref; tag is the bare tarball-filename version. 6.3.0 (2023-07-30) remains the latest stable GMP release as of 2026-08."
+      "releasesUrl": "https://ftp.gnu.org/gnu/gmp/",
+      "releasesStyle": "tarball",
+      "reason": "gmp.sh downloads a GNU tarball (GMP_VER=6.3.0) via dep_version, not git; no canonical git mirror with a matching v6.3.0 tag was found (checked github.com/alisw/GMP and git.savannah.gnu.org/git/gmp — neither has it), so origin/tag here describe the tarball, not a clonable git ref; tag is the bare tarball-filename version. 6.3. Tracked via the tarball-listing custom datasource against releasesUrl, so a new upstream release still raises a PR."
     },
     "gnutls": {
       "origin": "https://gitlab.com/gnutls/gnutls.git",
@@ -146,6 +148,7 @@
     "amf": {
       "origin": "https://github.com/GPUOpen-LibrariesAndSDKs/AMF.git",
       "commit": "c35f613aea2e5057a688c979e75b1cf24253297e",
+      "branch": "master",
       "datasource": "github-tags",
       "reason": "amf's latest release tag v1.4.36 ships DisplayCapture.h with an unguarded extern \"C\" that breaks C compilation of FFmpeg's vsrc_amf.c under mingw (issue #7); v1.4.35 is too old for FFmpeg's AMF version check. master carries the __cplusplus guard fix but has no newer tag yet, so pin a reviewed master commit. Bump to the next release tag once it includes the fix."
     },
@@ -157,7 +160,9 @@
     "libmp3lame": {
       "origin": "https://downloads.sourceforge.net/project/lame/lame/3.100/lame-3.100.tar.gz",
       "tag": "3.100",
-      "reason": "libmp3lame.sh downloads a SourceForge tarball (lame-3.100.tar.gz) via dep_version, not git; no verified git mirror carries a matching RELEASE__3_100-style tag (checked github.com/rbrito/lame — closest is lame3_100_with_psymodel_v3_99_5, not exact), so this entry cannot be faithfully expressed as a clonable ref; tag is the bare tarball-filename version. 3.100 (2017-10-13) remains the latest stable LAME release as of 2026-08."
+      "releasesUrl": "https://sourceforge.net/projects/lame/files/lame/",
+      "releasesStyle": "directory",
+      "reason": "libmp3lame.sh downloads a SourceForge tarball (lame-3.100.tar.gz) via dep_version, not git; no verified git mirror carries a matching RELEASE__3_100-style tag (checked github.com/rbrito/lame — closest is lame3_100_with_psymodel_v3_99_5, not exact), so this entry cannot be faithfully expressed as a clonable ref; tag is the bare tarball-filename version. 3. Tracked via the tarball-listing custom datasource against releasesUrl, so a new upstream release still raises a PR."
     },
     "libvpl": {
       "origin": "https://github.com/intel/libvpl.git",
@@ -215,6 +220,7 @@
     "x264": {
       "origin": "https://code.videolan.org/videolan/x264.git",
       "commit": "b35605ace3ddf7c1a5d67a2eb553f034aef41d55",
+      "branch": "stable",
       "datasource": "git-refs",
       "reason": "x264 has no release tags; pinned reviewed stable HEAD"
     },
@@ -239,17 +245,23 @@
     "libgsm": {
       "origin": "https://www.quut.com/gsm/gsm-1.0.22.tar.gz",
       "tag": "1.0.22",
-      "reason": "libgsm.sh downloads the quut.com tarball (gsm-1.0.22.tar.gz) via dep_version, not git; there is no clean canonical upstream git repo (the code ships as a hand-packed tarball with a non-standard Makefile), so origin/tag describe the tarball, not a clonable ref; tag is the bare tarball-filename version. No datasource — untrackable tarball. 1.0.22 (2018) remains the latest release as of 2026-08."
+      "releasesUrl": "https://www.quut.com/gsm/",
+      "releasesStyle": "tarball",
+      "reason": "libgsm.sh downloads the quut.com tarball (gsm-1.0.22.tar.gz) via dep_version, not git; there is no clean canonical upstream git repo (the code ships as a hand-packed tarball with a non-standard Makefile), so origin/tag describe the tarball, not a clonable ref; tag is the bare tarball-filename version. 1.0. Tracked via the tarball-listing custom datasource against releasesUrl, so a new upstream release still raises a PR."
     },
     "opencore-amr": {
       "origin": "https://downloads.sourceforge.net/opencore-amr/opencore-amr-0.1.6.tar.gz",
       "tag": "0.1.6",
-      "reason": "opencore-amr.sh downloads a SourceForge tarball (opencore-amr-0.1.6.tar.gz) via dep_version, not git; no clean canonical git mirror carries a matching bare-version tag, so origin/tag describe the tarball; tag is the bare tarball-filename version. No datasource — untrackable SF tarball, like libmp3lame."
+      "releasesUrl": "https://sourceforge.net/projects/opencore-amr/files/opencore-amr/",
+      "releasesStyle": "tarball",
+      "reason": "opencore-amr.sh downloads a SourceForge tarball (opencore-amr-0.1.6.tar.gz) via dep_version, not git; no clean canonical git mirror carries a matching bare-version tag, so origin/tag describe the tarball; tag is the bare tarball-filename version. Tracked via the tarball-listing custom datasource against releasesUrl, so a new upstream release still raises a PR."
     },
     "vo-amrwbenc": {
       "origin": "https://downloads.sourceforge.net/opencore-amr/vo-amrwbenc-0.1.3.tar.gz",
       "tag": "0.1.3",
-      "reason": "vo-amrwbenc.sh downloads a SourceForge tarball (vo-amrwbenc-0.1.3.tar.gz) via dep_version, not git; no clean canonical git mirror carries a matching bare-version tag, so origin/tag describe the tarball; tag is the bare tarball-filename version. No datasource — untrackable SF tarball, like libmp3lame."
+      "releasesUrl": "https://sourceforge.net/projects/opencore-amr/files/vo-amrwbenc/",
+      "releasesStyle": "tarball",
+      "reason": "vo-amrwbenc.sh downloads a SourceForge tarball (vo-amrwbenc-0.1.3.tar.gz) via dep_version, not git; no clean canonical git mirror carries a matching bare-version tag, so origin/tag describe the tarball; tag is the bare tarball-filename version. Tracked via the tarball-listing custom datasource against releasesUrl, so a new upstream release still raises a PR."
     },
     "mbedtls": {
       "origin": "https://github.com/Mbed-TLS/mbedtls.git",

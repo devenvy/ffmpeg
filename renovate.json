@@ -1,15 +1,23 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["config:recommended"],
+  "extends": [
+    "config:recommended"
+  ],
   "onboarding": false,
-  "enabledManagers": ["custom.regex"],
+  "enabledManagers": [
+    "custom.regex"
+  ],
   "dependencyDashboard": true,
-  "labels": ["dependencies"],
+  "labels": [
+    "dependencies"
+  ],
   "customManagers": [
     {
       "customType": "regex",
       "description": "Bump the DEFAULTS block of the dependency ledger (deps.json). The recursive first matchString scopes extraction to defaults only — the overrides block (per-version / per-platform holds) is deliberately outside the region, so Renovate never touches a pinned hold. Only tag-pinned entries with a datasource are matched; commit pins (x264, amf) and tarball deps (gmp, libmp3lame) are hand-managed.",
-      "managerFilePatterns": ["/^deps\\.json$/"],
+      "managerFilePatterns": [
+        "/^deps\\.json$/"
+      ],
       "matchStringsStrategy": "recursive",
       "matchStrings": [
         "\"defaults\"\\s*:\\s*\\{([\\s\\S]*?)\\}\\s*,\\s*\"overrides\"",
@@ -20,7 +28,9 @@
     {
       "customType": "regex",
       "description": "Track FFmpeg point releases listed in the .ffmpeg array of deps.json (one entry per maintained major line, e.g. 8.1.2). The recursive first matchString scopes extraction to the .ffmpeg array only; FFmpeg's upstream tags are n<version> (stripped via extractVersion).",
-      "managerFilePatterns": ["/^deps\\.json$/"],
+      "managerFilePatterns": [
+        "/^deps\\.json$/"
+      ],
       "matchStringsStrategy": "recursive",
       "matchStrings": [
         "\"ffmpeg\"\\s*:\\s*\\[([\\s\\S]*?)\\]",
@@ -30,19 +40,70 @@
       "packageNameTemplate": "https://github.com/FFmpeg/FFmpeg.git",
       "datasourceTemplate": "git-tags",
       "extractVersionTemplate": "^n(?<version>.+)$"
+    },
+    {
+      "customType": "regex",
+      "description": "Tarball deps whose listing page links the archives themselves (GNU FTP, quut.com, SourceForge projects that upload files flat). hrefs appear as 'gmp-6.3.0.tar.xz', an absolute URL, or '<file>.tar.gz/download', so the version pattern tolerates a leading path and a trailing segment.",
+      "managerFilePatterns": [
+        "/^deps\\.json$/"
+      ],
+      "matchStringsStrategy": "recursive",
+      "matchStrings": [
+        "\"defaults\"\\s*:\\s*\\{([\\s\\S]*?)\\}\\s*,\\s*\"overrides\"",
+        "\"(?<depName>[A-Za-z0-9._-]+)\"\\s*:\\s*\\{\\s*\"origin\"\\s*:\\s*\"[^\"]+\"\\s*,\\s*\"tag\"\\s*:\\s*\"(?<currentValue>[^\"]+)\"\\s*,\\s*\"releasesUrl\"\\s*:\\s*\"(?<registryUrl>[^\"]+)\"\\s*,\\s*\"releasesStyle\"\\s*:\\s*\"tarball\""
+      ],
+      "datasourceTemplate": "custom.tarball-listing",
+      "versioningTemplate": "loose",
+      "extractVersionTemplate": "[A-Za-z0-9._+-]+?-(?<version>[0-9][0-9A-Za-z.]*)\\.tar\\.(?:gz|xz|bz2)(?:/|$)"
+    },
+    {
+      "customType": "regex",
+      "description": "Tarball deps whose SourceForge project publishes one directory per release (lame) rather than flat files, so the version is the directory name under /files/<project>/.",
+      "managerFilePatterns": [
+        "/^deps\\.json$/"
+      ],
+      "matchStringsStrategy": "recursive",
+      "matchStrings": [
+        "\"defaults\"\\s*:\\s*\\{([\\s\\S]*?)\\}\\s*,\\s*\"overrides\"",
+        "\"(?<depName>[A-Za-z0-9._-]+)\"\\s*:\\s*\\{\\s*\"origin\"\\s*:\\s*\"[^\"]+\"\\s*,\\s*\"tag\"\\s*:\\s*\"(?<currentValue>[^\"]+)\"\\s*,\\s*\"releasesUrl\"\\s*:\\s*\"(?<registryUrl>[^\"]+)\"\\s*,\\s*\"releasesStyle\"\\s*:\\s*\"directory\""
+      ],
+      "datasourceTemplate": "custom.tarball-listing",
+      "versioningTemplate": "loose",
+      "extractVersionTemplate": "/files/[A-Za-z0-9._-]+/(?<version>[0-9][0-9A-Za-z.]*)/"
+    },
+    {
+      "customType": "regex",
+      "description": "Deps pinned to a reviewed commit rather than a tag (x264 publishes no release tags; amf is held off-tag per issue #7). Tracked as git-refs digests against the branch the pin actually follows -- x264's pin is stable, not master, so a HEAD assumption would have offered commits off the wrong branch.",
+      "managerFilePatterns": [
+        "/^deps\\.json$/"
+      ],
+      "matchStringsStrategy": "recursive",
+      "matchStrings": [
+        "\"defaults\"\\s*:\\s*\\{([\\s\\S]*?)\\}\\s*,\\s*\"overrides\"",
+        "\"(?<depName>[A-Za-z0-9._-]+)\"\\s*:\\s*\\{\\s*\"origin\"\\s*:\\s*\"(?<packageName>https?://[^\"]+)\"\\s*,\\s*\"commit\"\\s*:\\s*\"(?<currentDigest>[0-9a-f]{40})\"\\s*,\\s*\"branch\"\\s*:\\s*\"(?<currentValue>[^\"]+)\""
+      ],
+      "datasourceTemplate": "git-refs"
     }
   ],
   "packageRules": [
     {
       "description": "Group all ledger dependency bumps under a clear prefix so CI (build + docs-matrix) validates each PR against every FFmpeg line before merge.",
-      "matchManagers": ["custom.regex"],
+      "matchManagers": [
+        "custom.regex"
+      ],
       "commitMessagePrefix": "chore(deps):",
       "semanticCommits": "disabled"
     },
     {
       "description": "Keep review load low: batch routine (non-major) dependency bumps into ONE grouped PR per run instead of one PR per dep — so a quiet-to-busy week is a single PR + a single CI run to review and merge. MAJOR bumps are deliberately left ungrouped so each gets its own PR and individual scrutiny (they're the risky ones, e.g. an API-breaking codec major like x265 3->4). To go back to a PR per dep, delete this rule.",
-      "matchManagers": ["custom.regex"],
-      "matchUpdateTypes": ["minor", "patch", "digest"],
+      "matchManagers": [
+        "custom.regex"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch",
+        "digest"
+      ],
       "groupName": "FFmpeg + library dependencies"
     },
     {
@@ -56,14 +117,25 @@
     },
     {
       "description": "Constrain each FFmpeg line to its own MAJOR: Renovate offers any newer release within the major — patch or minor alike (9.0.1 -> 9.0.2 -> 9.1.0) — but never a cross-major jump (9.x -> 10.x). One rule per maintained major; matchCurrentVersion scopes it to the line at that major, allowedVersions filters candidates to that major. A NEW major is a new line that check-updates.yml adds (with its matching rule).",
-      "matchPackageNames": ["https://github.com/FFmpeg/FFmpeg.git"],
+      "matchPackageNames": [
+        "https://github.com/FFmpeg/FFmpeg.git"
+      ],
       "matchCurrentVersion": "/^8\\./",
       "allowedVersions": "/^8\\./"
     },
     {
-      "matchPackageNames": ["https://github.com/FFmpeg/FFmpeg.git"],
+      "matchPackageNames": [
+        "https://github.com/FFmpeg/FFmpeg.git"
+      ],
       "matchCurrentVersion": "/^9\\./",
       "allowedVersions": "/^9\\./"
     }
-  ]
+  ],
+  "customDatasources": {
+    "tarball-listing": {
+      "description": "Upstream release listing for deps that ship as a plain tarball with no git remote (GNU FTP, SourceForge, quut.com). format:html makes Renovate return every <a href> on the page verbatim; the manager's extractVersion then pulls the version out of whichever shape that site uses.",
+      "defaultRegistryUrlTemplate": "https://example.invalid/",
+      "format": "html"
+    }
+  }
 }

@@ -23,7 +23,12 @@ jobs:
     strategy:
       fail-fast: ${{ inputs.fail_fast }}
       matrix:
-        rid: [linux-x64, linux-arm64, linux-armhf, linux-musl-x64, linux-musl-arm64, win-x64, win-arm64, osx-x64, osx-arm64, android-arm64, android-x64, ios-arm64, ios-sim-arm64]
+        # TEMP-NARROWED: Mac Catalyst vetting only. macOS runners are the scarcest in the
+        # matrix, so the full 15-RID sweep is suppressed while the macabi toolchain is being
+        # proven. The line below is the real matrix and MUST be restored before merge; the
+        # TEMP-NARROWED marker makes a CI gate fail, so this cannot go green as-is.
+        # rid: [linux-x64, linux-arm64, linux-armhf, linux-musl-x64, linux-musl-arm64, win-x64, win-arm64, osx-x64, osx-arm64, android-arm64, android-x64, ios-arm64, ios-sim-arm64, maccatalyst-arm64, maccatalyst-x64]
+        rid: [maccatalyst-arm64, maccatalyst-x64]
         license: [lgpl, gpl]
         # License version series. 3 = (L)GPLv3 (OpenSSL 3.x TLS + Vulkan on Linux/Android, both
         # Apache-2.0). 2 = LGPLv2.1 / GPLv2 (App-Store-safe): Vulkan dropped everywhere; on
@@ -62,6 +67,10 @@ jobs:
           - rid: ios-arm64
             runner: macos-latest
           - rid: ios-sim-arm64
+            runner: macos-latest
+          - rid: maccatalyst-arm64
+            runner: macos-latest
+          - rid: maccatalyst-x64
             runner: macos-latest
 
     runs-on: ${{ matrix.runner }}

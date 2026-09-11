@@ -28,7 +28,10 @@ case "${RID}" in
   osx-*)         MVK_TARGET=macos  ;;
   ios-arm64)     MVK_TARGET=ios    ;;
   ios-sim-arm64) MVK_TARGET=iossim ;;
-  maccatalyst-*)  MVK_TARGET=maccatalyst ;;
+  # MoltenVK spells Catalyst "maccat", not "maccatalyst" -- the name is shared by
+  # fetchDependencies' --<target> flag and the Makefile target, both verified against
+  # v1.4.2 (fetchDependencies rejected --maccatalyst with "Unsupported option").
+  maccatalyst-*) MVK_TARGET=maccat ;;
 esac
 ./fetchDependencies "--${MVK_TARGET}"
 make "${MVK_TARGET}"
@@ -76,7 +79,7 @@ case "${RID}" in
   # inside the xcframework. Several path spellings are tried because MoltenVK's Package
   # layout for macabi is not stable across releases; a miss hard-errors below with the
   # tree printed, rather than silently disabling Vulkan.
-  maccatalyst-*) MVK_LIB="$(find_mvk_static maccatalyst Mac_Catalyst catalyst macabi)" ;;
+  maccatalyst-*) MVK_LIB="$(find_mvk_static maccat maccatalyst Mac_Catalyst catalyst macabi)" ;;
 esac
 [ -n "${MVK_LIB}" ] && [ -e "${MVK_LIB}" ] \
   || { echo "ERROR: MoltenVK binary (libMoltenVK.dylib or MoltenVK.framework/MoltenVK) not found after build (${RID})" >&2

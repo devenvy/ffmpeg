@@ -37,37 +37,10 @@ jobs:
         # native SecureTransport/SChannel TLS in every cell, v3 or v2.
         license_version: [3, 2]
         include:
-          - rid: linux-x64
-            runner: ubuntu-latest
-          - rid: linux-arm64
-            runner: ubuntu-24.04-arm
-          - rid: linux-armhf
-            runner: ubuntu-latest
-          - rid: linux-musl-x64
-            runner: ubuntu-latest
-            container: alpine:latest
-          # No container: here (unlike linux-musl-x64) — GitHub only supports
-          # JavaScript actions in Alpine containers on x64 runners, so this RID
-          # instead docker-runs alpine:latest itself in the build step below,
-          # keeping actions/checkout etc. on the host's glibc Node runtime.
-          - rid: linux-musl-arm64
-            runner: ubuntu-24.04-arm
-          - rid: win-x64
-            runner: ubuntu-latest
-          - rid: win-arm64
-            runner: ubuntu-latest
-          - rid: osx-x64
-            runner: macos-15-intel
-          - rid: osx-arm64
-            runner: macos-latest
-          - rid: android-arm64
-            runner: ubuntu-latest
-          - rid: android-x64
-            runner: ubuntu-latest
-          - rid: ios-arm64
-            runner: macos-latest
-          - rid: ios-sim-arm64
-            runner: macos-latest
+          # TEMP-NARROWED: the other 13 runner mappings are commented out with the rid list
+          # above. A GitHub matrix `include` entry whose keys do not match an existing
+          # combination ADDS one, so leaving them in filtered nothing -- it created 26
+          # half-configured jobs with an empty license (seen as "(v)" in the job names).
           - rid: maccatalyst-arm64
             runner: macos-latest
           - rid: maccatalyst-x64

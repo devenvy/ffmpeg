@@ -36,7 +36,8 @@ case "${RID}" in
   linux-armhf)   ZIMG_ARGS+=(--host=arm-linux-gnueabihf) ;;
   android-arm64) ZIMG_ARGS+=(--host=aarch64-linux-android) ;;
   android-x64)   ZIMG_ARGS+=(--host=x86_64-linux-android) ;;
-  ios-arm64|ios-sim-arm64) ZIMG_ARGS+=(--host=aarch64-apple-darwin) ;;
+  ios-arm64|ios-sim-arm64|maccatalyst-arm64) ZIMG_ARGS+=(--host=aarch64-apple-darwin) ;;
+  maccatalyst-x64)         ZIMG_ARGS+=(--host=x86_64-apple-darwin) ;;
 esac
 ./configure "${ZIMG_ARGS[@]}"
 make -j"$(${NPROC})"

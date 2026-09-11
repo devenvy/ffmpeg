@@ -138,7 +138,7 @@ case "${RID}" in
       exit 1
     fi
     ;;
-  ios-*)
+  ios-*|maccatalyst-*)
     # iOS ships one dynamic .framework per libav* library (release.yml assembles the device +
     # simulator frameworks into a per-lib .xcframework). Each framework bundles the dylib (deref'd
     # from its versioned symlink, renamed to the framework's executable name), that lib's public
@@ -240,7 +240,7 @@ case "${RID}" in
       install_name_tool -add_rpath "@loader_path" "${target}" 2>/dev/null || true
     done
     ;;
-  android-*|ios-*)
+  android-*|ios-*|maccatalyst-*)
     # Android: unversioned sonames, no rpath needed. iOS: the per-framework @rpath install-names
     # are set during framework assembly above, so nothing to do here.
     echo "Mobile build — no additional rpath/install_name fixup needed."

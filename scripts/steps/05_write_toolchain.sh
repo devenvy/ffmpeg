@@ -75,6 +75,27 @@ CMAKE
       -DANDROID_PLATFORM="android-${API}"
     )
     ;;
+  maccatalyst-arm64|maccatalyst-x64)
+    # Catalyst is NOT CMAKE_SYSTEM_NAME iOS: that makes CMake emit iphoneos flags and drop
+    # the macabi suffix. It is a Darwin target built against the macOS SDK, distinguished
+    # solely by the -target triple, which apple.sh already put in CFLAGS/LDFLAGS.
+    MCAT_TOOLCHAIN="${WORK_DIR}/maccatalyst-toolchain.cmake"
+    cat > "${MCAT_TOOLCHAIN}" <<CMAKE
+set(CMAKE_SYSTEM_NAME Darwin)
+set(CMAKE_SYSTEM_PROCESSOR ${MCAT_ARCH})
+set(CMAKE_OSX_SYSROOT ${MCAT_SYSROOT})
+set(CMAKE_OSX_ARCHITECTURES ${MCAT_ARCH})
+set(CMAKE_C_FLAGS_INIT "-target ${MCAT_TARGET}")
+set(CMAKE_CXX_FLAGS_INIT "-target ${MCAT_TARGET}")
+set(CMAKE_EXE_LINKER_FLAGS_INIT "-target ${MCAT_TARGET}")
+set(CMAKE_SHARED_LINKER_FLAGS_INIT "-target ${MCAT_TARGET}")
+set(CMAKE_FIND_ROOT_PATH ${DEPS_DIR})
+set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+CMAKE
+    CMAKE_CROSS_ARGS+=(-DCMAKE_TOOLCHAIN_FILE="${MCAT_TOOLCHAIN}")
+    ;;
   ios-arm64|ios-sim-arm64)
     IOS_TOOLCHAIN="${WORK_DIR}/ios-toolchain.cmake"
     cat > "${IOS_TOOLCHAIN}" <<CMAKE
@@ -176,6 +197,32 @@ endian = 'little'
 [properties]
 pkg_config_libdir = '${DEPS_DIR}/lib/pkgconfig'
 needs_exe_wrapper = true
+MESON
+    ;;
+  maccatalyst-arm64|maccatalyst-x64)
+    MESON_CROSS_FILE="${WORK_DIR}/maccatalyst-meson-cross.ini"
+    cat > "${MESON_CROSS_FILE}" <<MESON
+[binaries]
+c = '${CC}'
+cpp = '${CXX}'
+ar = '${AR}'
+strip = 'strip'
+pkg-config = 'pkg-config'
+[built-in options]
+c_args = ['-target', '${MCAT_TARGET}', '-isysroot', '${MCAT_SYSROOT}']
+cpp_args = ['-target', '${MCAT_TARGET}', '-isysroot', '${MCAT_SYSROOT}']
+c_link_args = ['-target', '${MCAT_TARGET}', '-isysroot', '${MCAT_SYSROOT}']
+cpp_link_args = ['-target', '${MCAT_TARGET}', '-isysroot', '${MCAT_SYSROOT}']
+[host_machine]
+system = 'darwin'
+cpu_family = '${MCAT_FFARCH}'
+cpu = '${MCAT_FFARCH}'
+endian = 'little'
+[properties]
+pkg_config_libdir = '${DEPS_DIR}/lib/pkgconfig'
+# Catalyst binaries RUN on the build host (macOS), unlike ios-*, so meson may execute
+# its own test programs instead of guessing.
+needs_exe_wrapper = false
 MESON
     ;;
   ios-arm64|ios-sim-arm64)

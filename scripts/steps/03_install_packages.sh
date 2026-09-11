@@ -14,7 +14,7 @@ set -euo pipefail
 
 if [[ "${SKIP_DEPS:-false}" != "true" ]]; then
 case "${RID}" in
-  osx-*|ios-*)
+  osx-*|ios-*|maccatalyst-*)
     # autoconf/automake/libtool provide `autoreconf`, which several deps' autogen.sh
     # needs (kvazaar, libogg, libvorbis, zimg — cloned from git with no pre-generated
     # configure). GitHub's macOS runners no longer ship them, so install explicitly.

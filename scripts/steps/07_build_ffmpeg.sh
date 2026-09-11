@@ -106,7 +106,7 @@ case "${RID}" in
   # §6 requires the end user be able to relink the app against a modified library; static
   # linking forces shipping object files for that, dynamic frameworks satisfy it inherently.
   # So the App-Store lgplv2 iOS build MUST be dynamic. Same shared libav*.dylib as macOS.
-  ios-*|android-*)
+  ios-*|android-*|maccatalyst-*)
     PROGRAM_FLAGS=(--disable-programs)
     ;;
 esac

@@ -14,7 +14,7 @@ set -euo pipefail
 # source on the macOS runner (Xcode present). fetchDependencies + `make` output paths have
 # shifted across versions, so the built dylib/framework is located by name, not a fixed path.
 
-case "${RID}" in osx-*|ios-*) : ;; *) return 0 ;; esac
+case "${RID}" in osx-*|ios-*|maccatalyst-*) : ;; *) return 0 ;; esac
 [[ "${BUILD_VULKAN}" == "1" ]] || return 0
 
 echo "Building MoltenVK (Vulkan-over-Metal) for ${RID}..."
@@ -28,6 +28,7 @@ case "${RID}" in
   osx-*)         MVK_TARGET=macos  ;;
   ios-arm64)     MVK_TARGET=ios    ;;
   ios-sim-arm64) MVK_TARGET=iossim ;;
+  maccatalyst-*)  MVK_TARGET=maccatalyst ;;
 esac
 ./fetchDependencies "--${MVK_TARGET}"
 make "${MVK_TARGET}"
@@ -71,6 +72,11 @@ case "${RID}" in
   osx-*)         MVK_LIB="$(find_mvk_dynamic macos macOS)" ;;
   ios-arm64)     MVK_LIB="$(find_mvk_static ios-arm64 iOS)" ;;
   ios-sim-arm64) MVK_LIB="$(find_mvk_static simulator iossim iOS_Simulator)" ;;
+  # Catalyst links MoltenVK STATICALLY like iOS, so each .framework stays self-contained
+  # inside the xcframework. Several path spellings are tried because MoltenVK's Package
+  # layout for macabi is not stable across releases; a miss hard-errors below with the
+  # tree printed, rather than silently disabling Vulkan.
+  maccatalyst-*) MVK_LIB="$(find_mvk_static maccatalyst Mac_Catalyst catalyst macabi)" ;;
 esac
 [ -n "${MVK_LIB}" ] && [ -e "${MVK_LIB}" ] \
   || { echo "ERROR: MoltenVK binary (libMoltenVK.dylib or MoltenVK.framework/MoltenVK) not found after build (${RID})" >&2
@@ -111,7 +117,7 @@ case "${RID}" in
     # MVK_ICD is empty and abort the entire build with no message.
     echo "MoltenVK staged for ${RID} — bundled by 08_stage_artifacts."
     ;;
-  ios-*)
+  ios-*|maccatalyst-*)
     # How this actually resolves: configure takes --enable-vulkan-static through
     #   check_lib vulkan "vulkan/vulkan.h" vkGetInstanceProcAddr -lvulkan
     # and NEVER reads vulkan.pc's Libs: line for it (the check_pkg_config branch above that

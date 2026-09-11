@@ -22,6 +22,50 @@ case "${RID}" in
     BUILD_TYPE_LABEL="macOS (native)"
     ;;
 
+  maccatalyst-arm64|maccatalyst-x64)
+    # Mac Catalyst: an iOS-API (UIKit) app running on macOS. It is neither ios-* nor osx-* —
+    # it uses the macOS SDK with an ios*-macabi target triple, so it needs its own arm.
+    # Consumers are .NET MAUI / Xcode targets that resolve the maccatalyst slice of the
+    # xcframework; osx-* cannot substitute, because the slice would not validate.
+    case "${RID}" in
+      maccatalyst-arm64) MCAT_ARCH=arm64;  MCAT_FFARCH=aarch64 ;;
+      maccatalyst-x64)   MCAT_ARCH=x86_64; MCAT_FFARCH=x86_64  ;;
+    esac
+    # 14.0 is the deployment floor: low enough that an app with a higher minimum still links
+    # against us (a library min below the app's is always compatible), high enough to avoid
+    # the earliest macabi releases. Catalyst itself starts at iOS 13.1 / macOS 10.15.
+    MCAT_TARGET="${MCAT_ARCH}-apple-ios14.0-macabi"
+    MCAT_SYSROOT="$(xcrun --sdk macosx --show-sdk-path)"
+    # Same assign-then-export discipline as the iOS arm: `export X=$(cmd)` would mask an
+    # xcrun failure from set -e and yield an empty CC.
+    CC="$(xcrun --sdk macosx --find clang)";      export CC
+    CXX="$(xcrun --sdk macosx --find clang++)";   export CXX
+    AR="$(xcrun --sdk macosx --find ar)";         export AR
+    RANLIB="$(xcrun --sdk macosx --find ranlib)"; export RANLIB
+    # -target carries BOTH arch and deployment target for macabi; there is no
+    # -mmaccatalyst-version-min, and -arch alone would build a plain macOS object.
+    EXTRA_CFLAGS="-target ${MCAT_TARGET} -isysroot ${MCAT_SYSROOT}"
+    EXTRA_CXXFLAGS="-target ${MCAT_TARGET} -isysroot ${MCAT_SYSROOT}"
+    EXTRA_LDFLAGS="-target ${MCAT_TARGET} -isysroot ${MCAT_SYSROOT}"
+    # Exported for the same reason as iOS: autotools deps invoke a generic clang and their
+    # configure link test fails without the target/sysroot in the environment.
+    export CFLAGS="${EXTRA_CFLAGS}"
+    export CXXFLAGS="${EXTRA_CXXFLAGS}"
+    export LDFLAGS="${EXTRA_LDFLAGS}"
+    CONFIGURE_FLAGS+=(
+      --enable-cross-compile --target-os=darwin --arch="${MCAT_FFARCH}"
+      --cc="${CC}" --cxx="${CXX}" --ar="${AR}" --ranlib="${RANLIB}"
+      --sysroot="${MCAT_SYSROOT}"
+      --enable-videotoolbox
+      --enable-hwaccel=h264_videotoolbox --enable-hwaccel=hevc_videotoolbox
+      --enable-securetransport
+    )
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
+    HWACCEL_FEATURES="VideoToolbox"
+    BUILD_TYPE_LABEL="Mac Catalyst (macabi)"
+    ;;
+
+
   ios-arm64|ios-sim-arm64)
     case "${RID}" in
       ios-arm64)     IOS_SDK=iphoneos;        IOS_MINVER="-miphoneos-version-min=13.0" ;;

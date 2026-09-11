@@ -161,7 +161,8 @@ case "${RID}" in
   linux-armhf)             CROSS_HOST=arm-linux-gnueabihf ;;
   android-arm64)           CROSS_HOST=aarch64-linux-android ;;
   android-x64)             CROSS_HOST=x86_64-linux-android ;;
-  ios-arm64|ios-sim-arm64) CROSS_HOST=aarch64-apple-darwin ;;
+  ios-arm64|ios-sim-arm64|maccatalyst-arm64) CROSS_HOST=aarch64-apple-darwin ;;
+  maccatalyst-x64)                           CROSS_HOST=x86_64-apple-darwin ;;
 esac
 
 # Platform-specific toolchain, hwaccel flags, and BUILD_* switches. The per-RID detail
@@ -170,7 +171,7 @@ esac
 case "${RID}" in
   linux-*)     PLATFORM=linux ;;
   win-*)       PLATFORM=windows ;;
-  osx-*|ios-*) PLATFORM=apple ;;
+  osx-*|ios-*|maccatalyst-*) PLATFORM=apple ;;
   android-*)   PLATFORM=android ;;
   *) echo "Error: unsupported BUILD_RID '${RID}'" >&2; exit 1 ;;
 esac

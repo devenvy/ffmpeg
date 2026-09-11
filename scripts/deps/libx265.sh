@@ -8,7 +8,7 @@ set -euo pipefail
 if [[ "${BUILD_LIBX265}" == "1" ]]; then
   if ! command -v cmake &>/dev/null; then
     case "${RID}" in
-      osx-*)       brew list cmake &>/dev/null || brew install cmake ;;
+      osx-*|maccatalyst-*) brew list cmake &>/dev/null || brew install cmake ;;
       linux-musl-*) apk add --no-cache cmake ;;
       *)           sudo apt-get install -y cmake ;;
     esac
@@ -32,7 +32,7 @@ if [[ "${BUILD_LIBX265}" == "1" ]]; then
   case "${RID}" in
     linux-armhf) X265_EXTRA+=(-DENABLE_ASSEMBLY=OFF) ;;
     osx-*)       X265_EXTRA+=(-DENABLE_ASSEMBLY=OFF) ;;
-    android-*|ios-*) X265_EXTRA+=(-DENABLE_ASSEMBLY=OFF) ;;
+    android-*|ios-*|maccatalyst-*) X265_EXTRA+=(-DENABLE_ASSEMBLY=OFF) ;;
     win-x64)     X265_EXTRA+=(-DCMAKE_SYSTEM_PROCESSOR=x86_64
                    -DCMAKE_C_FLAGS="-static-libgcc -O2"
                    -DCMAKE_CXX_FLAGS="-static-libgcc -static-libstdc++ -O2") ;;
@@ -64,7 +64,7 @@ if [[ "${BUILD_LIBX265}" == "1" ]]; then
   X265_PRIVATE_LIBS="-lstdc++ -lm -lpthread"
   case "${RID}" in
     osx-*)           X265_PRIVATE_LIBS="-lc++ -lm" ;;
-    android-*|ios-*) X265_PRIVATE_LIBS="-lc++ -lm" ;;  # NDK/iOS use libc++, pthread is in libc
+    android-*|ios-*|maccatalyst-*) X265_PRIVATE_LIBS="-lc++ -lm" ;;  # NDK/iOS use libc++, pthread is in libc
     win-*)           X265_PRIVATE_LIBS="-lstdc++ -lm" ;;
   esac
 

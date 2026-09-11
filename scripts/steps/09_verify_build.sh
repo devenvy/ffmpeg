@@ -32,7 +32,7 @@ case "${RID}" in
     grep -q 'CONFIG_H264_MEDIACODEC_DECODER 1' "${COMPONENTS}" \
       || { echo "VERIFY FAIL: h264_mediacodec decoder not registered"; VERIFY_FAIL=1; }
     ;;
-  ios-*|osx-*)
+  ios-*|osx-*|maccatalyst-*)
     grep -q 'CONFIG_H264_VIDEOTOOLBOX_HWACCEL 1' "${COMPONENTS}" \
       || { echo "VERIFY FAIL: h264_videotoolbox hwaccel not registered"; VERIFY_FAIL=1; }
     ;;

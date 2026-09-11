@@ -114,6 +114,12 @@ esac
 CONFIGURE_CMD=(
   ./configure
   --prefix="${PREFIX_DIR}"
+  # datadir is COMPILED IN and consulted at runtime for ffpresets. Left to default it becomes
+  # ${PREFIX_DIR}/share/ffmpeg, i.e. the CI build tree, so every published binary asks for a
+  # directory no consumer has -- and it leaks the runner's home path into the artifact.
+  # /usr/local/share/ffmpeg is the conventional location a user would actually populate;
+  # FFMPEG_DATADIR overrides it, which is what a relocatable extraction should set.
+  --datadir=/usr/local/share/ffmpeg
   "${PROGRAM_FLAGS[@]}"
   "${LIB_MODE_FLAGS[@]}"
   --disable-doc

@@ -218,27 +218,62 @@ case "${RID}" in
     echo "Windows DLL layout — no rpath fix needed."
     ;;
   osx-*)
-    # macOS: use install_name_tool to set @rpath/@loader_path
-    echo "Fixing macOS dylib paths for flat layout..."
-    # Change each dylib's install name to @rpath/libname.dylib
+    # Rewrite install names + cross-references for the flat, relocatable layout.
+    #
+    # The previous pass GUESSED the old path as "${PREFIX_DIR}/lib/<file name>", i.e. the
+    # full-version name (libavcodec.63.1.101.dylib). But upstream FFmpeg links against the
+    # MAJOR-only name, so the actual LC_LOAD_DYLIB entries said libavcodec.63.dylib and the
+    # -change never matched anything. The -id and -add_rpath passes succeeded, which made it
+    # look like relinking worked, while every published macOS binary still loaded its
+    # siblings by absolute build path and could not start on any other machine.
+    #
+    # Fix: do not guess. Read the load commands off each binary and rewrite whatever points
+    # into the build tree, whatever it happens to be called.
+    echo "Fixing macOS install names for the flat layout..."
+  
+    # Install name = @rpath + MAJOR-only, matching upstream's
+    #   -install_name $(INSTALL_NAME_DIR)/$(SLIBNAME_WITH_MAJOR) -compatibility_version $(LIBMAJOR)
+    # so a consumer records libavcodec.63.dylib and keeps working across patch bumps. The real
+    # file stays fully versioned with symlinks beside it, exactly like the Linux layout.
     for lib in "${OUT_DIR}"/*.dylib; do
       [ -L "${lib}" ] && continue
+      [ -f "${lib}" ] || continue
       libname="$(basename "${lib}")"
-      install_name_tool -id "@rpath/${libname}" "${lib}"
+      major="$(printf '%s' "${libname}" | sed -E 's/^(lib[a-z0-9]+)\.([0-9]+)(\..*)?\.dylib$/\1.\2.dylib/')"
+      install_name_tool -id "@rpath/${major}" "${lib}"
     done
-    # Update cross-references between dylibs and binaries
+  
     for target in "${OUT_DIR}/ffmpeg" "${OUT_DIR}/ffprobe" "${OUT_DIR}"/*.dylib; do
       [ -L "${target}" ] && continue
-      [ ! -f "${target}" ] && continue
-      # Change references from build-time absolute paths to @rpath
-      for lib in "${OUT_DIR}"/*.dylib; do
-        [ -L "${lib}" ] && continue
-        libname="$(basename "${lib}")"
-        old_path="${PREFIX_DIR}/lib/${libname}"
-        install_name_tool -change "${old_path}" "@rpath/${libname}" "${target}" 2>/dev/null || true
-      done
+      [ -f "${target}" ] || continue
+      # Every dependency the binary actually records; rewrite the ones inside the build tree.
+      while read -r dep; do
+        case "${dep}" in
+          "${PREFIX_DIR}"/*|"${DEPS_DIR}"/*|"${WORK_DIR}"/*)
+            install_name_tool -change "${dep}" "@rpath/$(basename "${dep}")" "${target}" || true ;;
+        esac
+      done < <(otool -L "${target}" 2>/dev/null | awk 'NR>1 {print $1}')
       install_name_tool -add_rpath "@loader_path" "${target}" 2>/dev/null || true
+      # Editing a Mach-O invalidates its signature, and arm64 refuses to load an
+      # incorrectly-signed image. Re-sign ad-hoc after the last edit.
+      codesign --force --sign - "${target}" 2>/dev/null || true
     done
+  
+    # Assert the result rather than trusting it: nothing may still point into the build tree.
+    _leaked=""
+    for target in "${OUT_DIR}/ffmpeg" "${OUT_DIR}/ffprobe" "${OUT_DIR}"/*.dylib; do
+      [ -L "${target}" ] && continue
+      [ -f "${target}" ] || continue
+      if otool -L "${target}" 2>/dev/null | awk 'NR>1 {print $1}' | grep -q "^${WORK_DIR}"; then
+        _leaked="${_leaked} $(basename "${target}")"
+      fi
+    done
+    if [ -n "${_leaked}" ]; then
+      echo "ERROR: build-tree paths survive in:${_leaked}" >&2
+      otool -L "${OUT_DIR}/ffmpeg" 2>/dev/null | head -12 >&2
+      exit 1
+    fi
+    echo "macOS install names rewritten; no build-tree paths remain."
     ;;
   android-*|ios-*)
     # Android: unversioned sonames, no rpath needed. iOS: the per-framework @rpath install-names

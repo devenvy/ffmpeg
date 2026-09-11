@@ -199,16 +199,33 @@ jobs:
             return 0   # the final loop's last test ([ "$f" != "$full" ]) is falsy → without this
                        # the function returns 1 and `set -e` (bash -e) kills the step silently.
           }
-          relink_dylib() { # Mach-O: libfoo.dylib (bare linker alias), libfoo.MAJOR.dylib (real)
-            local link stem f full
-            for link in *.dylib; do
-              [ -e "$link" ] || continue
-              case "$link" in *.*.dylib) continue ;; esac   # skip versioned; process only bare libfoo.dylib
-              stem="${link%.dylib}"; full=""
-              for f in "${stem}".*.dylib; do [ -e "$f" ] || continue; { [ -z "$full" ] || [ "${#f}" -gt "${#full}" ]; } && full="$f"; done
-              [ -n "$full" ] && ln -sf "$full" "$link"
+          relink_dylib() { # Mach-O: libfoo.dylib, libfoo.MAJOR.dylib, libfoo.MAJOR.MINOR.MICRO.dylib
+            # Mirror relink_so: collapse the WHOLE group to one real file plus symlinks. The previous
+            # version linked only the bare libfoo.dylib, so libfoo.MAJOR.dylib stayed a second full
+            # copy — upload-artifact dereferences symlinks, so it survived as real bytes. That is why
+            # macOS shipped 16 real files where Linux shipped 9, carrying tens of MB of duplicate
+            # payload per tarball.
+            local f base full link bases=""
+            for f in *.dylib; do
+              [ -e "$f" ] || continue
+              base="${f%%.*}"                                   # libavcodec.63.1.101.dylib -> libavcodec
+              case " $bases " in *" $base "*) ;; *) bases="$bases $base" ;; esac
             done
-            return 0   # last iteration's `[ -n "$full" ] && ln` can be falsy → same set -e trap as relink_so.
+            for base in $bases; do
+              full=""
+              for f in "$base".*.dylib; do                      # versioned candidates only
+                [ -e "$f" ] || continue
+                [ -L "$f" ] && continue                          # a real file, not an alias
+                if [ -z "$full" ] || [ "${#f}" -gt "${#full}" ]; then full="$f"; fi
+              done
+              [ -n "$full" ] || continue
+              for link in "$base.dylib" "$base".*.dylib; do
+                [ -e "$link" ] || continue
+                [ "$link" = "$full" ] && continue
+                ln -sf "$full" "$link"
+              done
+            done
+            return 0   # trailing tests can be falsy; the same set -e trap relink_so documents.
           }
           # Runtime tarball = binaries + shared libraries + legal ONLY. Dev files
           # (headers, and Windows import libs) go in a separate -dev tarball so the

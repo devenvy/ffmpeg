@@ -75,6 +75,50 @@ check_arch() {
   else fail "arch mismatch: $(basename "$f") — $(file -L "$f" | sed 's/.*: //')"; fi
 }
 
+# --- platform floors ---------------------------------------------------------
+# These assert the PORTABILITY metadata already baked into the binary. Every other check
+# answers "does it work on the runner"; these answer "will it work anywhere else", which
+# is where the published artifacts actually failed: osx-arm64 shipped requiring macOS 26
+# because it inherited the CI runner's OS, and the Android .so were 4 KB-aligned and so
+# unloadable on 16 KB-page devices.
+
+# check_macho_minos <file> <max-allowed>  — Mach-O deployment target must not exceed the
+# floor we promise. A binary built on a newer runner silently raises this.
+check_macho_minos() {
+  local f="$1" want="$2" got
+  [ -e "$f" ] || { fail "missing: $f"; return 1; }
+  command -v llvm-objdump >/dev/null 2>&1 || command -v otool >/dev/null 2>&1     || { _tool_missing "minos check: no otool/llvm-objdump"; return 0; }
+  if command -v otool >/dev/null 2>&1; then
+    got="$(otool -l "$f" 2>/dev/null | awk '/LC_BUILD_VERSION/{v=1} v&&/minos/{print $2; exit}')"
+  else
+    got="$(llvm-objdump --macho --all-headers "$f" 2>/dev/null | awk '/LC_BUILD_VERSION/{v=1} v&&/minos/{print $2; exit}')"
+  fi
+  [ -n "$got" ] || { _tool_missing "minos check: no LC_BUILD_VERSION in $(basename "$f")"; return 0; }
+  # numeric compare on major.minor
+  if [ "$(printf '%s
+%s
+' "$got" "$want" | sort -V | head -1)" = "$got" ]; then
+    pass "deployment target ok: $(basename "$f") minos ${got} (<= ${want})"
+  else
+    fail "deployment target too high: $(basename "$f") minos ${got} > ${want} — it would not launch on ${want}"
+  fi
+}
+
+# check_elf_page_align <file> <bytes>  — LOAD segments must be aligned to at least <bytes>.
+# Android 15+ devices may use 16 KB pages and refuse a 4 KB-aligned library.
+check_elf_page_align() {
+  local f="$1" want="$2" worst
+  [ -e "$f" ] || { fail "missing: $f"; return 1; }
+  command -v readelf >/dev/null 2>&1 || { _tool_missing "page-align check: no readelf"; return 0; }
+  worst="$(readelf -lW "$f" 2>/dev/null | awk '$1=="LOAD"{print $NF}' | sort | head -1)"
+  [ -n "$worst" ] || { _tool_missing "page-align check: no LOAD segments in $(basename "$f")"; return 0; }
+  if [ "$(( worst ))" -ge "$(( want ))" ] 2>/dev/null; then
+    pass "page alignment ok: $(basename "$f") $(printf '0x%x' "$worst") (>= $(printf '0x%x' "$want"))"
+  else
+    fail "page alignment too small: $(basename "$f") $(printf '0x%x' "$worst") < $(printf '0x%x' "$want") — unloadable on 16 KB-page devices"
+  fi
+}
+
 # check_shared_object <file>  — a shipped libav* MUST be a shared/dynamic library, never a static
 # archive or a plain executable. This is a LICENSE guard: FFmpeg's libav* are LGPL, and shipping
 # them shared (user-replaceable) is what satisfies the LGPL relink requirement (LGPLv2.1 §6 /

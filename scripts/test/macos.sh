@@ -31,6 +31,15 @@ esac
 check_config "--enable-whisper" "Whisper ASR filter"
 check_tls
 check_license_boundary
+# The deployment target is portability metadata, not a build detail: without an explicit
+# floor the binary inherits the CI runner OS, and the published osx-arm64 artifact shipped
+# requiring macOS 26. Assert the floor the platform block promises.
+MACOS_MIN_EXPECTED="11.0"
+check_macho_minos "${DIR}/ffmpeg" "${MACOS_MIN_EXPECTED}"
+for _dylib in "${DIR}"/libav*.dylib "${DIR}"/libsw*.dylib; do
+  [ -e "${_dylib}" ] || continue
+  check_macho_minos "${_dylib}" "${MACOS_MIN_EXPECTED}"
+done
 check_pkgconfig "${DIR}"
 
 # Same reasoning as linux.sh: the -dev archive is otherwise entirely unverified.

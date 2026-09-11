@@ -37,6 +37,14 @@ for base in avcodec avformat avutil avfilter swscale swresample avdevice; do
 done
 
 check_core_symbols "${LIBDIR}" so
+# Android 15+ devices may use 16 KB memory pages; a 4 KB-aligned library cannot load on
+# them, and Play Store submissions targeting Android 15+ have required this since Nov 2025.
+# The published .so were 0x1000 while the NDK's own libc++_shared.so in the same tarball
+# was already 0x4000.
+for _so in "${LIBDIR}"/libav*.so "${LIBDIR}"/libsw*.so; do
+  [ -e "${_so}" ] || continue
+  check_elf_page_align "${_so}" 16384
+done
 
 # Android hardware decode must link the NDK media libs.
 if ${READELF} -d "${LIBDIR}/libavcodec.so" 2>/dev/null | grep -q 'libmediandk.so'; then

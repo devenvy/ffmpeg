@@ -27,7 +27,10 @@ mkdir -p "${OUT_DIR}"
 #
 # libdir is set to ${prefix} rather than ${prefix}/lib because the desktop layout is flat:
 # the shared libraries sit at the archive root next to the binaries, not in lib/.
-stage_pkgconfig() {   # $1 = libdir expressed in terms of ${prefix}
+stage_pkgconfig() {   # $1 = libdir for the .pc, SINGLE-QUOTED by callers
+  # NOTE: callers pass '${prefix}' single-quoted on purpose. That is a pkg-config
+  # variable that must reach the .pc file LITERALLY -- double quotes make the shell
+  # expand it, which under `set -u` aborts staging with "prefix: unbound variable".
   local libdir_expr="$1" src="${PREFIX_DIR}/lib/pkgconfig" dst="${OUT_DIR}/lib/pkgconfig" pc
   [ -d "${src}" ] || { echo "WARNING: no pkgconfig dir at ${src} — dev archive will ship none" >&2; return 0; }
   mkdir -p "${dst}"
@@ -46,7 +49,7 @@ case "${RID}" in
     cp -a "${PREFIX_DIR}/bin/ffmpeg.exe" "${OUT_DIR}/"
     cp -a "${PREFIX_DIR}/bin/ffprobe.exe" "${OUT_DIR}/"
     cp -a "${PREFIX_DIR}/include/." "${OUT_DIR}/include/"
-    stage_pkgconfig "${prefix}/lib"
+    stage_pkgconfig '${prefix}/lib'
     # Generate MSVC-consumable COFF import libraries (.lib) from each DLL so a
     # consumer with no FFmpeg build tooling can link with MSVC. gendef dumps the
     # DLL export table to a .def; llvm-dlltool turns it into a Microsoft short
@@ -82,7 +85,7 @@ case "${RID}" in
     cp -a "${PREFIX_DIR}/bin/ffmpeg" "${OUT_DIR}/"
     cp -a "${PREFIX_DIR}/bin/ffprobe" "${OUT_DIR}/"
     cp -a "${PREFIX_DIR}/include/." "${OUT_DIR}/include/"
-    stage_pkgconfig "${prefix}"
+    stage_pkgconfig '${prefix}'
     # Bundle the Vulkan-Loader + MoltenVK ICD (v3 only) so --enable-vulkan runs on Metal. The
     # @rpath install-names are set in the fixup pass below. Not fully self-contained at runtime:
     # the consumer points VK_ICD_FILENAMES at the bundled MoltenVK_icd.json (see the macOS
@@ -199,7 +202,7 @@ PLIST
     cp -a "${PREFIX_DIR}/bin/ffmpeg" "${OUT_DIR}/"
     cp -a "${PREFIX_DIR}/bin/ffprobe" "${OUT_DIR}/"
     cp -a "${PREFIX_DIR}/include/." "${OUT_DIR}/include/"
-    stage_pkgconfig "${prefix}"
+    stage_pkgconfig '${prefix}'
     # Bundle the libc-only Vulkan loader (Linux) so the artifact carries no external
     # libvulkan dependency — whisper's ggml links it, and it dlopens the system GPU
     # driver at runtime. The $ORIGIN rpath pass below lets the libs find it.

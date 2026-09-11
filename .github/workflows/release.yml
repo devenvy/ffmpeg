@@ -341,8 +341,19 @@ jobs:
             --clobber \
             --repo "${{ github.repository }}"
 
-  # Aggregate checksum manifest — one signed-by-the-release file covering every asset, so a
-  # downstream packager or mirror verifies once instead of making an API call per asset.
+  # Aggregate checksum manifest — one file covering every asset, so a downstream packager or
+  # mirror verifies once instead of making an API call per asset.
+  #
+  # This is an INTEGRITY check, not an authenticity one, and is deliberately NOT described as
+  # "signed": the manifest sits beside the artifacts and is fetched from the same place under
+  # the same trust, so whoever could replace a tarball could replace this too. It catches
+  # truncated/corrupted downloads and lets a consumer pin what they built against and notice
+  # if an asset later changes. It does NOT establish that we published it — that needs a
+  # signature anchored elsewhere (e.g. actions/attest-build-provenance).
+  #
+  # Digests come from the release API per-asset `digest`, i.e. what GitHub computed from the
+  # bytes it stored, rather than being hashed here. That verifies the upload round-trip
+  # cheaply, but nothing in this repo independently hashes the artifact.
   # Gated on BOTH publish jobs so every asset exists before the release is enumerated.
   manifest:
     needs: [prepare, publish, publish-ios]

@@ -11,7 +11,8 @@ edit. See the vocabulary note at the bottom.
 | tvOS | `tvos-arm64`, `tvos-sim-arm64` | apple | appletvos SDK; VideoToolbox/Metal; same LGPLv2.1 App-Store story as iOS. Cheapest, plausibly real (big-screen viewing). |
 | visionOS | `visionos-arm64`, `visionos-sim-arm64` | apple | xros SDK. Emerging, small market. |
 
-> `android-x64` and `linux-musl-arm64` were added in this branch (implemented 2026-09-08). Note for future estimates: the
+> `android-x64` and `linux-musl-arm64` shipped 2026-09-10 (#14); `win-arm64` shipped 2026-09-10
+> (#16, llvm-mingw — the first RID needing a new toolchain). Note for future estimates: the
 > "resolve line + one platform block" pricing above was optimistic — a RID is currently
 > hardcoded in ~15 files (CI matrices, the ledger validator, the coverage-matrix generator, and
 > the per-dep host triples). Still mechanical, but budget accordingly.

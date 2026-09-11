@@ -89,10 +89,17 @@ set(CMAKE_C_FLAGS_INIT "-target ${MCAT_TARGET}")
 set(CMAKE_CXX_FLAGS_INIT "-target ${MCAT_TARGET}")
 set(CMAKE_EXE_LINKER_FLAGS_INIT "-target ${MCAT_TARGET}")
 set(CMAKE_SHARED_LINKER_FLAGS_INIT "-target ${MCAT_TARGET}")
-set(CMAKE_FIND_ROOT_PATH ${DEPS_DIR})
+# The SDK sits on the find root path beside DEPS_DIR so SDK FRAMEWORKS resolve while host
+# libraries still do not. Without it, MODE_LIBRARY ONLY confined the search to DEPS_DIR and
+# ggml's find_package(BLAS) could not see Accelerate:
+#   Could NOT find BLAS (missing: BLAS_LIBRARIES)  -- ggml-blas/CMakeLists.txt:98
+set(CMAKE_FIND_ROOT_PATH ${DEPS_DIR} ${MCAT_SYSROOT})
 set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
 set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
 set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+# Frameworks are searched separately from plain libraries; LAST lets the SDK supply
+# Accelerate without letting a stray framework outrank a dep we built ourselves.
+set(CMAKE_FIND_FRAMEWORK LAST)
 CMAKE
     CMAKE_CROSS_ARGS+=(-DCMAKE_TOOLCHAIN_FILE="${MCAT_TOOLCHAIN}")
     ;;

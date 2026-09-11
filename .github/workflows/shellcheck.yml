@@ -37,13 +37,6 @@ jobs:
           bash scripts/ci/pinned-deps-test.sh
           bash scripts/ci/renovate-coverage-test.sh
           bash scripts/ci/renovate-config-test.sh
-          # Refuse to go green while a matrix is temporarily narrowed for vetting. A narrowed
-          # matrix silently stops testing 13 of 15 RIDs, which is exactly the kind of thing
-          # that merges by accident at 2am. Removing the marker restores the gate.
-          if grep -rn 'TEMP-NARROWED' .github/workflows/; then
-            echo "ERROR: a workflow matrix is still TEMP-NARROWED — restore it before merging." >&2
-            exit 1
-          fi
 
       # Our dep scripts are SOURCED by build.sh and share its environment, so many variables
       # are assigned by the parent, not the script itself; -x follows sourced files so
@@ -99,3 +92,15 @@ jobs:
       #     set -euo pipefail
       #     mapfile -t FILES < <(find scripts -name '*.sh' -type f | sort)
       #     shellcheck -x -S warning "${FILES[@]}"
+
+
+      # Last step on purpose: a narrowed matrix must FAIL the build, but it must not stop the
+      # lint from running. Folding this into the gate step short-circuited shellcheck itself,
+      # so the branch lost lint coverage for the whole vetting period.
+      - name: Refuse to pass while a matrix is temporarily narrowed
+        run: |
+          if grep -rn "TEMP-NARROWED" .github/workflows/; then
+            echo "ERROR: a workflow matrix is still TEMP-NARROWED — restore it before merging." >&2
+            exit 1
+          fi
+          echo "ok: no temporarily narrowed matrices"

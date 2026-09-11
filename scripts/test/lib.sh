@@ -269,6 +269,31 @@ SMOKE_SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/smoke.c"
 # check well beyond "the .so is the right shape", and it needs no device. The caller
 # passes <out> and already knows that path if it wants to run the binary. Skips (does
 # not fail) when no suitable compiler is present.
+# --- pkg-config -------------------------------------------------------------
+# The .pc files are how most Linux/macOS consumers integrate, and they were missing from
+# every -dev archive. They also cannot be shipped verbatim: FFmpeg bakes the BUILD prefix
+# in, so a copied .pc points at paths that do not exist on the consumer's machine. Assert
+# both that they are present AND that their prefix was made relocatable, since a wrong
+# prefix fails only later, in someone else's build.
+check_pkgconfig() {
+  local dir="$1" pc n bad=""
+  if [ ! -d "${dir}/lib/pkgconfig" ]; then
+    fail "no lib/pkgconfig in the artifact — the -dev archive would ship no pkg-config files"
+    return
+  fi
+  n="$(find "${dir}/lib/pkgconfig" -name '*.pc' 2>/dev/null | wc -l)"
+  [ "${n}" -ge 6 ] && pass "pkg-config files present (${n} .pc)" || fail "only ${n} .pc files (expected >= 6)"
+  for pc in "${dir}"/lib/pkgconfig/*.pc; do
+    [ -e "${pc}" ] || continue
+    grep -q '^prefix=\${pcfiledir}' "${pc}" || bad="${bad} $(basename "${pc}")"
+  done
+  if [ -z "${bad}" ]; then
+    pass "pkg-config prefixes are relocatable (\${pcfiledir})"
+  else
+    fail "pkg-config files keep a build-machine prefix (not relocatable):${bad}"
+  fi
+}
+
 check_smoke_link() {
   local cc="$1" incdir="$2" out="$3"; shift 3
   if [ -z "$cc" ] || ! command -v "${cc%% *}" >/dev/null 2>&1; then

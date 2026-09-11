@@ -126,6 +126,7 @@ check_config "--enable-mediafoundation" "MediaFoundation"
 check_config "--enable-d3d11va" "D3D11VA"
 check_tls
 check_license_boundary
+check_pkgconfig "${DIR}"
 
 FFMPEG="$(ls "${DIR}"/ffmpeg.exe 2>/dev/null)"; FFPROBE="$(ls "${DIR}"/ffprobe.exe 2>/dev/null)"; export FFMPEG FFPROBE  # consumed by run_functional (sourced lib.sh)
 if [[ "${OS:-}" == "Windows_NT" ]]; then

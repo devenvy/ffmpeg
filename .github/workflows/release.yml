@@ -229,6 +229,8 @@ jobs:
               if [ -f "${SRC}/MoltenVK_icd.json" ]; then cp "${SRC}/MoltenVK_icd.json" "${RUN}/"; fi
               ( cd "${RUN}" && relink_dylib )
               mkdir -p "${DEV}/include"; cp -r "${SRC}/include/." "${DEV}/include/"
+              # pkg-config files are the standard integration path and belong with the headers.
+              if [ -d "${SRC}/lib/pkgconfig" ]; then mkdir -p "${DEV}/lib"; cp -r "${SRC}/lib/pkgconfig" "${DEV}/lib/"; fi
               ;;
             android-*)
               # Link-only: headers + libs belong together, no runtime/dev split.
@@ -240,6 +242,8 @@ jobs:
               cp "${SRC}"/*.so* "${SRC}/ffmpeg" "${SRC}/ffprobe" "${RUN}/"
               ( cd "${RUN}" && relink_so )
               mkdir -p "${DEV}/include"; cp -r "${SRC}/include/." "${DEV}/include/"
+              # pkg-config files are the standard integration path and belong with the headers.
+              if [ -d "${SRC}/lib/pkgconfig" ]; then mkdir -p "${DEV}/lib"; cp -r "${SRC}/lib/pkgconfig" "${DEV}/lib/"; fi
               ;;
           esac
           if [ -d "${SRC}/legal" ]; then

@@ -31,6 +31,7 @@ esac
 check_config "--enable-whisper" "Whisper ASR filter"
 check_tls
 check_license_boundary
+check_pkgconfig "${DIR}"
 
 # Same reasoning as linux.sh: the -dev archive is otherwise entirely unverified.
 if [ -d "${DIR}/include" ]; then

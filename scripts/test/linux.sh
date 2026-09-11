@@ -29,6 +29,7 @@ load_config_string "${DIR}/libavcodec.so" "${DIR}/libavutil.so"
 check_config "--enable-whisper" "Whisper ASR filter"
 check_tls
 check_license_boundary
+check_pkgconfig "${DIR}"
 
 # The -dev archive (include/ + the shared libraries) is what downstream consumers
 # actually build against, and until now nothing on desktop ever compiled or linked

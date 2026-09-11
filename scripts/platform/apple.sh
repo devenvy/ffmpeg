@@ -23,6 +23,19 @@ case "${RID}" in
     ;;
 
   maccatalyst-arm64|maccatalyst-x64)
+    # Every Apple arm sets these individually; omitting them silently inherited the Linux
+    # defaults, and NPROC="nproc" does not exist on macOS -- openh264 died with
+    # "meson compile: error: argument -j/--jobs: invalid int value". Found by diffing the
+    # assignments of this arm against the osx/ios arms rather than one CI round-trip each.
+    NPROC="sysctl -n hw.ncpu"
+    WHISPER_BACKEND="metal"          # Catalyst has Metal, same as macOS/iOS
+    BUILD_VULKAN=1                   # via MoltenVK; 04_select_license clears it for v2 cells
+    # Follows iOS, not macOS, for the rest: Catalyst is a framework/link-only target, and
+    # BUILD_VULKAN_LOADER stays off because MoltenVK is linked STATICALLY here (the loader is
+    # only bundled for the flat osx-* layout).
+    BUILD_FONTCONFIG=0
+    BUILD_LIBSVTAV1=0                # same cross-compile static-archive failure as iOS
+    BUILD_LIBWEBP=0                  # WebP cmake ships no .pc
     # Mac Catalyst: an iOS-API (UIKit) app running on macOS. It is neither ios-* nor osx-* —
     # it uses the macOS SDK with an ios*-macabi target triple, so it needs its own arm.
     # Consumers are .NET MAUI / Xcode targets that resolve the maccatalyst slice of the

@@ -89,7 +89,12 @@ jobs:
 
       - uses: actions/checkout@v7
         with:
-          ref: ${{ inputs.ref || github.ref }}
+          # github.sha, NOT github.ref: for a push run github.ref is refs/heads/main, so each
+          # matrix cell would check out whatever main's tip is when that cell STARTS. Across a
+          # multi-hour matrix that lets different cells build different commits, and none of
+          # them need be the commit the release tags. github.sha is the immutable event SHA and
+          # is shared with the calling workflow, so every cell builds exactly one tree.
+          ref: ${{ inputs.ref || github.sha }}
 
       - name: Download build artifact
         uses: actions/download-artifact@v8

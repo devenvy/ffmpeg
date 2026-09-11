@@ -93,6 +93,12 @@ set(CMAKE_CXX_FLAGS_INIT "-target ${MCAT_TARGET}")
 # which surfaced as a bogus "whisper >= 1.7.5 not found using pkg-config".
 set(CMAKE_OBJC_FLAGS_INIT "-target ${MCAT_TARGET}")
 set(CMAKE_OBJCXX_FLAGS_INIT "-target ${MCAT_TARGET}")
+# ASM too. ggml embeds its Metal shader library through a GENERATED ASSEMBLY file
+# (GGML_METAL_EMBED_LIBRARY), and without the target on the assembler its object never
+# joined the macabi slice, leaving the link short:
+#   Undefined symbols for architecture x86_64: _ggml_metallib_start/_ggml_metallib_end
+# which configure then reported as the misleading "whisper >= 1.7.5 not found".
+set(CMAKE_ASM_FLAGS_INIT "-target ${MCAT_TARGET}")
 set(CMAKE_EXE_LINKER_FLAGS_INIT "-target ${MCAT_TARGET}")
 set(CMAKE_SHARED_LINKER_FLAGS_INIT "-target ${MCAT_TARGET}")
 # The SDK sits on the find root path beside DEPS_DIR so SDK FRAMEWORKS resolve while host

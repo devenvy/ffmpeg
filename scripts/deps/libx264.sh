@@ -35,6 +35,20 @@ if [[ "${BUILD_LIBX264}" == "1" ]]; then
     android-x64)
       X264_ARGS+=(--host=x86_64-linux-android --sysroot="${TOOLCHAIN}/sysroot")
       ;;
+    maccatalyst-arm64|maccatalyst-x64)
+      # Same trap as ios-arm64 and the same cure: the platform must reach the ASSEMBLER.
+      # x264 assembles its .S files through ASFLAGS, which does not inherit the exported
+      # CFLAGS, so without --extra-asflags the asm objects are tagged macOS while the C
+      # objects are macabi, and the link fails with
+      #   ld: building for macCatalyst, but linking in object file (libx264.a(bitstream-a-8.o))
+      # reported by configure as the misleading "x264 not found using pkg-config".
+      # macabi carries arch AND deployment target in one -target triple, so unlike iOS there
+      # is no separate -arch/-m*-version-min to pass.
+      X264_ARGS+=(--host="${CROSS_HOST}"
+                  --extra-cflags="-target ${MCAT_TARGET} -isysroot ${MCAT_SYSROOT}"
+                  --extra-asflags="-target ${MCAT_TARGET} -isysroot ${MCAT_SYSROOT}"
+                  --extra-ldflags="-target ${MCAT_TARGET} -isysroot ${MCAT_SYSROOT}")
+      ;;
     ios-arm64)
       # Device only (sim slice is lean). The iOS arch/min-version/sysroot must
       # reach the ASM too (--extra-asflags) or x264's asm objects are tagged

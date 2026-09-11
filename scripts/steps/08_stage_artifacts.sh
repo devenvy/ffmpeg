@@ -273,6 +273,29 @@ case "${RID}" in
       otool -L "${OUT_DIR}/ffmpeg" 2>/dev/null | head -12 >&2
       exit 1
     fi
+    # No shipped binary may depend on a package-manager prefix. The published osx-x64
+    # artifacts carry an LC_LOAD_DYLIB on /usr/local/opt/gettext/lib/libintl.8.dylib -- a
+    # Homebrew library present on the Intel runner and on no consumer machine, absent from
+    # osx-arm64 because that runner has a different prefix. We do not bundle it, so this is a
+    # hard failure, and naming the file identifies which dependency dragged it in.
+    _brew=""
+    for target in "${OUT_DIR}/ffmpeg" "${OUT_DIR}/ffprobe" "${OUT_DIR}"/*.dylib; do
+      [ -L "${target}" ] && continue
+      [ -f "${target}" ] || continue
+      while read -r dep; do
+        case "${dep}" in
+          /usr/local/*|/opt/homebrew/*|/opt/local/*)
+            _brew="${_brew} $(basename "${target}")->${dep}" ;;
+        esac
+      done < <(otool -L "${target}" 2>/dev/null | awk 'NR>1 {print $1}')
+    done
+    if [ -n "${_brew}" ]; then
+      echo "ERROR: shipped binaries link package-manager libraries we do not bundle:" >&2
+      printf '  %s
+' ${_brew} >&2
+      echo "  (build the offending dependency without it, e.g. --disable-nls for gettext/libintl)" >&2
+      exit 1
+    fi
     echo "macOS install names rewritten; no build-tree paths remain."
     ;;
   android-*|ios-*)

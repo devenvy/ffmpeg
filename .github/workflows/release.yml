@@ -290,6 +290,30 @@ jobs:
               if [ "${VARIANT#osx-}" != "${VARIANT}" ] && [ -f "${SRC}/MoltenVK_icd.json" ] && [ ! -f "${_v}/MoltenVK_icd.json" ]; then
                 echo "ERROR: MoltenVK_icd.json was staged but is missing from the tarball" >&2; exit 1
               fi
+              # RUN it. Every other check inspects the artifact; this one uses it the way a user will,
+              # and is the single test that would have caught the three defects that actually shipped:
+              # a non-executable CLI, macOS binaries loading siblings by absolute build path, and an
+              # Intel-runner Homebrew dylib leaking into the link. Runs only where the archive is
+              # native to the runner -- a cross-built RID cannot execute here, and is covered by the
+              # test-matrix under qemu/wine instead.
+              _host="$(uname -s)-$(uname -m)"
+              _native=""
+              case "${VARIANT}:${_host}" in
+                linux-x64-*:Linux-x86_64)    _native=1 ;;
+                linux-arm64-*:Linux-aarch64) _native=1 ;;
+                osx-x64-*:Darwin-x86_64)     _native=1 ;;
+                osx-arm64-*:Darwin-arm64)    _native=1 ;;
+              esac
+              if [ -n "${_native}" ]; then
+                _r="$(mktemp -d)"; tar -xzf "ffmpeg-${VERSION}-${VARIANT}.tar.gz" -C "${_r}"
+                if ! ( cd "${_r}" && ./ffmpeg -hide_banner -version >/dev/null 2>"${_r}/err" ); then
+                  echo "ERROR: ffmpeg from ffmpeg-${VERSION}-${VARIANT}.tar.gz does not run:" >&2
+                  head -5 "${_r}/err" >&2
+                  exit 1
+                fi
+                echo "archive self-test: ffmpeg runs from a clean extraction (${VARIANT})"
+                rm -rf "${_r}"
+              fi
               rm -rf "${_v}"
               ;;
           esac

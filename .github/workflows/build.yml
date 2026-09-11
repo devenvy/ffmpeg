@@ -38,6 +38,14 @@ jobs:
             runner: ubuntu-24.04-arm
           - rid: linux-armhf
             runner: ubuntu-latest
+            # Build inside Debian Bookworm (glibc 2.36), not on the bare runner. The runner image
+            # ships glibc 2.38, and cross-compiling against ITS headers raised the armhf floor to
+            # 2.38 -- visible as __isoc23_* imports in the published libraries. Raspberry Pi OS
+            # Bookworm and Debian 12 ship 2.36, so armhf could not run on the hardware armhf
+            # mostly exists for, and it contradicted the 2.28 floor documented in
+            # docs/install/linux.md. Bookworm is the oldest base that still satisfies the Node 20
+            # runtime the JS actions need (glibc 2.28+).
+            container: debian:bookworm
           - rid: linux-musl-x64
             runner: ubuntu-latest
             container: alpine:latest

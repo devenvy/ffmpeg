@@ -31,10 +31,15 @@ For Alpine containers, use a `linux-musl-*` variant (`-x64` or `-arm64`) instead
 
 ## Runtime dependencies
 
-The **`linux-x64`, `linux-arm64`, and `linux-armhf`** builds have **no runtime package
-requirements** — every codec and hardware-dispatch library is static-linked or bundled, and the
-binaries are built against an old glibc (2.28), so they launch on any current distro (RHEL/Alma
-8+, Debian 10+, Ubuntu 18.10+) without installing anything.
+The **`linux-x64`** and **`linux-arm64`** builds have **no runtime package requirements** —
+every codec and hardware-dispatch library is static-linked or bundled, and they are built in a
+manylinux_2_28 container (**glibc 2.28**), so they launch on any current distro (RHEL/Alma 8+,
+Debian 10+, Ubuntu 18.10+) without installing anything.
+
+**`linux-armhf`** is built in a Debian Bookworm container, so its floor is **glibc 2.36** —
+Raspberry Pi OS Bookworm, Debian 12 and Ubuntu 22.10+. It is cross-compiled rather than built
+on an armv7 host (no hosted runner executes 32-bit ARM), and Bookworm is the oldest base whose
+glibc still satisfies the Node runtime the CI actions require.
 
 To actually **use** hardware acceleration or GPU Whisper you additionally need the system GPU
 **driver** — e.g. `intel-media-va-driver`/`mesa-va-drivers` for VAAPI, `mesa-vulkan-drivers`

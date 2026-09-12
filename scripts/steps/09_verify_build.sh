@@ -38,9 +38,12 @@ case "${RID}" in
     ;;
 esac
 
-# 4. Deliverable shape — every RID ships dev headers alongside runtime libs. iOS ships them
-# inside each .framework/Headers (dynamic-framework layout); every other RID uses include/.
-if [[ "${RID}" == ios-* ]]; then
+# 4. Deliverable shape — every RID ships dev headers alongside runtime libs. The Apple
+# framework targets (iOS and Mac Catalyst) ship them inside each .framework/Headers
+# (dynamic-framework layout); every other RID uses include/. Catalyst belongs here and not in
+# the else: it goes through the same framework branch in 08_stage_artifacts.sh, so demanding a
+# flat include/ from it failed every cell after an otherwise complete build.
+if [[ "${RID}" == ios-* || "${RID}" == maccatalyst-* ]]; then
   [ -f "${OUT_DIR}/frameworks/libavcodec.framework/Headers/avcodec.h" ] \
     || { echo "VERIFY FAIL: missing libavcodec.framework/Headers/avcodec.h"; VERIFY_FAIL=1; }
 else

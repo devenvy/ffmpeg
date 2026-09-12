@@ -43,25 +43,39 @@ done
 mkdir -p "${SRC_DIR}"
 tar -xf "${FF_ARCHIVE}" -C "${SRC_DIR}" --strip-components=1
 
-# Mac Catalyst: FFmpeg selects the OpenGLES pixel-buffer key whenever TARGET_OS_IPHONE is
-# set, but macabi sets TARGET_OS_IPHONE=1 while Apple marks that key unavailable there:
-#   videotoolbox.c:821: error: kCVPixelBufferOpenGLESCompatibilityKey is unavailable:
-#                              not available on macCatalyst
-# The #else branch (kCVPixelBufferIOSurfaceOpenGLTextureCompatibilityKey) is the correct
-# one for Catalyst, so narrow the condition to exclude it. Upstream master still has the
-# bare TARGET_OS_IPHONE test, so there is no release to wait for; drop this once FFmpeg
-# guards the key itself. The only alternative is disabling VideoToolbox on Catalyst, i.e.
-# no hardware decode on a platform that supports it.
+# Mac Catalyst: FFmpeg picks between two CoreVideo pixel-buffer keys on TARGET_OS_IPHONE --
+# kCVPixelBufferOpenGLESCompatibilityKey for iOS, kCVPixelBufferIOSurfaceOpenGLTextureCompatibilityKey
+# for macOS. macabi sets TARGET_OS_IPHONE=1, and Apple marks BOTH keys API_UNAVAILABLE on
+# macCatalyst, so neither branch compiles there:
+#   error: kCVPixelBufferOpenGLESCompatibilityKey is unavailable: not available on macCatalyst
+#   error: kCVPixelBufferIOSurfaceOpenGLTextureCompatibilityKey is unavailable: ... macCatalyst
+# Catalyst has no OpenGL(ES) interop at all, so the correct result is to request neither key.
+# Nothing is lost: both are only GL-interop hints, and kCVPixelBufferIOSurfacePropertiesKey --
+# the one that actually gets zero-copy IOSurface/Metal buffers -- is set unconditionally just
+# above the guard. The alternative was dropping VideoToolbox on Catalyst entirely, i.e. no
+# hardware decode on a platform that has it. Upstream master still has the bare
+# TARGET_OS_IPHONE test, so there is no release to wait for; drop this once FFmpeg guards the
+# keys itself. awk, not sed: inserting lines portably across GNU and BSD sed is a trap.
 if [ "${RID#maccatalyst-}" != "${RID}" ]; then
   vt_src="${SRC_DIR}/libavcodec/videotoolbox.c"
   if ! grep -q TARGET_OS_MACCATALYST "${vt_src}"; then
-    sed -i.bak "s/^#if TARGET_OS_IPHONE$/#if TARGET_OS_IPHONE \&\& !TARGET_OS_MACCATALYST/" "${vt_src}"
-    rm -f "${vt_src}.bak"
-    if ! grep -q "TARGET_OS_IPHONE && !TARGET_OS_MACCATALYST" "${vt_src}"; then
+    awk '
+      /^#if TARGET_OS_IPHONE$/ && !patched {
+        print "#if TARGET_OS_MACCATALYST"
+        print "    /* Mac Catalyst: no OpenGL(ES) interop; both compatibility keys are"
+        print "       API_UNAVAILABLE on macabi. Patched by scripts/steps/07_build_ffmpeg.sh. */"
+        print "#elif TARGET_OS_IPHONE"
+        patched = 1
+        next
+      }
+      { print }
+    ' "${vt_src}" > "${vt_src}.patched"
+    mv "${vt_src}.patched" "${vt_src}"
+    if ! grep -q "^#if TARGET_OS_MACCATALYST$" "${vt_src}"; then
       echo "ERROR: videotoolbox.c Mac Catalyst patch did not apply" >&2
       exit 1
     fi
-    echo "Patched videotoolbox.c for Mac Catalyst (OpenGLES key unavailable on macabi)."
+    echo "Patched videotoolbox.c for Mac Catalyst (no OpenGL(ES) pixel-buffer keys on macabi)."
   fi
 fi
 

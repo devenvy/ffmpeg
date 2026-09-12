@@ -150,6 +150,14 @@ if command -v xcrun >/dev/null 2>&1; then
     maccatalyst-*) ARCH_FLAG="" ;;
     *)             ARCH_FLAG="-arch arm64" ;;
   esac
+  # Catalyst compiles MoltenVK as the macOS variant (MVK_MACOS covers TARGET_OS_MACCATALYST),
+  # which pulls in MVKDevice.mm's IOKit IORegistry calls. libavutil records IOKit as its own
+  # load command, so this is belt-and-braces for the relink -- but it keeps the smoke link an
+  # honest stand-in for what a consumer links, and iOS genuinely does not need it.
+  MCAT_FW=()
+  case "$RID" in
+    maccatalyst-*) MCAT_FW=(-framework IOKit) ;;
+  esac
   SDK="$(xcrun --sdk "${IOS_SDK}" --show-sdk-path 2>/dev/null)"
   CC="$(xcrun --sdk "${IOS_SDK}" --find clang 2>/dev/null)"
   # Dynamic link against the frameworks: the static deps (whisper/ggml, opus, kvazaar, …) are
@@ -167,6 +175,7 @@ if command -v xcrun >/dev/null 2>&1; then
     -framework CoreVideo -framework CoreFoundation -framework CoreServices \
     -framework Security -framework Foundation -framework Metal -framework MetalKit \
     -framework Accelerate -framework QuartzCore -framework IOSurface -framework UIKit \
+    ${MCAT_FW[@]+"${MCAT_FW[@]}"} \
     -lc++ -liconv -lz
   # Catalyst is the only slice in this family that RUNS on the build host: macabi binaries are
   # native macOS Mach-O and dyld loads them directly, so the link check can be promoted to a real

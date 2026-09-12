@@ -138,7 +138,21 @@ case "${RID}" in
     # imports UIKit/UIView.h, and MoltenVK's project sets CLANG_ENABLE_MODULES=NO, so there
     # is no autolinking to supply it — omitting it fails the check_lib probe below, or at
     # latest the final libavutil link, on unresolved UIKit/UIView symbols.
+    # UIKit is required on BOTH: MoltenVK builds its surface code under
+    # VK_USE_PLATFORM_IOS_MVK for Catalyst too, so MVKSurface.mm imports UIKit/UIView.h, and
+    # MoltenVK sets CLANG_ENABLE_MODULES=NO so nothing autolinks it.
     EXTRA_LIBS="${EXTRA_LIBS:-} -lc++ -framework Metal -framework IOSurface -framework Foundation -framework QuartzCore -framework CoreGraphics -framework UIKit"
+    # Catalyst additionally needs IOKit, iOS does not. MoltenVK defines
+    #   MVK_MACOS (TARGET_OS_OSX || TARGET_OS_MACCATALYST)
+    #   MVK_IOS   (TARGET_OS_IOS && !TARGET_OS_MACCATALYST)
+    # so on macabi it compiles as the macOS variant, and MVKDevice.mm's `#if MVK_MACOS` block
+    # -- IOServiceGetMatchingService / IORegistryEntrySearchCFProperty, used to identify the
+    # GPU -- is compiled IN. Without -framework IOKit those symbols stay undefined and
+    # configure's `check_lib vulkan … -lvulkan` probe fails, which surfaces only as the
+    # unhelpful "ERROR: vulkan requested but not found".
+    if [ "${RID#maccatalyst-}" != "${RID}" ]; then
+      EXTRA_LIBS="${EXTRA_LIBS} -framework IOKit"
+    fi
     # shellcheck disable=SC2034  # appended here; consumed by steps/07_build_ffmpeg.sh
     CONFIGURE_FLAGS+=(--enable-vulkan-static)
     echo "MoltenVK linked STATICALLY for ${RID} (--enable-vulkan-static; no loader, no ICD)."

@@ -43,6 +43,28 @@ done
 mkdir -p "${SRC_DIR}"
 tar -xf "${FF_ARCHIVE}" -C "${SRC_DIR}" --strip-components=1
 
+# Mac Catalyst: FFmpeg selects the OpenGLES pixel-buffer key whenever TARGET_OS_IPHONE is
+# set, but macabi sets TARGET_OS_IPHONE=1 while Apple marks that key unavailable there:
+#   videotoolbox.c:821: error: kCVPixelBufferOpenGLESCompatibilityKey is unavailable:
+#                              not available on macCatalyst
+# The #else branch (kCVPixelBufferIOSurfaceOpenGLTextureCompatibilityKey) is the correct
+# one for Catalyst, so narrow the condition to exclude it. Upstream master still has the
+# bare TARGET_OS_IPHONE test, so there is no release to wait for; drop this once FFmpeg
+# guards the key itself. The only alternative is disabling VideoToolbox on Catalyst, i.e.
+# no hardware decode on a platform that supports it.
+if [ "${RID#maccatalyst-}" != "${RID}" ]; then
+  vt_src="${SRC_DIR}/libavcodec/videotoolbox.c"
+  if ! grep -q TARGET_OS_MACCATALYST "${vt_src}"; then
+    sed -i.bak "s/^#if TARGET_OS_IPHONE$/#if TARGET_OS_IPHONE \&\& !TARGET_OS_MACCATALYST/" "${vt_src}"
+    rm -f "${vt_src}.bak"
+    if ! grep -q "TARGET_OS_IPHONE && !TARGET_OS_MACCATALYST" "${vt_src}"; then
+      echo "ERROR: videotoolbox.c Mac Catalyst patch did not apply" >&2
+      exit 1
+    fi
+    echo "Patched videotoolbox.c for Mac Catalyst (OpenGLES key unavailable on macabi)."
+  fi
+fi
+
 # ── Patch pkg-config for Windows static linking ──────────────────────────
 # Dependency .pc files declare -lpthread and -lstdc++ in Libs/Libs.private.
 # When FFmpeg links shared DLLs, -static-libgcc/-static-libstdc++ are

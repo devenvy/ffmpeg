@@ -206,7 +206,10 @@ check_config_absent() {
 
 # check_tls  — every build must have exactly one TLS backend, and which one is
 # platform-appropriate: OpenSSL on Linux/Android, SChannel on Windows,
-# SecureTransport on Apple. Structural, so it also covers the mobile static libs.
+# SecureTransport on macOS/iOS. Mac Catalyst is the exception among Apple targets --
+# SecureTransport is unavailable on macabi, so it takes the Linux/Android ladder
+# (v3 OpenSSL / gplv2 GnuTLS / lgplv2 none). Structural, so it also covers the mobile
+# static libs.
 check_tls() {
   if [ -z "$CONFIG_STR" ]; then fail "tls check: no embedded config string — artifact unreadable"; return; fi
   case " ${CONFIG_STR} " in

@@ -71,7 +71,12 @@ case "${RID}" in
       --sysroot="${MCAT_SYSROOT}"
       --enable-videotoolbox
       --enable-hwaccel=h264_videotoolbox --enable-hwaccel=hevc_videotoolbox
-      --enable-securetransport
+      # NO --enable-securetransport. SecureTransport is unavailable on Mac Catalyst --
+      # the SDK marks SSLRead/SSLWrite "first deprecated in macCatalyst 13.1 - No longer
+      # supported", and libavformat/tls_securetransport.c fails to COMPILE (6 errors), not
+      # merely warn. Catalyst therefore has no usable native TLS and takes the same route as
+      # Linux/Android: BUILD_OPENSSL in 02_configure.sh, which 04_select_license.sh then
+      # resolves per cell (v3 OpenSSL / gplv2 GnuTLS / lgplv2 none).
     )
     # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     HWACCEL_FEATURES="VideoToolbox"

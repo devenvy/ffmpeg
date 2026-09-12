@@ -22,7 +22,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${ROOT_DIR}"
 
-RIDS=(linux-x64 linux-arm64 linux-armhf linux-musl-x64 linux-musl-arm64 win-x64 win-arm64 osx-x64 osx-arm64 android-arm64 android-x64 ios-arm64 ios-sim-arm64)
+RIDS=(linux-x64 linux-arm64 linux-armhf linux-musl-x64 linux-musl-arm64 win-x64 win-arm64 osx-x64 osx-arm64 android-arm64 android-x64 ios-arm64 ios-sim-arm64 maccatalyst-arm64 maccatalyst-x64)
 
 # FFmpeg configure for EVERY maintained version (deps.json's .ffmpeg list) — the source of
 # truth for each version's library universe. Each is rendered to its own files.
@@ -129,14 +129,21 @@ MAJORS = sorted(by_major, key=int)
 OUTDIR = sys.argv[3]
 
 RIDS = ["linux-x64","linux-arm64","linux-armhf","linux-musl-x64","linux-musl-arm64","win-x64","win-arm64",
-        "osx-x64","osx-arm64","android-arm64","android-x64","ios-arm64","ios-sim-arm64"]
+        "osx-x64","osx-arm64","android-arm64","android-x64","ios-arm64","ios-sim-arm64",
+        "maccatalyst-arm64","maccatalyst-x64"]
 ALL = set(RIDS)
 LINUX = {r for r in RIDS if r.startswith("linux")}
 WIN = {"win-x64","win-arm64"}
 # The x86-only vendor stacks (NVIDIA nvcodec, AMD AMF, Intel QSV) have no
 # Windows-on-ARM implementation, so they apply to the x64 Windows RID alone.
-WINX86 = {"win-x64"}; APPLE = {"osx-x64","osx-arm64","ios-arm64","ios-sim-arm64"}
+WINX86 = {"win-x64"}
 MAC = {"osx-x64","osx-arm64"}; IOS = {"ios-arm64","ios-sim-arm64"}
+# Catalyst is an Apple target but matches NEITHER macOS nor iOS across the board: it has
+# VideoToolbox like both, links Vulkan statically like iOS, and -- unlike every other Apple
+# RID -- has no SecureTransport at all. It therefore needs its own set rather than being
+# folded into one of the others.
+MACCATALYST = {"maccatalyst-arm64","maccatalyst-x64"}
+APPLE = MAC | IOS | MACCATALYST
 ANDROID = {"android-arm64","android-x64"}; DESKTOP = LINUX | WIN | MAC
 
 # HAVE_* backends FFmpeg supports but that aren't in any *_LIBRARY_LIST.
@@ -299,13 +306,20 @@ APPLIES = {
   "libdrm":LINUX,"v4l2_m2m":LINUX,"libvpl":LINUX|WINX86,"libmfx":LINUX|WINX86,
   "d3d11va":WIN,"d3d12va":WIN,"dxva2":WIN,"amf":WINX86,"mediafoundation":WIN,
   "videotoolbox":APPLE,"audiotoolbox":MAC,"mediacodec":ANDROID,"vulkan":ALL,
-  # Only iOS links Vulkan statically. Every other platform reaches a Vulkan driver at
-  # runtime — the Khronos loader on macOS/Linux, the system libvulkan on Android/Windows —
-  # so --enable-vulkan-static is added by moltenvk.sh's ios-* arm alone. Without this entry
-  # the token falls back to ALL and the matrix claims static Vulkan on every RID.
-  "vulkan_static":IOS,
-  "mmal":LINUX,"omx":LINUX,"schannel":WIN,"securetransport":APPLE,
-  "libsvtav1":ALL-{"linux-armhf","android-arm64","android-x64","ios-arm64","ios-sim-arm64"},
+  # Only iOS and Mac Catalyst link Vulkan statically. Every other platform reaches a Vulkan
+  # driver at runtime — the Khronos loader on macOS/Linux, the system libvulkan on
+  # Android/Windows — so --enable-vulkan-static is added by moltenvk.sh's ios-*|maccatalyst-*
+  # arm alone. Without this entry the token falls back to ALL and the matrix claims static
+  # Vulkan on every RID.
+  "vulkan_static":IOS|MACCATALYST,
+  "mmal":LINUX,"omx":LINUX,"schannel":WIN,
+  # NOT APPLE: SecureTransport is unavailable on Mac Catalyst. The SDK marks SSLRead/SSLWrite
+  # "no longer supported" there and libavformat/tls_securetransport.c fails to COMPILE, so
+  # scripts/platform/apple.sh's Catalyst arm deliberately omits --enable-securetransport.
+  "securetransport":MAC|IOS,
+  # Catalyst joins the cross-compiled targets SVT-AV1 cannot produce a usable static archive
+  # for (BUILD_LIBSVTAV1=0 in its apple.sh arm).
+  "libsvtav1":ALL-{"linux-armhf","android-arm64","android-x64","ios-arm64","ios-sim-arm64"}-MACCATALYST,
   "libwebp":DESKTOP, "libfontconfig":LINUX|MAC,
 }
 TITLES = [("video","Video codecs"),("audio","Audio codecs"),
@@ -317,7 +331,8 @@ SHORT = {"linux-x64":"lin-x64","linux-arm64":"lin-a64","linux-armhf":"lin-hf",
          "linux-musl-x64":"musl","linux-musl-arm64":"musl-a64","win-x64":"win",
          "win-arm64":"win-a64",
          "osx-x64":"osx-x64","osx-arm64":"osx-a64","android-arm64":"android",
-         "android-x64":"android-x64","ios-arm64":"ios","ios-sim-arm64":"ios-sim"}
+         "android-x64":"android-x64","ios-arm64":"ios","ios-sim-arm64":"ios-sim",
+         "maccatalyst-arm64":"mcat-a64","maccatalyst-x64":"mcat-x64"}
 
 # Footnotes: rendered as GitHub [^ref] superscripts inline on the row, auto-listed
 # and auto-numbered (by first appearance) at the bottom of the file.

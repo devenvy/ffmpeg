@@ -90,7 +90,12 @@ case "${RID}" in
     cp "${MVK_LIB}" "${DEPS_DIR}/lib/libMoltenVK.dylib"
     # The copied Mach-O keeps its original install-name; 08 resets it when it bundles.
     ;;
-  ios-*)
+  ios-*|maccatalyst-*)
+    # Catalyst takes the iOS path, not the osx-* one: find_mvk_static resolved a static archive
+    # for it above, BUILD_VULKAN_LOADER is off, and 08_stage_artifacts ships frameworks rather
+    # than a flat dylib layout. Omitting it here left MVK_LIB resolved but never installed, so
+    # libvulkan.a never appeared and configure's --enable-vulkan-static check_lib could not
+    # succeed on any v3 Catalyst cell.
     cp "${MVK_LIB}" "${DEPS_DIR}/lib/libMoltenVK.a"
     # Guard the whole premise of --enable-vulkan-static: if MoltenVK's packaging shifts
     # and we picked up a dylib, FFmpeg's static link test would fail late and confusingly

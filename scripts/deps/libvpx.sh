@@ -50,13 +50,17 @@ if [[ "${BUILD_LIBVPX}" == "1" ]]; then
       VPX_ARGS+=(--target=x86_64-android-gcc --extra-cflags="-fPIC")
       ;;
     maccatalyst-arm64|maccatalyst-x64)
-      # libvpx picks its assembler config from --target, and its darwin targets imply a
-      # platform. macabi is not one of them, so use the plain darwin target for the arch and
-      # carry the real platform in the flags, which must reach the ASM as well as the C --
-      # the same failure mode x264 hit (asm objects tagged macOS, link refuses to mix).
+      # NOT arm64-darwin-gcc: libvpx treats arm*-darwin-* as iOS and injects
+      #   -miphoneos-version-min + the iPhoneOS SDK
+      # which clang rejects next to our macabi -target and macOS sysroot:
+      #   Requested extra CFLAGS ... not supported by compiler
+      # The darwin2x targets are the macOS flavour, and libvpx stops adding
+      # -mmacosx-version-min at darwin19 -- so darwin20+ contributes the macOS SDK and NO
+      # deployment-target flag to collide with the macabi triple. That keeps the asm enabled,
+      # unlike generic-gnu which would silently cost VP8/VP9 SIMD.
       case "${RID}" in
-        maccatalyst-arm64) VPX_TARGET="arm64-darwin-gcc"  ;;
-        maccatalyst-x64)   VPX_TARGET="x86_64-darwin-gcc" ;;
+        maccatalyst-arm64) VPX_TARGET="arm64-darwin20-gcc"  ;;
+        maccatalyst-x64)   VPX_TARGET="x86_64-darwin20-gcc" ;;
       esac
       VPX_ARGS+=(--target="${VPX_TARGET}"
                  --extra-cflags="-target ${MCAT_TARGET} -isysroot ${MCAT_SYSROOT}")

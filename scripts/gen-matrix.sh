@@ -50,11 +50,19 @@ done
 # Each line is "RID|LICENSE|hwaccels|BUILD_* flags". Kept separate (not unioned)
 # so the matrix can be sliced per license: gpl builds get x264/x265, lgpl kvazaar.
 simfile="$(mktemp)"
+# The platform scripts probe the SDK layout, not just its path: apple.sh's Catalyst arm
+# asserts the macOS SDK actually has the System/iOSSupport subtree that Catalyst links UIKit
+# from. A bare stub path would fail that assertion here and take both Catalyst RIDs out of the
+# matrix, so give the stubbed xcrun a directory with the shape the scripts expect.
+FAKE_SDK="$(mktemp -d)/sdk"
+mkdir -p "${FAKE_SDK}/System/iOSSupport/System/Library/Frameworks"
+export FAKE_SDK
+
 for RID in "${RIDS[@]}"; do
   for CELL in gplv3 gplv2 lgplv3 lgplv2; do
   (
     set +u
-    xcrun() { echo /dummy-sdk; }
+    xcrun() { echo "${FAKE_SDK}"; }
     LIC="${CELL%v*}"; VER="${CELL##*v}"          # gplv3 -> LIC=gpl VER=3
     ROOT_DIR="${ROOT_DIR}"; RID="$RID"; LICENSE="$LIC"; BUILD_RID="$RID"
     BUILD_LICENSE="$LIC"; BUILD_LICENSE_VERSION="$VER"

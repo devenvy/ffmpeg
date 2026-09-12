@@ -55,11 +55,31 @@ case "${RID}" in
     CXX="$(xcrun --sdk macosx --find clang++)";   export CXX
     AR="$(xcrun --sdk macosx --find ar)";         export AR
     RANLIB="$(xcrun --sdk macosx --find ranlib)"; export RANLIB
+    # Autotools deps that build a host tool and RUN it (nettle generates its ECC tables with
+    # eccdata; gnutls has similar generators) need a compiler aimed at the BUILD machine, not
+    # the macabi target. Left unset, nettle falls back to a bare `clang`, which resolves to the
+    # Xcode toolchain binary -- and unlike the /usr/bin/clang shim, nothing injects an SDK for
+    # it, so eccdata.c fails on a missing assert.h. Native arch, real sysroot, no -target.
+    # Catalyst is the first Apple RID to hit this: it is the only one that builds the GnuTLS
+    # chain, because it is the only one without SecureTransport.
+    CC_FOR_BUILD="$(xcrun --sdk macosx --find clang) -isysroot ${MCAT_SYSROOT}"; export CC_FOR_BUILD
+    # Catalyst reaches the iOS-only frameworks (UIKit and friends) through the macOS SDK's
+    # System/iOSSupport subtree -- they are NOT in the SDK's top-level Frameworks dir. Xcode
+    # adds these search paths itself, but we drive clang directly, so without them the link
+    # dies on "ld: framework 'UIKit' not found" at FFmpeg's very first configure probe (the
+    # -framework UIKit that moltenvk.sh appends to EXTRA_LIBS lands on every test), which
+    # configure then reports only as the generic "C compiler test failed".
+    MCAT_IOSSUPPORT="${MCAT_SYSROOT}/System/iOSSupport"
+    if [ ! -d "${MCAT_IOSSUPPORT}/System/Library/Frameworks" ]; then
+      echo "ERROR: ${MCAT_IOSSUPPORT}/System/Library/Frameworks is missing --" >&2
+      echo "  the macOS SDK at ${MCAT_SYSROOT} has no Catalyst (iOSSupport) subtree." >&2
+      exit 1
+    fi
     # -target carries BOTH arch and deployment target for macabi; there is no
     # -mmaccatalyst-version-min, and -arch alone would build a plain macOS object.
-    EXTRA_CFLAGS="-target ${MCAT_TARGET} -isysroot ${MCAT_SYSROOT}"
-    EXTRA_CXXFLAGS="-target ${MCAT_TARGET} -isysroot ${MCAT_SYSROOT}"
-    EXTRA_LDFLAGS="-target ${MCAT_TARGET} -isysroot ${MCAT_SYSROOT}"
+    EXTRA_CFLAGS="-target ${MCAT_TARGET} -isysroot ${MCAT_SYSROOT} -iframework ${MCAT_IOSSUPPORT}/System/Library/Frameworks -isystem ${MCAT_IOSSUPPORT}/usr/include"
+    EXTRA_CXXFLAGS="${EXTRA_CFLAGS}"
+    EXTRA_LDFLAGS="-target ${MCAT_TARGET} -isysroot ${MCAT_SYSROOT} -F${MCAT_IOSSUPPORT}/System/Library/Frameworks -L${MCAT_IOSSUPPORT}/usr/lib"
     # Exported for the same reason as iOS: autotools deps invoke a generic clang and their
     # configure link test fails without the target/sysroot in the environment.
     export CFLAGS="${EXTRA_CFLAGS}"

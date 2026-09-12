@@ -101,7 +101,10 @@ jobs:
             apk add --no-cache bash git file jq   # 'file' for the test script, 'jq' for the dep loader
           elif command -v apt-get >/dev/null 2>&1; then
             apt-get update -qq
-            apt-get install -y -q --no-install-recommends bash git file jq ca-certificates curl sudo
+            # python3-pip: Debian ships none, and 03_install_packages.sh needs pip to pull a meson
+            # newer than the distro's (bookworm has 1.0.1; fontconfig 2.18+ wants >= 1.11). Without
+            # it the job died on "No module named pip" after an otherwise clean apt run.
+            apt-get install -y -q --no-install-recommends bash git file jq ca-certificates curl sudo python3-pip
           else
             echo "unsupported container image: no apk or apt-get" >&2; exit 1
           fi

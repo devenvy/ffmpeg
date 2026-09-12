@@ -175,8 +175,21 @@ echo "Configuring FFmpeg..."
 if ! "${CONFIGURE_CMD[@]}"; then
   rc=$?
   if [ -f ffbuild/config.log ]; then
-    echo "───── ffbuild/config.log (last 120 lines) ─────" >&2
-    tail -n 120 ffbuild/config.log >&2
+    # 120 lines proved too small twice: configure keeps probing OPTIONAL features after the
+    # one that will ultimately fail, so the decisive probe scrolls off the tail. Dump more,
+    # and additionally pull out the last probe for the component configure named, since that
+    # is the one whose compile/link error explains the failure.
+    echo "───── ffbuild/config.log (last 400 lines) ─────" >&2
+    tail -n 400 ffbuild/config.log >&2
+    echo "───── end config.log ─────" >&2
+    for comp in vulkan vulkan_static whisper openssl gnutls mbedtls placebo; do
+      if grep -q -- "-l${comp}" ffbuild/config.log 2>/dev/null; then
+        echo "───── last -l${comp} probe in config.log ─────" >&2
+        grep -n -- "-l${comp}" ffbuild/config.log | tail -1 | cut -d: -f1 | while read -r ln; do
+          sed -n "$((ln>20 ? ln-20 : 1)),$((ln+12))p" ffbuild/config.log >&2
+        done
+      fi
+    done
     echo "───── end config.log ─────" >&2
   else
     echo "(no ffbuild/config.log was produced)" >&2

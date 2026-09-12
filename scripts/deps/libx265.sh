@@ -10,7 +10,10 @@ if [[ "${BUILD_LIBX265}" == "1" ]]; then
     case "${RID}" in
       osx-*)       brew list cmake &>/dev/null || brew install cmake ;;
       linux-musl-*) apk add --no-cache cmake ;;
-      *)           sudo apt-get install -y cmake ;;
+      # ${SUDO} is resolved in 03_install_packages.sh from id -u: empty inside the debian/
+      # alpine containers (already root, sudo may be absent) and "sudo" on the bare runners.
+      # The -sudo default keeps this working if the script is ever run standalone.
+      *)           ${SUDO-sudo} apt-get install -y cmake ;;
     esac
   fi
 

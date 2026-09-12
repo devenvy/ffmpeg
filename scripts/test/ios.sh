@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
-# iOS (ios-arm64 device / ios-sim-arm64 simulator) test — structural checks plus an ABI
-# link check. The artifact is one dynamic .framework per libav* library (Mach-O dylibs);
+# Apple framework-target test — iOS device (ios-arm64), iOS simulator (ios-sim-arm64) and
+# Mac Catalyst (maccatalyst-arm64 / maccatalyst-x64). All three ship the identical artifact
+# shape (one dynamic .framework per libav* library), so they share this script rather than a
+# near-duplicate; the deltas are the expected arch, the Mach-O platform, and how the smoke
+# program is compiled. Structural checks plus an ABI link check. The artifact is one dynamic .framework per libav* library (Mach-O dylibs);
 # we verify arch, core symbols, and features/headers, then (macOS build job) link the smoke
 # program against the frameworks to prove they resolve. EXECUTING it on the simulator is
 # scripts/test/ios-run.sh.
@@ -12,13 +15,40 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 info "iOS structural checks (${RID}, ${DIR})"
 
 FWDIR="${DIR}/frameworks"
+# maccatalyst-x64 is the only x86_64 slice in this family; everything else is arm64.
+case "$RID" in
+  maccatalyst-x64) EXPECT_ARCH=x86_64 ;;
+  *)               EXPECT_ARCH=arm64  ;;
+esac
 for base in avcodec avformat avutil avfilter swscale swresample; do
   bin="${FWDIR}/lib${base}.framework/lib${base}"
   [ -e "$bin" ] || { fail "missing lib${base}.framework"; continue; }
-  check_arch "$bin" 'Mach-O 64-bit dynamically linked shared library arm64'
+  check_arch "$bin" "Mach-O 64-bit dynamically linked shared library ${EXPECT_ARCH}"
   check_symbol "$bin" "${base}_version"
   check_shared_object "$bin"
 done
+
+# The single most important Catalyst gate. A macabi binary differs from a plain macOS one
+# only by the LC_BUILD_VERSION platform byte (6 = MACCATALYST, 1 = MACOS) -- same SDK, same
+# arch, same everything else. If `-target …-macabi` silently stopped applying, the build would
+# still succeed and produce a working-looking dylib, but Xcode would reject the slice when the
+# xcframework was consumed, and CI would not have noticed. Read the platform out of the binary.
+if [ "${RID#maccatalyst-}" != "${RID}" ]; then
+  if command -v otool >/dev/null 2>&1; then
+    for base in avcodec avutil; do
+      bin="${FWDIR}/lib${base}.framework/lib${base}"
+      [ -e "$bin" ] || continue
+      plat="$(otool -l "$bin" | awk '/LC_BUILD_VERSION/{f=1} f&&/^ *platform/{print $2; exit}')"
+      case "${plat}" in
+        6|MACCATALYST|maccatalyst) pass "lib${base} is a Mac Catalyst binary (LC_BUILD_VERSION platform ${plat})" ;;
+        "")            fail "lib${base} has no LC_BUILD_VERSION — cannot confirm it is macabi" ;;
+        *)             fail "lib${base} platform is ${plat}, expected 6/MACCATALYST — -target macabi did not apply" ;;
+      esac
+    done
+  else
+    skip "Mach-O platform check: otool not available"
+  fi
+fi
 
 # Feature/license from the embedded config (present in each framework's binary).
 load_config_string "${FWDIR}/libavutil.framework/libavutil" "${FWDIR}/libavcodec.framework/libavcodec"
@@ -107,9 +137,18 @@ check_license_boundary "$LEAN"
 # gone). A real Tier-2 signal even for the DEVICE slice, which can't be executed on CI
 # (the simulator RUN, on the Apple-Silicon runner, is ios-run.sh).
 if command -v xcrun >/dev/null 2>&1; then
+  # Catalyst compiles against the macOS SDK with an ios*-macabi target triple -- there is no
+  # "maccatalyst" SDK and no -m…-version-min flag for it; -target carries both the arch and the
+  # deployment floor, mirroring scripts/platform/apple.sh. -arch is therefore NOT passed for
+  # Catalyst: it would conflict with the arch already named in the triple.
   case "$RID" in
-    ios-sim-arm64) IOS_SDK=iphonesimulator; IOS_MIN=-mios-simulator-version-min=13.0 ;;
-    *)             IOS_SDK=iphoneos;        IOS_MIN=-miphoneos-version-min=13.0 ;;
+    ios-sim-arm64)   IOS_SDK=iphonesimulator; IOS_MIN=-mios-simulator-version-min=13.0 ;;
+    maccatalyst-*)   IOS_SDK=macosx;          IOS_MIN="-target ${EXPECT_ARCH}-apple-ios14.0-macabi" ;;
+    *)               IOS_SDK=iphoneos;        IOS_MIN=-miphoneos-version-min=13.0 ;;
+  esac
+  case "$RID" in
+    maccatalyst-*) ARCH_FLAG="" ;;
+    *)             ARCH_FLAG="-arch arm64" ;;
   esac
   SDK="$(xcrun --sdk "${IOS_SDK}" --show-sdk-path 2>/dev/null)"
   CC="$(xcrun --sdk "${IOS_SDK}" --find clang 2>/dev/null)"
@@ -118,7 +157,7 @@ if command -v xcrun >/dev/null 2>&1; then
   # system frameworks/libs they load. -F resolves BOTH the -framework links and smoke.c's
   # <libavcodec/…> header imports; -rpath points at the frameworks dir so a run could resolve
   # them (a device app resolves via the embedded Frameworks dir + @rpath).
-  check_smoke_link "${CC} -arch arm64 ${IOS_MIN} -isysroot ${SDK}" \
+  check_smoke_link "${CC} ${ARCH_FLAG} ${IOS_MIN} -isysroot ${SDK}" \
     "${FWDIR}" /tmp/smoke_ios \
     -F "${FWDIR}" \
     -framework libavformat -framework libavcodec -framework libavfilter \
@@ -129,6 +168,23 @@ if command -v xcrun >/dev/null 2>&1; then
     -framework Security -framework Foundation -framework Metal -framework MetalKit \
     -framework Accelerate -framework QuartzCore -framework IOSurface -framework UIKit \
     -lc++ -liconv -lz
+  # Catalyst is the only slice in this family that RUNS on the build host: macabi binaries are
+  # native macOS Mach-O and dyld loads them directly, so the link check can be promoted to a real
+  # execution. iOS device cannot be executed on CI at all, and the simulator needs simctl
+  # (ios-run.sh). Only when the host arch matches the slice -- running the x86_64 slice on an
+  # Apple-Silicon runner would depend on Rosetta being installed, which is not guaranteed.
+  if [ "${RID#maccatalyst-}" != "${RID}" ] && [ -x /tmp/smoke_ios ]; then
+    if [ "$(uname -m)" = "${EXPECT_ARCH}" ]; then
+      if DYLD_FRAMEWORK_PATH="${FWDIR}" /tmp/smoke_ios >/tmp/smoke-run.out 2>&1; then
+        pass "Catalyst smoke program EXECUTES on the host: $(head -1 /tmp/smoke-run.out)"
+      else
+        fail "Catalyst smoke program linked but failed to run: $(tail -3 /tmp/smoke-run.out | tr '
+' ' ')"
+      fi
+    else
+      skip "Catalyst smoke run: host is $(uname -m), slice is ${EXPECT_ARCH}"
+    fi
+  fi
 else
   skip "smoke link: Xcode/xcrun not available (run in the macOS build job)"
 fi

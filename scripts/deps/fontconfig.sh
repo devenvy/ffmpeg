@@ -20,6 +20,13 @@ if [[ "${BUILD_FONTCONFIG}" == "1" ]]; then
     -Dtests=disabled
     -Dtools=disabled
     -Dcache-build=disabled
+    # NLS off: fontconfig does dependency('intl') and, when it resolves, links libintl into
+    # everything downstream. On the Intel macOS runner that resolves to HOMEBREW's
+    # /usr/local/opt/gettext/lib/libintl.8.dylib -- a library present on that runner and on no
+    # consumer machine, which we do not bundle. arm64 was unaffected only because its Homebrew
+    # prefix differs, so the leak was silently Intel-only. Translated fontconfig messages are
+    # meaningless for a library statically embedded in FFmpeg.
+    -Dnls=disabled
   )
 
   # Cross targets use the shared Meson cross file written in step 05.

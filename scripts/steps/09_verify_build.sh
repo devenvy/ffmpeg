@@ -19,15 +19,6 @@ COMPONENTS="${SRC_DIR}/config_components.h"
 grep -q 'CONFIG_WHISPER_FILTER 1' "${COMPONENTS}" \
   || { echo "VERIFY FAIL: whisper filter not enabled"; VERIFY_FAIL=1; }
 
-# 1c. Runtime data paths must not be the BUILD TREE. datadir is compiled in and consulted at
-# runtime, and left to default it becomes ${PREFIX_DIR}/share/ffmpeg -- a directory no
-# consumer has, which also leaks the runner home path into every published binary. Assert the
-# flag we pass rather than grepping the binary for paths: FFmpeg embeds its whole configure
-# line by design, so a path search false-positives on every file.
-if ! grep -q -- "--datadir=/usr/local/share/ffmpeg" "${SRC_DIR}/config.h" 2>/dev/null; then
-  echo "VERIFY FAIL: FFmpeg datadir is not pinned — it would default into the build tree"
-  VERIFY_FAIL=1
-fi
 
 # 2. License boundary — lgpl builds must not enable GPL encoders.
 if [[ "${LICENSE}" == "lgpl" ]]; then

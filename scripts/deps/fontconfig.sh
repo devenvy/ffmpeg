@@ -14,14 +14,6 @@ if [[ "${BUILD_FONTCONFIG}" == "1" ]]; then
   FC_ARGS=(
     --prefix="${DEPS_DIR}"
     --libdir="${DEPS_DIR}/lib"
-    # sysconfdir must NOT default to the build prefix. fontconfig bakes it in and reads it at
-    # RUNTIME to find fonts.conf, so the published binaries looked for their font config under
-    # the CI build tree -- a directory no consumer has -- and drawtext font discovery silently
-    # found nothing. /etc is the conventional location on both Linux and macOS, so a portable
-    # binary picks up the HOST's font configuration, which is what a user expects. Consumers
-    # can still override with FONTCONFIG_PATH / FONTCONFIG_FILE.
-    --sysconfdir=/etc
-    --localstatedir=/var
     --default-library=static
     --buildtype=release
     -Ddoc=disabled

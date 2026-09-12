@@ -56,7 +56,13 @@ clone_dep openssl "${WORK_DIR}/openssl"
         maccatalyst-arm64) OSSL_TARGET=darwin64-arm64-cc  ;;
         maccatalyst-x64)   OSSL_TARGET=darwin64-x86_64-cc ;;
       esac
-      OSSL_OPTS+=("-target" "${MCAT_TARGET}" "-isysroot" "${MCAT_SYSROOT}")
+      # The flags go in CC, NOT in Configure's argument list. Configure treats any argument that
+      # does not start with "-" as a TARGET name, so the two-token forms "-target <triple>" and
+      # "-isysroot <path>" had their second halves parsed as extra targets:
+      #   target already defined - darwin64-arm64-cc (offending arg: arm64-apple-ios14.0-macabi)
+      # Folding them into CC sidesteps the argument parser entirely and is what Configure uses
+      # to build every compile line.
+      export CC="${CC} -target ${MCAT_TARGET} -isysroot ${MCAT_SYSROOT}"
       ;;
     *) echo "OpenSSL: unexpected RID ${RID}" >&2; exit 1 ;;
   esac

@@ -2,8 +2,10 @@ name: Renovate
 
 # Self-hosted Renovate: runs the Renovate CLI as a scheduled Action in this repo (no
 # external service), same trust model as check-updates.yml. It reads renovate.json, which
-# scopes a custom regex manager to the DEFAULTS block of deps.json and opens a PR when an
-# upstream publishes a newer tag. CI (build + docs-matrix) then validates that bump across
+# scopes custom regex managers to the DEFAULTS block of deps.json and opens a PR when an
+# upstream publishes a newer version -- a newer git tag, a newer tarball on a release listing
+# (gmp, libmp3lame, libgsm, opencore-amr, vo-amrwbenc, which have no git remote), or a newer
+# commit on the branch a digest pin follows (x264, amf). CI (build + docs-matrix) then validates that bump across
 # every FFmpeg line before it can merge; if a line can't take the new version, add an
 # overrides.<major>[.platforms] hold in the same PR (Renovate never edits overrides).
 
@@ -31,13 +33,18 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Run Renovate
-        uses: renovatebot/github-action@v41
+        uses: renovatebot/github-action@v46.2.6
         with:
           # A PAT (not GITHUB_TOKEN): PRs opened with the default token don't trigger other
           # workflows, so Renovate's bump PRs wouldn't run CI. UPDATE_PR_TOKEN (also used by
           # check-updates.yml) lets the PRs run the build/test/docs-matrix gates.
           token: ${{ secrets.UPDATE_PR_TOKEN }}
           configurationFile: renovate.json
+          # Pin Renovate CORE, not just the action wrapper. The action's default
+          # renovate-version is a moving major tag, which would leave the tool that
+          # maintains every other pin unpinned itself. Tracked by a customManager in
+          # renovate.json, so it stays current the same way the libraries do.
+          renovate-version: 44.79.6
         env:
           RENOVATE_REPOSITORIES: ${{ github.repository }}
           RENOVATE_AUTODISCOVER: "false"

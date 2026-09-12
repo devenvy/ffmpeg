@@ -17,8 +17,8 @@ _7 of 23 built._
 | Feature | Version | lin-x64 | lin-a64 | lin-hf | musl | musl-a64 | win | win-a64 | osx-x64 | osx-a64 | android | android-x64 | ios | ios-sim |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | dav1d — AV1 decode | 1.5.4 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| libaom — AV1 enc/dec | v3.14.1 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | n/a |
-| libvpx — VP8/VP9 | v1.16.0 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | n/a |
+| libaom — AV1 enc/dec | v3.15.0 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | n/a |
+| libvpx — VP8/VP9 | v1.17.0 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | n/a |
 | OpenH264 — H.264 encode | v2.6.0 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | SVT-AV1 — AV1 encode[^svtav1] | v4.2.0 | ✓ | ✓ | n/a | ✓ | ✓ | ✓ | — | ✓ | ✓ | n/a | n/a | n/a | n/a |
 | x264 — H.264 encode (GPL) | b35605ace | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | n/a |
@@ -45,7 +45,7 @@ _6 of 22 built._
 
 | Feature | Version | lin-x64 | lin-a64 | lin-hf | musl | musl-a64 | win | win-a64 | osx-x64 | osx-a64 | android | android-x64 | ios | ios-sim |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| libgsm — GSM | 1.0.22 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| libgsm — GSM | 1.0.24 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | libmp3lame — MP3 encode | 3.100 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | libopus — Opus | v1.6.1 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | n/a |
 | libvorbis — Vorbis | v1.3.7 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
@@ -77,7 +77,7 @@ _8 of 15 built._
 | FreeType — drawtext | VER-2-14-3 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | n/a |
 | libass — SSA/ASS subtitles | 0.17.5 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | n/a |
 | libfribidi — bidi text (drawtext) | v1.0.16 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | n/a |
-| libharfbuzz — text shaping | 14.3.1 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | n/a |
+| libharfbuzz — text shaping | 14.4.0 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | n/a |
 | libjxl — JPEG XL | v0.12.0 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | libwebp — WebP[^webp] | v1.6.0 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | n/a | n/a | n/a | n/a |
 | OpenJPEG — JPEG 2000 | v2.5.4 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
@@ -177,7 +177,7 @@ _3 of 22 built._
 | Feature | Version | lin-x64 | lin-a64 | lin-hf | musl | musl-a64 | win | win-a64 | osx-x64 | osx-a64 | android | android-x64 | ios | ios-sim |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | JNI (Android bridge) |  | — | — | — | — | — | — | — | — | — | ✓ | ✓ | — | — |
-| libxml2 — DASH/IMF parse | v2.15.3 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| libxml2 — DASH/IMF parse | v2.15.4 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | MediaCodec (Android) |  | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | ✓ | ✓ | n/a | n/a |
 | AviSynth — frameserver (GPL) |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
 | FireWire capture |  | — | — | — | — | — | — | — | — | — | — | — | — | — |

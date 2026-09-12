@@ -2,7 +2,7 @@
 
 Part of the [install docs](./README.md).
 
-Desktop runtime tarballs (`linux-*`, `win-x64`, `osx-*`) contain **only** the binaries, shared
+Desktop runtime tarballs (`linux-*`, `win-*`, `osx-*`) contain **only** the binaries, shared
 libraries, and `legal/` (the per-cell license notice plus each bundled dependency's license under
 `legal/licenses/<dep>/`) — not the `libav*` headers. If you're *linking* against the libraries
 (rather than running `ffmpeg`/`ffprobe`), grab the matching **`…-{variant}-dev.tar.gz`** from

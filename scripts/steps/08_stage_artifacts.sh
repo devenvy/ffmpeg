@@ -16,6 +16,32 @@ set -euo pipefail
 rm -rf "${OUT_DIR}"
 mkdir -p "${OUT_DIR}"
 
+# Ship pkg-config files. `pkg-config --cflags --libs libavcodec` is the standard way a
+# Linux/macOS consumer integrates, and the -dev archives carried none at all: FFmpeg installs
+# them under lib/pkgconfig, which nothing staged.
+#
+# They cannot be copied verbatim. FFmpeg bakes the BUILD prefix in (prefix=/home/runner/...),
+# which does not exist on the consumer's machine, so a verbatim .pc is worse than none -- it
+# resolves to paths that silently are not there. Rewrite the prefix to ${pcfiledir}, which
+# pkg-config expands to the directory holding the .pc, making the archive relocatable.
+#
+# libdir is set to ${prefix} rather than ${prefix}/lib because the desktop layout is flat:
+# the shared libraries sit at the archive root next to the binaries, not in lib/.
+stage_pkgconfig() {   # $1 = libdir for the .pc, SINGLE-QUOTED by callers
+  # NOTE: callers pass '${prefix}' single-quoted on purpose. That is a pkg-config
+  # variable that must reach the .pc file LITERALLY -- double quotes make the shell
+  # expand it, which under `set -u` aborts staging with "prefix: unbound variable".
+  local libdir_expr="$1" src="${PREFIX_DIR}/lib/pkgconfig" dst="${OUT_DIR}/lib/pkgconfig" pc
+  [ -d "${src}" ] || { echo "WARNING: no pkgconfig dir at ${src} — dev archive will ship none" >&2; return 0; }
+  mkdir -p "${dst}"
+  for pc in "${src}"/*.pc; do
+    [ -e "${pc}" ] || continue
+    sed -e 's|^prefix=.*|prefix=${pcfiledir}/../..|'         -e 's|^exec_prefix=.*|exec_prefix=${prefix}|'         -e "s|^libdir=.*|libdir=${libdir_expr}|"         -e 's|^includedir=.*|includedir=${prefix}/include|'         "${pc}" > "${dst}/$(basename "${pc}")"
+  done
+  echo "Staged $(ls -1 "${dst}" 2>/dev/null | wc -l) pkg-config files."
+}
+
+
 case "${RID}" in
   win-*)
     mkdir -p "${OUT_DIR}/include" "${OUT_DIR}/lib"
@@ -23,6 +49,7 @@ case "${RID}" in
     cp -a "${PREFIX_DIR}/bin/ffmpeg.exe" "${OUT_DIR}/"
     cp -a "${PREFIX_DIR}/bin/ffprobe.exe" "${OUT_DIR}/"
     cp -a "${PREFIX_DIR}/include/." "${OUT_DIR}/include/"
+    stage_pkgconfig '${prefix}/lib'
     # Generate MSVC-consumable COFF import libraries (.lib) from each DLL so a
     # consumer with no FFmpeg build tooling can link with MSVC. gendef dumps the
     # DLL export table to a .def; llvm-dlltool turns it into a Microsoft short
@@ -30,13 +57,23 @@ case "${RID}" in
     # Named by base soname (avcodec.lib, not avcodec-62.lib) so MSVC/CMake find them.
     LLVM_DLLTOOL="$(command -v llvm-dlltool || ls /usr/lib/llvm-*/bin/llvm-dlltool 2>/dev/null | sort -V | tail -1 || true)"
     [ -n "${LLVM_DLLTOOL}" ] || { echo "ERROR: llvm-dlltool not found (install the 'llvm' package)"; exit 1; }
+    # The import library's machine type must match the RID, not the build host.
+    # -m i386:x86-64 maps to IMAGE_FILE_MACHINE_AMD64, so using it for win-arm64 put
+    # x64 .lib files inside the ARM64 dev archive, which link.exe rejects for an ARM64
+    # target. Nothing caught it: the files exist and are well-formed COFF, they are
+    # simply the wrong architecture, and the test only counted them.
+    case "${RID}" in
+      win-x64)   DLLTOOL_MACHINE="i386:x86-64" ;;
+      win-arm64) DLLTOOL_MACHINE="arm64" ;;
+      *) echo "ERROR: no llvm-dlltool machine mapping for RID ${RID}" >&2; exit 1 ;;
+    esac
     for dll in "${OUT_DIR}/"*.dll; do
       [ -e "${dll}" ] || continue
       dllbase="$(basename "${dll}")"   # e.g. avcodec-62.dll
       stem="${dllbase%.dll}"           # e.g. avcodec-62
       libbase="${stem%-*}"             # e.g. avcodec
       gendef - "${dll}" > "${WORK_DIR}/${stem}.def"
-      "${LLVM_DLLTOOL}" -m i386:x86-64 \
+      "${LLVM_DLLTOOL}" -m "${DLLTOOL_MACHINE}" \
         -d "${WORK_DIR}/${stem}.def" \
         -D "${dllbase}" \
         -l "${OUT_DIR}/lib/${libbase}.lib"
@@ -48,6 +85,7 @@ case "${RID}" in
     cp -a "${PREFIX_DIR}/bin/ffmpeg" "${OUT_DIR}/"
     cp -a "${PREFIX_DIR}/bin/ffprobe" "${OUT_DIR}/"
     cp -a "${PREFIX_DIR}/include/." "${OUT_DIR}/include/"
+    stage_pkgconfig '${prefix}'
     # Bundle the Vulkan-Loader + MoltenVK ICD (v3 only) so --enable-vulkan runs on Metal. The
     # @rpath install-names are set in the fixup pass below. Not fully self-contained at runtime:
     # the consumer points VK_ICD_FILENAMES at the bundled MoltenVK_icd.json (see the macOS
@@ -164,6 +202,7 @@ PLIST
     cp -a "${PREFIX_DIR}/bin/ffmpeg" "${OUT_DIR}/"
     cp -a "${PREFIX_DIR}/bin/ffprobe" "${OUT_DIR}/"
     cp -a "${PREFIX_DIR}/include/." "${OUT_DIR}/include/"
+    stage_pkgconfig '${prefix}'
     # Bundle the libc-only Vulkan loader (Linux) so the artifact carries no external
     # libvulkan dependency — whisper's ggml links it, and it dlopens the system GPU
     # driver at runtime. The $ORIGIN rpath pass below lets the libs find it.

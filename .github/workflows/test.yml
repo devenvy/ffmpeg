@@ -85,11 +85,16 @@ jobs:
         # any real musl host (`apk add libstdc++ libgcc`), not something we can avoid.
         # curl: fetch the (now mandatory) whisper model — Alpine has no curl by default, and
         # its absence previously made the model download silently fail (whisper skipped).
-        run: apk add --no-cache bash git file binutils libstdc++ libgcc curl
+        run: apk add --no-cache bash git file binutils libstdc++ libgcc curl build-base
 
       - uses: actions/checkout@v7
         with:
-          ref: ${{ inputs.ref || github.ref }}
+          # github.sha, NOT github.ref: for a push run github.ref is refs/heads/main, so each
+          # matrix cell would check out whatever main's tip is when that cell STARTS. Across a
+          # multi-hour matrix that lets different cells build different commits, and none of
+          # them need be the commit the release tags. github.sha is the immutable event SHA and
+          # is shared with the calling workflow, so every cell builds exactly one tree.
+          ref: ${{ inputs.ref || github.sha }}
 
       - name: Download build artifact
         uses: actions/download-artifact@v8
@@ -143,7 +148,10 @@ jobs:
         shell: bash
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -q qemu-user libc6-armhf-cross libstdc++6-armhf-cross libgcc-s1-armhf-cross
+          # gcc-arm-linux-gnueabihf: the -dev smoke link must BUILD for armv7, not just run it
+          # under qemu. Keep the package list on ONE line: an escaped newline written into this
+          # file literally becomes an argument, and apt then reports it as a missing package.
+          sudo apt-get install -y -q qemu-user libc6-armhf-cross libstdc++6-armhf-cross libgcc-s1-armhf-cross gcc-arm-linux-gnueabihf
 
       - name: Test artifact
         shell: bash
@@ -160,7 +168,7 @@ jobs:
             docker run --rm -v "${PWD}:/work" -w /work \
               -e BUILD_RID -e WHISPER_MODEL \
               alpine:latest \
-              sh -c 'apk add --no-cache bash git file binutils libstdc++ libgcc curl && chmod +x scripts/test.sh scripts/test/*.sh && bash scripts/test.sh "${BUILD_RID}" "artifacts/${BUILD_RID}/native"'
+              sh -c 'apk add --no-cache bash git file binutils libstdc++ libgcc curl build-base && chmod +x scripts/test.sh scripts/test/*.sh && bash scripts/test.sh "${BUILD_RID}" "artifacts/${BUILD_RID}/native"'
           else
             bash scripts/test.sh "${BUILD_RID}" "artifacts/${BUILD_RID}/native"
           fi

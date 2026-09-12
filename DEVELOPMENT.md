@@ -55,6 +55,7 @@ license cells — `gplv3`, `gplv2`, `lgplv3`, `lgplv2` — not one:
 | `linux-musl-x64` | Alpine / musl x86_64 | Native (Alpine container) | shared libs + `ffmpeg`/`ffprobe` |
 | `linux-musl-arm64` | Alpine / musl ARM64 | Native (Alpine container, ARM runner) | shared libs + `ffmpeg`/`ffprobe` |
 | `win-x64` | Windows x86_64 | Cross-compiled (mingw-w64) | DLLs + `.lib` import libs + `ffmpeg.exe`/`ffprobe.exe` |
+| `win-arm64` | Windows on ARM (ARM64) | Cross-compiled (llvm-mingw) | DLLs + `.lib` import libs + `ffmpeg.exe`/`ffprobe.exe` |
 | `osx-x64` | macOS Intel | Native | dylibs + `ffmpeg`/`ffprobe` |
 | `osx-arm64` | macOS Apple Silicon | Native | dylibs + `ffmpeg`/`ffprobe` |
 | `android-arm64` | Android arm64-v8a | Cross-compiled (Android NDK) | `lib/arm64-v8a/*.so` (unversioned) + `include/`, no binaries |
@@ -62,7 +63,7 @@ license cells — `gplv3`, `gplv2`, `lgplv3`, `lgplv2` — not one:
 | `ios-arm64` | iOS device (arm64) | Cross-compiled (iOS SDK, on macOS) | dynamic `*.dylib` + `include/`, no binaries |
 | `ios-sim-arm64` | iOS simulator (Apple Silicon) | Cross-compiled (simulator SDK) | dynamic `*.dylib` + `include/` (lean slice) |
 
-Each RID is built in 4 license cells: `{rid}-{gplv3,gplv2,lgplv3,lgplv2}` (12 RIDs × 4 = 48 build
+Each RID is built in 4 license cells: `{rid}-{gplv3,gplv2,lgplv3,lgplv2}` (13 RIDs × 4 = 52 build
 jobs). The two axes are **family** — `gpl` (`--enable-gpl`, includes x264 + x265) vs `lgpl`
 (`--disable-gpl`, kvazaar for HEVC, no x264/x265) — and **version** — `v3` (`--enable-version3`,
 may link Apache-2.0 deps like OpenSSL and Vulkan) vs `v2` (GPLv2 / LGPLv2.1, no `--enable-version3`,
@@ -81,8 +82,9 @@ too old for the C++ deps). The bare image is provisioned at build time by `03_in
 (its `BUILD_CONTAINER=manylinux` branch: dnf toolchain + meson from a bundled CPython + patchelf
 0.18 + glslc from source), so nothing is baked into an image. `checkout`/test/upload stay on the
 host, so the test step also proves the low-floor binary runs on the runner's newer glibc. Every
-other target keeps its runner (`linux-armhf`/`win-x64`(build)/`android` on Ubuntu, `linux-musl`
-in an Alpine container, `osx`/`ios` on macOS).
+other target keeps its runner (`linux-armhf`/`win-x64`/`win-arm64`(build)/`android` on Ubuntu,
+`linux-musl` in an Alpine container, `osx`/`ios` on macOS). Windows *tests* run natively on
+Windows runners — `win-arm64` on `windows-11-arm`, so the ARM64 binaries are actually executed.
 
 **Why cross-compile Windows from Linux?** `win-x64` is built with the mingw-w64 toolchain on a
 Linux runner — the same approach the upstream FFmpeg project and every major FFmpeg build
@@ -90,6 +92,20 @@ service use. It keeps Linux + Windows + Android on one host and one build script
 nothing: Media Foundation, D3D11VA/DXVA2, AMF, NVENC and QSV all compile against the mingw-w64
 SDK headers. MSVC consumers are handled by generating a COFF import library (`.lib`) per DLL
 via `gendef` + `llvm-dlltool`, so a Visual Studio / CMake project links the DLLs directly.
+
+**Why `win-arm64` uses llvm-mingw, not mingw-w64.** mingw-w64 ships no aarch64 GCC, so the
+ARM64 target is cross-compiled with [llvm-mingw](https://github.com/mstorsjo/llvm-mingw)
+(clang + compiler-rt + libc++) — pinned in `deps.json` and fetched in
+`03_install_packages.sh`. Practical consequences, all handled in `platform/windows.sh`:
+- The C++ runtime is **libc++**, not libstdc++. Deps advertise `-lc++` in their `.pc` files,
+  and a bare `-lc++`/`-lunwind`/`-lpthread` resolves to a *shared* import library. Those are
+  rewritten to `-l:libc++.a` / `-l:libunwind.a` / `-l:libwinpthread.a` in
+  `07_build_ffmpeg.sh`, because `-static-libgcc`/`-static-libstdc++` are ignored on `-shared`
+  links and the resulting DLL imports would not exist on the target machine.
+- `CXX_RT_LIB` carries the C++ runtime for dep probes: FFmpeg's `configure` link tests run
+  through the **C** driver, which adds no C++ runtime of its own.
+- No CUDA/NVENC/NVDEC/AMF/libvpl (no ARM64 SDKs); d3d11va, dxva2, MediaFoundation and
+  SChannel are all kept. SVT-AV1 is off and whisper uses the CPU backend.
 
 **Delivery format:**
 - **Desktop** — flat runtime tarball: binaries, shared libraries, and `legal/` only (no
@@ -156,7 +172,7 @@ The unified build script (`scripts/build.sh`) accepts environment variables:
 
 | Variable | Required | Default | Values |
 |---|---|---|---|
-| `BUILD_RID` | Yes | — | `linux-x64`, `linux-arm64`, `linux-armhf`, `linux-musl-x64`, `linux-musl-arm64`, `win-x64`, `osx-x64`, `osx-arm64`, `android-arm64`, `android-x64`, `ios-arm64`, `ios-sim-arm64` |
+| `BUILD_RID` | Yes | — | `linux-x64`, `linux-arm64`, `linux-armhf`, `linux-musl-x64`, `linux-musl-arm64`, `win-x64`, `win-arm64`, `osx-x64`, `osx-arm64`, `android-arm64`, `android-x64`, `ios-arm64`, `ios-sim-arm64` |
 | `BUILD_LICENSE` | No | `lgpl` | `lgpl`, `gpl` — family (`--disable-gpl` vs `--enable-gpl`) |
 | `BUILD_LICENSE_VERSION` | No | `3` | `3` (`--enable-version3`) or `2` (GPLv2 / LGPLv2.1, no version3) |
 | `ANDROID_NDK_HOME` | for `android-*` | — | path to the Android NDK (r26+) |
@@ -340,7 +356,7 @@ additions broke CI, usually only on one platform.
    - **⚠ `set -e` footgun:** a bare `[ test ] && cmd` as the *last* line of a sourced script
      aborts the whole build when the test is false. Use `if … fi`.
    - **⚠ C++ libraries** self-supply the runtime (pkg-config doesn't): append `-lstdc++`
-     (GNU/mingw) / `-lc++` (apple, android) to `EXTRA_LIBS`, plus `-llog` on android if the lib
+     (GNU/mingw-w64) / `-lc++` (apple, android) / `-l:libc++.a` (win-arm64, via `CXX_RT_LIB`) to `EXTRA_LIBS`, plus `-llog` on android if the lib
      calls Android logging (libjxl did). See `libjxl.sh`/`libvmaf.sh`.
    - **⚠ Cross `find_library`:** if the lib locates *other* built deps via CMake `find_package`,
      add `-DCMAKE_FIND_ROOT_PATH="${DEPS_DIR}"` — the NDK toolchain (unlike win/armhf/ios) omits it.
@@ -379,7 +395,8 @@ additions broke CI, usually only on one platform.
 8. **Vet locally on ALL cross-compilable platforms before the PR.** CI rounds are ~2.5h; local
    cross builds catch the platform breaks in ~30-60 min. Build **linux-x64, linux-arm64,
    linux-musl-x64 (Alpine — genuinely different), linux-musl-arm64, linux-armhf, win-x64,
-   android-arm64, android-x64** — not just linux-x64. Only **osx/ios** need a macOS runner.
+   win-arm64, android-arm64, android-x64** — not just linux-x64. Only **osx/ios** need
+   a macOS runner.
    Done = the lib compiles on every buildable
    cell and FFmpeg's `config.h` shows `CONFIG_MYLIB=1` (a lib that fails to link is silently
    autodetect-disabled). Local-env notes: the harness lives in the **Ubuntu-24.04** WSL distro
@@ -455,14 +472,19 @@ clone the wrong thing. `bash scripts/deps/ledger-validate.sh` checks the ledger'
 
 - **Automatically:** self-hosted **Renovate** ([`renovate.json`](renovate.json) +
   [`.github/workflows/renovate.yml`](.github/workflows/renovate.yml)) watches, weekly:
-  - the `defaults` block of `deps.json` (scoped there only — it never edits an override, a commit
-    pin like x264/amf, or a tarball dep like gmp/libmp3lame), and
+  - every dependency in the `defaults` block of `deps.json` — tag pins via git-tags, tarball deps
+    with no git remote (gmp, libmp3lame, libgsm, opencore-amr, vo-amrwbenc) via a custom datasource
+    reading the upstream release listing, and commit pins (x264, amf) as git-refs digests against
+    the branch recorded in `digestBranch`. Scoped to `defaults` only: it never edits an **override**,
+    which is where a deliberate platform hold like x265-on-ARM64 lives, and
   - each **FFmpeg** line in the `.ffmpeg` list in `deps.json`, constrained to **its own major**
     — any newer release within the major, patch or minor alike (9.0.1 → 9.0.2 → 9.1.0), never a
     cross-major jump (9.x → 10.x).
 
-  It batches all of these — libraries **and** FFmpeg point bumps — into **one grouped PR** per run
-  (major *library* bumps stay separate for individual review). CI builds that PR across every
+  It batches all of these — libraries **and** FFmpeg point bumps, major/minor/patch/digest alike —
+  into **one grouped PR** per run. Majors used to be split out for individual review, but every
+  update edits `deps.json`, so concurrent PRs only conflict; hold a specific major back by pinning
+  it in `overrides` with a tracking issue instead.
   affected line before you merge. Workflow **actions** are handled separately by **Dependabot**
   ([`.github/dependabot.yml`](.github/dependabot.yml)); Renovate never touches them.
 - **A new FFmpeg major line** (e.g. 10.0) is the one thing Renovate can't do — it edits

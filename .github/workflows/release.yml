@@ -223,8 +223,14 @@ jobs:
               ;;
             osx-*)
               cp "${SRC}"/*.dylib "${SRC}/ffmpeg" "${SRC}/ffprobe" "${RUN}/"
+              # MoltenVK_icd.json is staged by 08_stage_artifacts.sh and docs/install/macos.md tells
+              # users to point VK_ICD_FILENAMES at it, but it was never copied into the runtime
+              # tarball -- the documented Vulkan setup was impossible with what actually shipped.
+              if [ -f "${SRC}/MoltenVK_icd.json" ]; then cp "${SRC}/MoltenVK_icd.json" "${RUN}/"; fi
               ( cd "${RUN}" && relink_dylib )
               mkdir -p "${DEV}/include"; cp -r "${SRC}/include/." "${DEV}/include/"
+              # pkg-config files are the standard integration path and belong with the headers.
+              if [ -d "${SRC}/lib/pkgconfig" ]; then mkdir -p "${DEV}/lib"; cp -r "${SRC}/lib/pkgconfig" "${DEV}/lib/"; fi
               ;;
             android-*)
               # Link-only: headers + libs belong together, no runtime/dev split.
@@ -236,13 +242,40 @@ jobs:
               cp "${SRC}"/*.so* "${SRC}/ffmpeg" "${SRC}/ffprobe" "${RUN}/"
               ( cd "${RUN}" && relink_so )
               mkdir -p "${DEV}/include"; cp -r "${SRC}/include/." "${DEV}/include/"
+              # pkg-config files are the standard integration path and belong with the headers.
+              if [ -d "${SRC}/lib/pkgconfig" ]; then mkdir -p "${DEV}/lib"; cp -r "${SRC}/lib/pkgconfig" "${DEV}/lib/"; fi
               ;;
           esac
           if [ -d "${SRC}/legal" ]; then
             cp -r "${SRC}/legal" "${RUN}/legal"
             [ -d "${DEV}" ] && [ -n "$(ls -A "${DEV}" 2>/dev/null)" ] && cp -r "${SRC}/legal" "${DEV}/legal"
           fi
+          # actions/upload-artifact does NOT preserve the executable bit, so the downloaded tree
+          # has ffmpeg/ffprobe at 0644. test.yml re-chmods before testing, which hid this; the
+          # release step did not, so every published Linux/macOS tarball shipped a CLI the user
+          # could not run ("Permission denied", exit 126). Restore it before packaging.
+          case "${VARIANT}" in
+            win-*|android-*|ios-*) ;;
+            *) for _b in ffmpeg ffprobe; do if [ -f "${RUN}/${_b}" ]; then chmod 0755 "${RUN}/${_b}"; fi; done ;;
+          esac
           tar -czf "ffmpeg-${VERSION}-${VARIANT}.tar.gz" -C "${RUN}" .
+
+          # Verify the ARCHIVE, not the staging tree. Every other check in CI inspects the
+          # pre-release native/ directory, so a defect introduced by packaging itself -- a lost
+          # permission bit, a file that never got copied -- reaches users unseen.
+          case "${VARIANT}" in
+            win-*|android-*|ios-*) ;;
+            *)
+              _v="$(mktemp -d)"; tar -xzf "ffmpeg-${VERSION}-${VARIANT}.tar.gz" -C "${_v}"
+              for _b in ffmpeg ffprobe; do
+                [ -x "${_v}/${_b}" ] || { echo "ERROR: ${_b} not executable inside ffmpeg-${VERSION}-${VARIANT}.tar.gz" >&2; exit 1; }
+              done
+              if [ "${VARIANT#osx-}" != "${VARIANT}" ] && [ -f "${SRC}/MoltenVK_icd.json" ] && [ ! -f "${_v}/MoltenVK_icd.json" ]; then
+                echo "ERROR: MoltenVK_icd.json was staged but is missing from the tarball" >&2; exit 1
+              fi
+              rm -rf "${_v}"
+              ;;
+          esac
           if [ -n "$(ls -A "${DEV}" 2>/dev/null)" ]; then
             tar -czf "ffmpeg-${VERSION}-${VARIANT}-dev.tar.gz" -C "${DEV}" .
           fi
@@ -308,8 +341,19 @@ jobs:
             --clobber \
             --repo "${{ github.repository }}"
 
-  # Aggregate checksum manifest — one signed-by-the-release file covering every asset, so a
-  # downstream packager or mirror verifies once instead of making an API call per asset.
+  # Aggregate checksum manifest — one file covering every asset, so a downstream packager or
+  # mirror verifies once instead of making an API call per asset.
+  #
+  # This is an INTEGRITY check, not an authenticity one, and is deliberately NOT described as
+  # "signed": the manifest sits beside the artifacts and is fetched from the same place under
+  # the same trust, so whoever could replace a tarball could replace this too. It catches
+  # truncated/corrupted downloads and lets a consumer pin what they built against and notice
+  # if an asset later changes. It does NOT establish that we published it — that needs a
+  # signature anchored elsewhere (e.g. actions/attest-build-provenance).
+  #
+  # Digests come from the release API per-asset `digest`, i.e. what GitHub computed from the
+  # bytes it stored, rather than being hashed here. That verifies the upload round-trip
+  # cheaply, but nothing in this repo independently hashes the artifact.
   # Gated on BOTH publish jobs so every asset exists before the release is enumerated.
   manifest:
     needs: [prepare, publish, publish-ios]

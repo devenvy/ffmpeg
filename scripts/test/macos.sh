@@ -31,6 +31,14 @@ esac
 check_config "--enable-whisper" "Whisper ASR filter"
 check_tls
 check_license_boundary
+check_pkgconfig "${DIR}"
+
+# Same reasoning as linux.sh: the -dev archive is otherwise entirely unverified.
+if [ -d "${DIR}/include" ]; then
+  check_smoke_link "clang" "${DIR}/include" "$(mktemp -d)/smoke"     -L "${DIR}" -lavformat -lavcodec -lavfilter -lavutil -lswscale -lswresample
+else
+  fail "no include/ in the artifact — the -dev archive would ship empty"
+fi
 
 FFMPEG="${DIR}/ffmpeg"; FFPROBE="${DIR}/ffprobe"; export FFMPEG FFPROBE  # consumed by run_functional (sourced lib.sh)
 export DYLD_LIBRARY_PATH="${DIR}${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"

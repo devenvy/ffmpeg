@@ -1,15 +1,23 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["config:recommended"],
+  "extends": [
+    "config:recommended"
+  ],
   "onboarding": false,
-  "enabledManagers": ["custom.regex"],
+  "enabledManagers": [
+    "custom.regex"
+  ],
   "dependencyDashboard": true,
-  "labels": ["dependencies"],
+  "labels": [
+    "dependencies"
+  ],
   "customManagers": [
     {
       "customType": "regex",
-      "description": "Bump the DEFAULTS block of the dependency ledger (deps.json). The recursive first matchString scopes extraction to defaults only — the overrides block (per-version / per-platform holds) is deliberately outside the region, so Renovate never touches a pinned hold. Only tag-pinned entries with a datasource are matched; commit pins (x264, amf) and tarball deps (gmp, libmp3lame) are hand-managed.",
-      "managerFilePatterns": ["/^deps\\.json$/"],
+      "description": "Bump the DEFAULTS block of the dependency ledger (deps.json). The recursive first matchString scopes extraction to defaults only — the overrides block (per-version / per-platform holds) is deliberately outside the region, so Renovate never touches a pinned hold. Only tag-pinned entries with a datasource are matched; commit pins (x264, amf) and tarball deps (gmp, libmp3lame, libgsm, opencore-amr, vo-amrwbenc) are picked up by the dedicated managers below instead, so every ledger dep is tracked by exactly one manager -- asserted by scripts/ci/renovate-coverage-test.sh.",
+      "managerFilePatterns": [
+        "/^deps\\.json$/"
+      ],
       "matchStringsStrategy": "recursive",
       "matchStrings": [
         "\"defaults\"\\s*:\\s*\\{([\\s\\S]*?)\\}\\s*,\\s*\"overrides\"",
@@ -20,7 +28,9 @@
     {
       "customType": "regex",
       "description": "Track FFmpeg point releases listed in the .ffmpeg array of deps.json (one entry per maintained major line, e.g. 8.1.2). The recursive first matchString scopes extraction to the .ffmpeg array only; FFmpeg's upstream tags are n<version> (stripped via extractVersion).",
-      "managerFilePatterns": ["/^deps\\.json$/"],
+      "managerFilePatterns": [
+        "/^deps\\.json$/"
+      ],
       "matchStringsStrategy": "recursive",
       "matchStrings": [
         "\"ffmpeg\"\\s*:\\s*\\[([\\s\\S]*?)\\]",
@@ -30,20 +40,126 @@
       "packageNameTemplate": "https://github.com/FFmpeg/FFmpeg.git",
       "datasourceTemplate": "git-tags",
       "extractVersionTemplate": "^n(?<version>.+)$"
+    },
+    {
+      "customType": "regex",
+      "description": "Deps pinned to a reviewed commit rather than a tag (x264 publishes no release tags; amf is held off-tag per issue #7). Tracked as git-refs digests against the branch the pin actually follows -- x264's pin is stable, not master, so a HEAD assumption would have offered commits off the wrong branch. The key is digestBranch, NOT branch: the ledger treats tag/branch/commit as mutually exclusive ref types (scripts/deps/lib.sh picks the first one present), so a second ref key would fail ledger-validate and could change which ref actually gets built.",
+      "managerFilePatterns": [
+        "/^deps\\.json$/"
+      ],
+      "matchStringsStrategy": "recursive",
+      "matchStrings": [
+        "\"defaults\"\\s*:\\s*\\{([\\s\\S]*?)\\}\\s*,\\s*\"overrides\"",
+        "\"(?<depName>[A-Za-z0-9._-]+)\"\\s*:\\s*\\{\\s*\"origin\"\\s*:\\s*\"(?<packageName>https?://[^\"]+)\"\\s*,\\s*\"commit\"\\s*:\\s*\"(?<currentDigest>[0-9a-f]{40})\"\\s*,\\s*\"digestBranch\"\\s*:\\s*\"(?<currentValue>[^\"]+)\""
+      ],
+      "datasourceTemplate": "git-refs"
+    },
+    {
+      "customType": "regex",
+      "description": "gmp: no git remote, so versions come from the upstream release listing via the html custom datasource. The extractVersion is anchored to gmp's OWN artifact name -- an html listing exposes every link on the page, so a shape-only pattern would accept an unrelated project's archive that happens to sit on a shared listing (SourceForge hosts opencore-amr and vo-amrwbenc under one project). Numeric-dot only: 'loose' records a trailing suffix as suffix rather than prerelease, so a future 3.102beta would otherwise rank as stable.",
+      "managerFilePatterns": [
+        "/^deps\\.json$/"
+      ],
+      "matchStringsStrategy": "recursive",
+      "matchStrings": [
+        "\"defaults\"\\s*:\\s*\\{([\\s\\S]*?)\\}\\s*,\\s*\"overrides\"",
+        "\"(?<depName>gmp)\"\\s*:\\s*\\{\\s*\"origin\"\\s*:\\s*\"[^\"]+\"\\s*,\\s*\"tag\"\\s*:\\s*\"(?<currentValue>[^\"]+)\"\\s*,\\s*\"releasesUrl\"\\s*:\\s*\"(?<registryUrl>[^\"]+)\"\\s*,\\s*\"releasesStyle\"\\s*:\\s*\"tarball\""
+      ],
+      "datasourceTemplate": "custom.tarball-listing",
+      "versioningTemplate": "loose",
+      "extractVersionTemplate": "gmp-(?<version>[0-9]+(?:\\.[0-9]+)*)\\.tar\\.(?:gz|xz|bz2)(?:/|$)"
+    },
+    {
+      "customType": "regex",
+      "description": "libgsm: no git remote, so versions come from the upstream release listing via the html custom datasource. The extractVersion is anchored to libgsm's OWN artifact name -- an html listing exposes every link on the page, so a shape-only pattern would accept an unrelated project's archive that happens to sit on a shared listing (SourceForge hosts opencore-amr and vo-amrwbenc under one project). Numeric-dot only: 'loose' records a trailing suffix as suffix rather than prerelease, so a future 3.102beta would otherwise rank as stable.",
+      "managerFilePatterns": [
+        "/^deps\\.json$/"
+      ],
+      "matchStringsStrategy": "recursive",
+      "matchStrings": [
+        "\"defaults\"\\s*:\\s*\\{([\\s\\S]*?)\\}\\s*,\\s*\"overrides\"",
+        "\"(?<depName>libgsm)\"\\s*:\\s*\\{\\s*\"origin\"\\s*:\\s*\"[^\"]+\"\\s*,\\s*\"tag\"\\s*:\\s*\"(?<currentValue>[^\"]+)\"\\s*,\\s*\"releasesUrl\"\\s*:\\s*\"(?<registryUrl>[^\"]+)\"\\s*,\\s*\"releasesStyle\"\\s*:\\s*\"tarball\""
+      ],
+      "datasourceTemplate": "custom.tarball-listing",
+      "versioningTemplate": "loose",
+      "extractVersionTemplate": "gsm-(?<version>[0-9]+(?:\\.[0-9]+)*)\\.tar\\.(?:gz|xz|bz2)(?:/|$)"
+    },
+    {
+      "customType": "regex",
+      "description": "opencore-amr: no git remote, so versions come from the upstream release listing via the html custom datasource. The extractVersion is anchored to opencore-amr's OWN artifact name -- an html listing exposes every link on the page, so a shape-only pattern would accept an unrelated project's archive that happens to sit on a shared listing (SourceForge hosts opencore-amr and vo-amrwbenc under one project). Numeric-dot only: 'loose' records a trailing suffix as suffix rather than prerelease, so a future 3.102beta would otherwise rank as stable.",
+      "managerFilePatterns": [
+        "/^deps\\.json$/"
+      ],
+      "matchStringsStrategy": "recursive",
+      "matchStrings": [
+        "\"defaults\"\\s*:\\s*\\{([\\s\\S]*?)\\}\\s*,\\s*\"overrides\"",
+        "\"(?<depName>opencore-amr)\"\\s*:\\s*\\{\\s*\"origin\"\\s*:\\s*\"[^\"]+\"\\s*,\\s*\"tag\"\\s*:\\s*\"(?<currentValue>[^\"]+)\"\\s*,\\s*\"releasesUrl\"\\s*:\\s*\"(?<registryUrl>[^\"]+)\"\\s*,\\s*\"releasesStyle\"\\s*:\\s*\"tarball\""
+      ],
+      "datasourceTemplate": "custom.tarball-listing",
+      "versioningTemplate": "loose",
+      "extractVersionTemplate": "opencore-amr-(?<version>[0-9]+(?:\\.[0-9]+)*)\\.tar\\.(?:gz|xz|bz2)(?:/|$)"
+    },
+    {
+      "customType": "regex",
+      "description": "vo-amrwbenc: no git remote, so versions come from the upstream release listing via the html custom datasource. The extractVersion is anchored to vo-amrwbenc's OWN artifact name -- an html listing exposes every link on the page, so a shape-only pattern would accept an unrelated project's archive that happens to sit on a shared listing (SourceForge hosts opencore-amr and vo-amrwbenc under one project). Numeric-dot only: 'loose' records a trailing suffix as suffix rather than prerelease, so a future 3.102beta would otherwise rank as stable.",
+      "managerFilePatterns": [
+        "/^deps\\.json$/"
+      ],
+      "matchStringsStrategy": "recursive",
+      "matchStrings": [
+        "\"defaults\"\\s*:\\s*\\{([\\s\\S]*?)\\}\\s*,\\s*\"overrides\"",
+        "\"(?<depName>vo-amrwbenc)\"\\s*:\\s*\\{\\s*\"origin\"\\s*:\\s*\"[^\"]+\"\\s*,\\s*\"tag\"\\s*:\\s*\"(?<currentValue>[^\"]+)\"\\s*,\\s*\"releasesUrl\"\\s*:\\s*\"(?<registryUrl>[^\"]+)\"\\s*,\\s*\"releasesStyle\"\\s*:\\s*\"tarball\""
+      ],
+      "datasourceTemplate": "custom.tarball-listing",
+      "versioningTemplate": "loose",
+      "extractVersionTemplate": "vo-amrwbenc-(?<version>[0-9]+(?:\\.[0-9]+)*)\\.tar\\.(?:gz|xz|bz2)(?:/|$)"
+    },
+    {
+      "customType": "regex",
+      "description": "libmp3lame: no git remote, so versions come from the upstream release listing via the html custom datasource. The extractVersion is anchored to libmp3lame's OWN artifact name -- an html listing exposes every link on the page, so a shape-only pattern would accept an unrelated project's archive that happens to sit on a shared listing (SourceForge hosts opencore-amr and vo-amrwbenc under one project). Numeric-dot only: 'loose' records a trailing suffix as suffix rather than prerelease, so a future 3.102beta would otherwise rank as stable.",
+      "managerFilePatterns": [
+        "/^deps\\.json$/"
+      ],
+      "matchStringsStrategy": "recursive",
+      "matchStrings": [
+        "\"defaults\"\\s*:\\s*\\{([\\s\\S]*?)\\}\\s*,\\s*\"overrides\"",
+        "\"(?<depName>libmp3lame)\"\\s*:\\s*\\{\\s*\"origin\"\\s*:\\s*\"[^\"]+\"\\s*,\\s*\"tag\"\\s*:\\s*\"(?<currentValue>[^\"]+)\"\\s*,\\s*\"releasesUrl\"\\s*:\\s*\"(?<registryUrl>[^\"]+)\"\\s*,\\s*\"releasesStyle\"\\s*:\\s*\"directory\""
+      ],
+      "datasourceTemplate": "custom.tarball-listing",
+      "versioningTemplate": "loose",
+      "extractVersionTemplate": "/files/lame/(?<version>[0-9]+(?:\\.[0-9]+)*)/"
+    },
+    {
+      "customType": "regex",
+      "description": "Pinning the ACTION (renovatebot/github-action) does not pin Renovate itself: the action's default renovate-version pulls a moving major tag, so the tool that maintains every other pin was itself unpinned and untracked. renovate.yml now pins a full version and this manager keeps it updated from the published container tags.",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/renovate\\.yml$/"
+      ],
+      "matchStrings": [
+        "renovate-version:\\s*'?(?<currentValue>[0-9]+\\.[0-9]+\\.[0-9]+)'?"
+      ],
+      "datasourceTemplate": "docker",
+      "depNameTemplate": "renovate/renovate",
+      "versioningTemplate": "semver"
     }
   ],
   "packageRules": [
     {
       "description": "Group all ledger dependency bumps under a clear prefix so CI (build + docs-matrix) validates each PR against every FFmpeg line before merge.",
-      "matchManagers": ["custom.regex"],
+      "matchManagers": [
+        "custom.regex"
+      ],
       "commitMessagePrefix": "chore(deps):",
       "semanticCommits": "disabled"
     },
     {
-      "description": "Keep review load low: batch routine (non-major) dependency bumps into ONE grouped PR per run instead of one PR per dep — so a quiet-to-busy week is a single PR + a single CI run to review and merge. MAJOR bumps are deliberately left ungrouped so each gets its own PR and individual scrutiny (they're the risky ones, e.g. an API-breaking codec major like x265 3->4). To go back to a PR per dep, delete this rule.",
-      "matchManagers": ["custom.regex"],
-      "matchUpdateTypes": ["minor", "patch", "digest"],
-      "groupName": "FFmpeg + library dependencies"
+      "description": "Batch EVERY ledger update -- major, minor, patch and digest alike -- into ONE grouped PR per run. Majors used to be left ungrouped so each got individual scrutiny, but every one of these updates edits deps.json, so concurrent PRs conflict with each other and the conflict resolution costs more than the separate review buys. One PR means one deps.json to reason about and one CI run (build + docs-matrix) validating the whole set against every FFmpeg line. A major that needs to be held back can be split out by pinning it in .overrides with a tracking issue, the same as x265.",
+      "matchManagers": [
+        "custom.regex"
+      ],
+      "groupName": "FFmpeg + library dependencies",
+      "separateMajorMinor": false,
+      "separateMinorPatch": false
     },
     {
       "description": "Vulkan-Headers/Loader + SPIRV-Headers ship in lockstep on vulkan-sdk-* release tags (the ledger pins the same SDK version across all three). Each repo ALSO carries a parallel v1.4.x tag scheme; restrict Renovate to the vulkan-sdk-* versioning so it can't cross namespaces or desync the trio (which it otherwise would — it proposed v1.4.360 for Loader+SPIRV but not Headers).",
@@ -56,14 +172,32 @@
     },
     {
       "description": "Constrain each FFmpeg line to its own MAJOR: Renovate offers any newer release within the major — patch or minor alike (9.0.1 -> 9.0.2 -> 9.1.0) — but never a cross-major jump (9.x -> 10.x). One rule per maintained major; matchCurrentVersion scopes it to the line at that major, allowedVersions filters candidates to that major. A NEW major is a new line that check-updates.yml adds (with its matching rule).",
-      "matchPackageNames": ["https://github.com/FFmpeg/FFmpeg.git"],
+      "matchPackageNames": [
+        "https://github.com/FFmpeg/FFmpeg.git"
+      ],
       "matchCurrentVersion": "/^8\\./",
       "allowedVersions": "/^8\\./"
     },
     {
-      "matchPackageNames": ["https://github.com/FFmpeg/FFmpeg.git"],
+      "matchPackageNames": [
+        "https://github.com/FFmpeg/FFmpeg.git"
+      ],
       "matchCurrentVersion": "/^9\\./",
       "allowedVersions": "/^9\\./"
+    },
+    {
+      "description": "Hold mbedTLS on 3.x. FFmpeg's libavformat/tls_mbedtls.c includes <mbedtls/ctr_drbg.h> and <mbedtls/entropy.h> and calls mbedtls_ctr_drbg_seed/mbedtls_entropy_init/mbedtls_entropy_func unconditionally, with no version guard; mbedTLS 4.x removed those headers when that work moved to PSA Crypto, so 4.x cannot compile against any FFmpeg line we ship. Without this the grouped PR would be permanently red on an impossible bump, which is worse than not offering it. Remove once FFmpeg's mbedTLS backend supports 4.x. Tracked in issue #18.",
+      "matchPackageNames": [
+        "https://github.com/Mbed-TLS/mbedtls.git"
+      ],
+      "allowedVersions": "<4.0.0"
     }
-  ]
+  ],
+  "customDatasources": {
+    "tarball-listing": {
+      "description": "Upstream release listing for deps that ship as a plain tarball with no git remote (GNU FTP, SourceForge, quut.com). format:html makes Renovate return every <a href> on the page verbatim; the manager's extractVersion then pulls the version out of whichever shape that site uses.",
+      "defaultRegistryUrlTemplate": "https://example.invalid/",
+      "format": "html"
+    }
+  }
 }

@@ -58,12 +58,75 @@ audit_runtime_dll_imports
 n_lib=$(ls "${DIR}"/lib/*.lib 2>/dev/null | wc -l)
 [ "$n_lib" -ge 6 ] && pass "MSVC import libs present (${n_lib} .lib)" || fail "missing .lib import libs (found ${n_lib})"
 
+# Counting the .lib files is not enough: they are well-formed COFF either way, so a
+# wrong -m on llvm-dlltool produces x64 import libraries inside the ARM64 dev archive
+# and link.exe rejects them only once a consumer tries to build. Assert the machine
+# type matches the RID instead.
+audit_import_lib_arch() {
+  local want f m bad=""
+  case "$RID" in
+    win-x64)   want="IMAGE_FILE_MACHINE_AMD64" ;;
+    win-arm64) want="IMAGE_FILE_MACHINE_ARM64" ;;
+    *) return ;;
+  esac
+  command -v llvm-readobj >/dev/null 2>&1 || { info "llvm-readobj unavailable — skipping import-lib arch audit"; return; }
+  for f in "${DIR}"/lib/*.lib; do
+    [ -f "$f" ] || continue
+    m="$(llvm-readobj --file-headers "$f" 2>/dev/null | grep -m1 -oE 'IMAGE_FILE_MACHINE_[A-Z0-9]+')"
+    [ "$m" = "$want" ] || bad="${bad} $(basename "$f")=${m:-unknown}"
+  done
+  if [ -z "$bad" ]; then
+    pass "MSVC import libs are ${want}"
+  else
+    fail "MSVC import libs have the wrong machine type (want ${want}):${bad}"
+  fi
+}
+audit_import_lib_arch
+
+# The -dev archive (include/ + lib/*.lib) is what MSVC/CMake consumers build against, and
+# nothing used to compile or link against it -- mobile ran this check, desktop did not,
+# which is how a wrong-architecture import library shipped. Build smoke.c against the
+# SHIPPED headers and link it against the SHIPPED import libraries, the way a consumer
+# will. clang targeting MSVC drives lld-link and honours the .lib machine type, so an x64
+# lib inside an ARM64 archive fails here with "machine type x64 conflicts".
+case "$RID" in
+  win-x64)   SMOKE_TRIPLE="x86_64-pc-windows-msvc" ;;
+  win-arm64) SMOKE_TRIPLE="aarch64-pc-windows-msvc" ;;
+  *)         SMOKE_TRIPLE="" ;;
+esac
+if [ ! -d "${DIR}/include" ]; then
+  fail "no include/ in the artifact -- the -dev archive would ship empty"
+elif [ -n "${SMOKE_TRIPLE}" ]; then
+  SMOKE_LIBS=()
+  for _b in avformat avcodec avfilter avutil swscale swresample; do
+    [ -f "${DIR}/lib/${_b}.lib" ] && SMOKE_LIBS+=("${DIR}/lib/${_b}.lib")
+  done
+  if [ "${#SMOKE_LIBS[@]}" -eq 0 ]; then
+    fail "no .lib import libraries to link a consumer against"
+  else
+    # Pre-flight: the msvc triple needs a discoverable Visual Studio installation for the
+    # CRT headers. It is present on the GitHub Windows images, but a missing/undiscoverable
+    # one is an ENVIRONMENT problem, not a defect in the artifact -- degrade to a skip so it
+    # cannot redden the build. audit_import_lib_arch above still runs unconditionally and
+    # catches the wrong-architecture case on its own.
+    _pf="$(mktemp -d)"; printf 'int main(void){return 0;}
+' > "${_pf}/pf.c"
+    if clang --target="${SMOKE_TRIPLE}" "${_pf}/pf.c" -o "${_pf}/pf.exe" >/dev/null 2>&1; then
+      check_smoke_link "clang --target=${SMOKE_TRIPLE}" "${DIR}/include" "${_pf}/smoke.exe" "${SMOKE_LIBS[@]}"
+    else
+      info "no usable ${SMOKE_TRIPLE} toolchain (Visual Studio CRT not discoverable) — skipping consumer link test"
+    fi
+    rm -rf "${_pf}"
+  fi
+fi
+
 load_config_string "${DIR}"/avcodec-*.dll "${DIR}"/avutil-*.dll
 check_config "--enable-whisper" "Whisper ASR filter"
 check_config "--enable-mediafoundation" "MediaFoundation"
 check_config "--enable-d3d11va" "D3D11VA"
 check_tls
 check_license_boundary
+check_pkgconfig "${DIR}"
 
 FFMPEG="$(ls "${DIR}"/ffmpeg.exe 2>/dev/null)"; FFPROBE="$(ls "${DIR}"/ffprobe.exe 2>/dev/null)"; export FFMPEG FFPROBE  # consumed by run_functional (sourced lib.sh)
 if [[ "${OS:-}" == "Windows_NT" ]]; then

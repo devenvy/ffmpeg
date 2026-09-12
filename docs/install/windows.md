@@ -24,7 +24,7 @@ $env:PATH = "C:\opt\ffmpeg;$env:PATH"
 ```
 
 DLLs and executables are in the same directory — Windows finds DLLs automatically. To *link*
-the DLLs from an MSVC/CMake project, download the separate `…-win-x64-{gplv3,gplv2,lgplv3,lgplv2}-dev.tar.gz`,
+the DLLs from an MSVC/CMake project, download the separate `…-win-{x64,arm64}-{gplv3,gplv2,lgplv3,lgplv2}-dev.tar.gz`,
 which holds the `include/` headers and the `lib/*.lib` MSVC import libraries (see
 [Development headers](./dev-headers.md)).
 

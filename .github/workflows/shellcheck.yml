@@ -86,21 +86,18 @@ jobs:
           sarif_file: shellcheck.sarif
           category: shellcheck
 
-      # To turn ShellCheck into a PR gate later (once the baseline is clean), uncomment:
-      # - name: Fail on findings
-      #   run: |
-      #     set -euo pipefail
-      #     mapfile -t FILES < <(find scripts -name '*.sh' -type f | sort)
-      #     shellcheck -x -S warning "${FILES[@]}"
 
-
-      # Last step on purpose: a narrowed matrix must FAIL the build, but it must not stop the
-      # lint from running. Folding this into the gate step short-circuited shellcheck itself,
-      # so the branch lost lint coverage for the whole vetting period.
-      - name: Refuse to pass while a matrix is temporarily narrowed
+  # Deliberately a SEPARATE job. As a step inside `shellcheck` this reported as
+  # "shellcheck failing", which reads like a lint error and repeatedly sent people looking
+  # for one — there were never any findings. A blocked merge should say so in its own name.
+  matrix-not-narrowed:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Fail if a build matrix is still temporarily narrowed
         run: |
           if grep -rn "TEMP-NARROWED" .github/workflows/; then
-            echo "ERROR: a workflow matrix is still TEMP-NARROWED — restore it before merging." >&2
+            echo "::error::A build matrix is still TEMP-NARROWED — restore the full RID list before merging."
             exit 1
           fi
           echo "ok: no temporarily narrowed matrices"

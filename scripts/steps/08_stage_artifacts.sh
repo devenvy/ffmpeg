@@ -148,9 +148,14 @@ case "${RID}" in
     # Cross-library header includes ("libavutil/…" from a libavcodec header) resolve at consume
     # time because the sibling frameworks are all on the framework search path.
     mkdir -p "${OUT_DIR}/frameworks"
+    # CFBundleSupportedPlatforms / MinimumOSVersion per platform. A Catalyst framework is a
+    # MacOSX-platform bundle, but its MinimumOSVersion is still expressed on the iOS scale
+    # (macabi targets ios14.0), which is what MCAT_TARGET encodes.
     case "${RID}" in
-      ios-arm64)     IOS_PLATFORM=iPhoneOS ;;
-      ios-sim-arm64) IOS_PLATFORM=iPhoneSimulator ;;
+      ios-arm64)      IOS_PLATFORM=iPhoneOS        ; FW_MIN_OS=13.0 ;;
+      ios-sim-arm64)  IOS_PLATFORM=iPhoneSimulator ; FW_MIN_OS=13.0 ;;
+      maccatalyst-*)  IOS_PLATFORM=MacOSX          ; FW_MIN_OS=14.0 ;;
+      *)              echo "ERROR: no framework platform mapping for ${RID}" >&2; exit 1 ;;
     esac
     for base in avcodec avformat avutil avfilter swscale swresample; do
       src="${PREFIX_DIR}/lib/lib${base}.dylib"
@@ -171,7 +176,7 @@ case "${RID}" in
   <key>CFBundlePackageType</key><string>FMWK</string>
   <key>CFBundleShortVersionString</key><string>${FFMPEG_VERSION}</string>
   <key>CFBundleVersion</key><string>${FFMPEG_VERSION}</string>
-  <key>MinimumOSVersion</key><string>13.0</string>
+  <key>MinimumOSVersion</key><string>${FW_MIN_OS}</string>
   <key>CFBundleSupportedPlatforms</key><array><string>${IOS_PLATFORM}</string></array>
 </dict>
 </plist>

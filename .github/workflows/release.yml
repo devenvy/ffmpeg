@@ -313,12 +313,46 @@ jobs:
         with:
           name: ${{ matrix.build.version }}-ios-sim-arm64-${{ matrix.license }}v${{ matrix.license_version }}
           path: artifacts/ios-sim-arm64
+      - uses: actions/download-artifact@v8
+        with:
+          name: ${{ matrix.build.version }}-maccatalyst-arm64-${{ matrix.license }}v${{ matrix.license_version }}
+          path: artifacts/maccatalyst-arm64
+      - uses: actions/download-artifact@v8
+        with:
+          name: ${{ matrix.build.version }}-maccatalyst-x64-${{ matrix.license }}v${{ matrix.license_version }}
+          path: artifacts/maccatalyst-x64
+
+      - name: Fuse the Catalyst frameworks into one universal slice
+        run: |
+          # An .xcframework holds at most one framework per platform+variant, so the two Catalyst
+          # RIDs must be lipo(1)-fused into a single fat binary rather than passed as two separate
+          # -framework arguments (xcodebuild rejects duplicate library identifiers). Everything
+          # else in the bundle -- Headers, Info.plist -- is arch-independent, so take the arm64
+          # copy wholesale and replace only the executable.
+          rm -rf artifacts/maccatalyst
+          cp -R artifacts/maccatalyst-arm64 artifacts/maccatalyst
+          for fwpath in artifacts/maccatalyst/frameworks/*.framework; do
+            name=$(basename "${fwpath}" .framework)
+            lipo -create \
+              "artifacts/maccatalyst-arm64/frameworks/${name}.framework/${name}" \
+              "artifacts/maccatalyst-x64/frameworks/${name}.framework/${name}" \
+              -output "${fwpath}/${name}"
+            # lipo rewrites the binary, so the ad-hoc signature from the build is now stale.
+            codesign --remove-signature "${fwpath}/${name}" 2>/dev/null || true
+            codesign --force --sign - --timestamp=none "${fwpath}/${name}"
+            archs=$(lipo -archs "${fwpath}/${name}")
+            case "${archs}" in
+              *arm64*x86_64*|*x86_64*arm64*) ;;
+              *) echo "ERROR: ${name} Catalyst slice is not universal (got: ${archs})" >&2; exit 1 ;;
+            esac
+          done
 
       - name: Assemble xcframeworks
         run: |
           VERSION="${{ matrix.build.version }}"
           rm -rf bundle && mkdir -p bundle
-          # One .xcframework per libav* library, each bundling the device + simulator .framework.
+          # One .xcframework per libav* library, bundling the iOS device, iOS simulator
+          # and Mac Catalyst (universal arm64 + x86_64) .frameworks.
           # These are dynamic frameworks (iOS is --enable-shared); Xcode embeds + signs them in
           # the consuming app. Dynamic linking is what makes the lgplv2 build LGPLv2.1-compliant
           # (the end user can relink). Headers travel inside each .framework/Headers.
@@ -327,9 +361,35 @@ jobs:
             xcodebuild -create-xcframework \
               -framework "artifacts/ios-arm64/frameworks/${name}.framework" \
               -framework "artifacts/ios-sim-arm64/frameworks/${name}.framework" \
+              -framework "artifacts/maccatalyst/frameworks/${name}.framework" \
               -output "bundle/${name}.xcframework"
+            # Three slices must land: ios-arm64, ios-*-simulator and ios-*-maccatalyst. If Xcode
+            # ever folds two of them together the consumer silently loses a platform, so assert.
+            slices=$(/usr/libexec/PlistBuddy -c "Print :AvailableLibraries" \
+                       "bundle/${name}.xcframework/Info.plist" | grep -c LibraryIdentifier || true)
+            if [ "${slices}" -ne 3 ]; then
+              echo "ERROR: ${name}.xcframework has ${slices} slice(s), expected 3" >&2
+              /usr/libexec/PlistBuddy -c "Print :AvailableLibraries" \
+                "bundle/${name}.xcframework/Info.plist" >&2
+              exit 1
+            fi
           done
+          # Attribution has to cover every binary in the bundle. The iOS device notices stay at the
+          # established path so existing consumers keep working; the simulator slice is the same
+          # license cell built from the same dependency set, so it is covered by them. Mac Catalyst
+          # is a distinct platform arm in scripts/platform/apple.sh with its own dependency set (no
+          # SecureTransport, different Vulkan/Metal choices), so its notices ship alongside rather
+          # than being assumed identical.
           cp -r artifacts/ios-arm64/legal bundle/legal
+          cp -r artifacts/maccatalyst/legal bundle/legal/maccatalyst
+          # Nothing the Catalyst build attributed may be missing from what we ship.
+          for lic in artifacts/maccatalyst/legal/licenses/*; do
+            dep=$(basename "${lic}")
+            if [ ! -d "bundle/legal/maccatalyst/licenses/${dep}" ]; then
+              echo "ERROR: Catalyst license text for ${dep} did not reach the bundle" >&2
+              exit 1
+            fi
+          done
           tar -czf "ffmpeg-${VERSION}-ios-${{ matrix.license }}v${{ matrix.license_version }}.tar.gz" -C bundle .
 
       - name: Upload release asset

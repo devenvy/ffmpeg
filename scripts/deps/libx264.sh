@@ -35,18 +35,26 @@ if [[ "${BUILD_LIBX264}" == "1" ]]; then
     android-x64)
       X264_ARGS+=(--host=x86_64-linux-android --sysroot="${TOOLCHAIN}/sysroot")
       ;;
-    maccatalyst-arm64|maccatalyst-x64)
-      # Same trap as ios-arm64 and the same cure: the platform must reach the ASSEMBLER.
-      # x264 assembles its .S files through ASFLAGS, which does not inherit the exported
-      # CFLAGS, so without --extra-asflags the asm objects are tagged macOS while the C
-      # objects are macabi, and the link fails with
+    maccatalyst-arm64)
+      # arm64 assembles x264's .S files with CLANG, so the platform must reach the assembler
+      # or its objects are tagged macOS and the macabi link refuses to mix them:
       #   ld: building for macCatalyst, but linking in object file (libx264.a(bitstream-a-8.o))
-      # reported by configure as the misleading "x264 not found using pkg-config".
-      # macabi carries arch AND deployment target in one -target triple, so unlike iOS there
-      # is no separate -arch/-m*-version-min to pass.
+      # Same cure as ios-arm64; macabi carries arch and deployment target in one -target.
       X264_ARGS+=(--host="${CROSS_HOST}"
                   --extra-cflags="-target ${MCAT_TARGET} -isysroot ${MCAT_SYSROOT}"
                   --extra-asflags="-target ${MCAT_TARGET} -isysroot ${MCAT_SYSROOT}"
+                  --extra-ldflags="-target ${MCAT_TARGET} -isysroot ${MCAT_SYSROOT}")
+      ;;
+    maccatalyst-x64)
+      # x86_64 assembles with NASM, not clang, so clang flags must NOT go in --extra-asflags.
+      # Passing them made x264's AVX-512 capability probe fail, which it reports as the
+      # thoroughly misleading:
+      #   Found NASM version 3.02 ... Minimum version is nasm-2.13
+      # Nothing to do with the version -- nasm cannot parse -target/-isysroot. NASM emits no
+      # platform load command for Mach-O, so its objects link into a macabi binary without the
+      # tagging problem the arm64 .S files have.
+      X264_ARGS+=(--host="${CROSS_HOST}"
+                  --extra-cflags="-target ${MCAT_TARGET} -isysroot ${MCAT_SYSROOT}"
                   --extra-ldflags="-target ${MCAT_TARGET} -isysroot ${MCAT_SYSROOT}")
       ;;
     ios-arm64)

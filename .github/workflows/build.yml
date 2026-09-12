@@ -23,12 +23,7 @@ jobs:
     strategy:
       fail-fast: ${{ inputs.fail_fast }}
       matrix:
-        # TEMP-NARROWED: Mac Catalyst vetting only. macOS runners are the scarcest in the
-        # matrix, so the full 15-RID sweep is suppressed while the macabi toolchain is being
-        # proven. The line below is the real matrix and MUST be restored before merge; the
-        # TEMP-NARROWED marker makes a CI gate fail, so this cannot go green as-is.
-        # rid: [linux-x64, linux-arm64, linux-armhf, linux-musl-x64, linux-musl-arm64, win-x64, win-arm64, osx-x64, osx-arm64, android-arm64, android-x64, ios-arm64, ios-sim-arm64, maccatalyst-arm64, maccatalyst-x64]
-        rid: [maccatalyst-arm64, maccatalyst-x64]
+        rid: [linux-x64, linux-arm64, linux-armhf, linux-musl-x64, linux-musl-arm64, win-x64, win-arm64, osx-x64, osx-arm64, android-arm64, android-x64, ios-arm64, ios-sim-arm64, maccatalyst-arm64, maccatalyst-x64]
         license: [lgpl, gpl]
         # License version series. 3 = (L)GPLv3 (OpenSSL 3.x TLS + Vulkan on Linux/Android, both
         # Apache-2.0). 2 = LGPLv2.1 / GPLv2 (App-Store-safe): Vulkan dropped everywhere; on
@@ -39,10 +34,40 @@ jobs:
         # Linux/Android ladder (see scripts/platform/apple.sh's Catalyst arm).
         license_version: [3, 2]
         include:
-          # TEMP-NARROWED: the other 13 runner mappings are commented out with the rid list
-          # above. A GitHub matrix `include` entry whose keys do not match an existing
-          # combination ADDS one, so leaving them in filtered nothing -- it created 26
-          # half-configured jobs with an empty license (seen as "(v)" in the job names).
+          - rid: linux-x64
+            runner: ubuntu-latest
+          - rid: linux-arm64
+            runner: ubuntu-24.04-arm
+          - rid: linux-armhf
+            runner: ubuntu-latest
+          - rid: linux-musl-x64
+            runner: ubuntu-latest
+            container: alpine:latest
+          # No container: here (unlike linux-musl-x64) — GitHub only supports
+          # JavaScript actions in Alpine containers on x64 runners, so this RID
+          # instead docker-runs alpine:latest itself in the build step below,
+          # keeping actions/checkout etc. on the host's glibc Node runtime.
+          - rid: linux-musl-arm64
+            runner: ubuntu-24.04-arm
+          - rid: win-x64
+            runner: ubuntu-latest
+          - rid: win-arm64
+            runner: ubuntu-latest
+          - rid: osx-x64
+            runner: macos-15-intel
+          - rid: osx-arm64
+            runner: macos-latest
+          - rid: android-arm64
+            runner: ubuntu-latest
+          - rid: android-x64
+            runner: ubuntu-latest
+          - rid: ios-arm64
+            runner: macos-latest
+          - rid: ios-sim-arm64
+            runner: macos-latest
+          # Catalyst cross-compiles from the macOS SDK, so either runner arch can build either
+          # slice; both use the default. The TEST jobs are the ones that need matching arches,
+          # because Catalyst binaries actually execute (see test-mobile.yml).
           - rid: maccatalyst-arm64
             runner: macos-latest
           - rid: maccatalyst-x64

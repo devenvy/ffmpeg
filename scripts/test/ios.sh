@@ -150,16 +150,26 @@ if command -v xcrun >/dev/null 2>&1; then
     maccatalyst-*) ARCH_FLAG="" ;;
     *)             ARCH_FLAG="-arch arm64" ;;
   esac
-  # Catalyst compiles MoltenVK as the macOS variant (MVK_MACOS covers TARGET_OS_MACCATALYST),
-  # which pulls in MVKDevice.mm's IOKit IORegistry calls. libavutil records IOKit as its own
-  # load command, so this is belt-and-braces for the relink -- but it keeps the smoke link an
-  # honest stand-in for what a consumer links, and iOS genuinely does not need it.
-  MCAT_FW=()
-  case "$RID" in
-    maccatalyst-*) MCAT_FW=(-framework IOKit) ;;
-  esac
   SDK="$(xcrun --sdk "${IOS_SDK}" --show-sdk-path 2>/dev/null)"
   CC="$(xcrun --sdk "${IOS_SDK}" --find clang 2>/dev/null)"
+  # Catalyst extras, all of which need ${SDK} and so must come after it is resolved:
+  #  - IOKit: MoltenVK compiles as its macOS variant on macabi (MVK_MACOS covers
+  #    TARGET_OS_MACCATALYST), pulling in MVKDevice.mm's IORegistry calls.
+  #  - the iOSSupport search paths: UIKit and the other iOS-only frameworks live under the
+  #    macOS SDK's System/iOSSupport subtree, NOT its top-level Frameworks dir. Xcode adds
+  #    these itself; we drive clang directly, so without them the link dies on
+  #    "ld: framework 'UIKit' not found" -- exactly the failure scripts/platform/apple.sh
+  #    already fixes for the build. The test has to resolve it independently because it
+  #    computes its own sysroot rather than inheriting the build's flags.
+  MCAT_FW=()
+  case "$RID" in
+    maccatalyst-*)
+      MCAT_FW=(-framework IOKit
+               -iframework "${SDK}/System/iOSSupport/System/Library/Frameworks"
+               -F "${SDK}/System/iOSSupport/System/Library/Frameworks"
+               -L "${SDK}/System/iOSSupport/usr/lib")
+      ;;
+  esac
   # Dynamic link against the frameworks: the static deps (whisper/ggml, opus, kvazaar, …) are
   # baked INTO each framework's binary, so we link only the libav* frameworks plus the Apple
   # system frameworks/libs they load. -F resolves BOTH the -framework links and smoke.c's

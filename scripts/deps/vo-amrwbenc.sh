@@ -11,7 +11,7 @@ voamr_ver="$(dep_version vo-amrwbenc)"
 echo "Building vo-amrwbenc ${voamr_ver} (static)..."
 cd "${WORK_DIR}" || exit 1
 rm -rf "vo-amrwbenc-${voamr_ver}"
-curl -fsSL --retry 3 --retry-delay 5 --retry-connrefused --connect-timeout 30 \
+curl -fsSL --connect-timeout 30 \
   "https://downloads.sourceforge.net/opencore-amr/vo-amrwbenc-${voamr_ver}.tar.gz" -o vo-amrwbenc.tar.gz
 tar -xf vo-amrwbenc.tar.gz
 cd "vo-amrwbenc-${voamr_ver}" || exit 1

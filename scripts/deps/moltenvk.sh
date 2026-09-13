@@ -14,7 +14,7 @@ set -euo pipefail
 # source on the macOS runner (Xcode present). fetchDependencies + `make` output paths have
 # shifted across versions, so the built dylib/framework is located by name, not a fixed path.
 
-case "${RID}" in osx-*|ios-*) : ;; *) return 0 ;; esac
+case "${RID}" in osx-*|ios-*|maccatalyst-*) : ;; *) return 0 ;; esac
 [[ "${BUILD_VULKAN}" == "1" ]] || return 0
 
 echo "Building MoltenVK (Vulkan-over-Metal) for ${RID}..."
@@ -28,6 +28,10 @@ case "${RID}" in
   osx-*)         MVK_TARGET=macos  ;;
   ios-arm64)     MVK_TARGET=ios    ;;
   ios-sim-arm64) MVK_TARGET=iossim ;;
+  # MoltenVK spells Catalyst "maccat", not "maccatalyst" -- the name is shared by
+  # fetchDependencies' --<target> flag and the Makefile target, both verified against
+  # v1.4.2 (fetchDependencies rejected --maccatalyst with "Unsupported option").
+  maccatalyst-*) MVK_TARGET=maccat ;;
 esac
 ./fetchDependencies "--${MVK_TARGET}"
 make "${MVK_TARGET}"
@@ -71,6 +75,11 @@ case "${RID}" in
   osx-*)         MVK_LIB="$(find_mvk_dynamic macos macOS)" ;;
   ios-arm64)     MVK_LIB="$(find_mvk_static ios-arm64 iOS)" ;;
   ios-sim-arm64) MVK_LIB="$(find_mvk_static simulator iossim iOS_Simulator)" ;;
+  # Catalyst links MoltenVK STATICALLY like iOS, so each .framework stays self-contained
+  # inside the xcframework. Several path spellings are tried because MoltenVK's Package
+  # layout for macabi is not stable across releases; a miss hard-errors below with the
+  # tree printed, rather than silently disabling Vulkan.
+  maccatalyst-*) MVK_LIB="$(find_mvk_static maccat maccatalyst Mac_Catalyst catalyst macabi)" ;;
 esac
 [ -n "${MVK_LIB}" ] && [ -e "${MVK_LIB}" ] \
   || { echo "ERROR: MoltenVK binary (libMoltenVK.dylib or MoltenVK.framework/MoltenVK) not found after build (${RID})" >&2
@@ -81,7 +90,12 @@ case "${RID}" in
     cp "${MVK_LIB}" "${DEPS_DIR}/lib/libMoltenVK.dylib"
     # The copied Mach-O keeps its original install-name; 08 resets it when it bundles.
     ;;
-  ios-*)
+  ios-*|maccatalyst-*)
+    # Catalyst takes the iOS path, not the osx-* one: find_mvk_static resolved a static archive
+    # for it above, BUILD_VULKAN_LOADER is off, and 08_stage_artifacts ships frameworks rather
+    # than a flat dylib layout. Omitting it here left MVK_LIB resolved but never installed, so
+    # libvulkan.a never appeared and configure's --enable-vulkan-static check_lib could not
+    # succeed on any v3 Catalyst cell.
     cp "${MVK_LIB}" "${DEPS_DIR}/lib/libMoltenVK.a"
     # Guard the whole premise of --enable-vulkan-static: if MoltenVK's packaging shifts
     # and we picked up a dylib, FFmpeg's static link test would fail late and confusingly
@@ -111,7 +125,7 @@ case "${RID}" in
     # MVK_ICD is empty and abort the entire build with no message.
     echo "MoltenVK staged for ${RID} — bundled by 08_stage_artifacts."
     ;;
-  ios-*)
+  ios-*|maccatalyst-*)
     # How this actually resolves: configure takes --enable-vulkan-static through
     #   check_lib vulkan "vulkan/vulkan.h" vkGetInstanceProcAddr -lvulkan
     # and NEVER reads vulkan.pc's Libs: line for it (the check_pkg_config branch above that
@@ -124,7 +138,21 @@ case "${RID}" in
     # imports UIKit/UIView.h, and MoltenVK's project sets CLANG_ENABLE_MODULES=NO, so there
     # is no autolinking to supply it — omitting it fails the check_lib probe below, or at
     # latest the final libavutil link, on unresolved UIKit/UIView symbols.
+    # UIKit is required on BOTH: MoltenVK builds its surface code under
+    # VK_USE_PLATFORM_IOS_MVK for Catalyst too, so MVKSurface.mm imports UIKit/UIView.h, and
+    # MoltenVK sets CLANG_ENABLE_MODULES=NO so nothing autolinks it.
     EXTRA_LIBS="${EXTRA_LIBS:-} -lc++ -framework Metal -framework IOSurface -framework Foundation -framework QuartzCore -framework CoreGraphics -framework UIKit"
+    # Catalyst additionally needs IOKit, iOS does not. MoltenVK defines
+    #   MVK_MACOS (TARGET_OS_OSX || TARGET_OS_MACCATALYST)
+    #   MVK_IOS   (TARGET_OS_IOS && !TARGET_OS_MACCATALYST)
+    # so on macabi it compiles as the macOS variant, and MVKDevice.mm's `#if MVK_MACOS` block
+    # -- IOServiceGetMatchingService / IORegistryEntrySearchCFProperty, used to identify the
+    # GPU -- is compiled IN. Without -framework IOKit those symbols stay undefined and
+    # configure's `check_lib vulkan … -lvulkan` probe fails, which surfaces only as the
+    # unhelpful "ERROR: vulkan requested but not found".
+    if [ "${RID#maccatalyst-}" != "${RID}" ]; then
+      EXTRA_LIBS="${EXTRA_LIBS} -framework IOKit"
+    fi
     # shellcheck disable=SC2034  # appended here; consumed by steps/07_build_ffmpeg.sh
     CONFIGURE_FLAGS+=(--enable-vulkan-static)
     echo "MoltenVK linked STATICALLY for ${RID} (--enable-vulkan-static; no loader, no ICD)."

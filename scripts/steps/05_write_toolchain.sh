@@ -75,6 +75,46 @@ CMAKE
       -DANDROID_PLATFORM="android-${API}"
     )
     ;;
+  maccatalyst-arm64|maccatalyst-x64)
+    # Catalyst is NOT CMAKE_SYSTEM_NAME iOS: that makes CMake emit iphoneos flags and drop
+    # the macabi suffix. It is a Darwin target built against the macOS SDK, distinguished
+    # solely by the -target triple, which apple.sh already put in CFLAGS/LDFLAGS.
+    MCAT_TOOLCHAIN="${WORK_DIR}/maccatalyst-toolchain.cmake"
+    cat > "${MCAT_TOOLCHAIN}" <<CMAKE
+set(CMAKE_SYSTEM_NAME Darwin)
+set(CMAKE_SYSTEM_PROCESSOR ${MCAT_ARCH})
+set(CMAKE_OSX_SYSROOT ${MCAT_SYSROOT})
+set(CMAKE_OSX_ARCHITECTURES ${MCAT_ARCH})
+set(CMAKE_C_FLAGS_INIT "-target ${MCAT_TARGET}")
+set(CMAKE_CXX_FLAGS_INIT "-target ${MCAT_TARGET}")
+# Objective-C/C++ need the target too. Setting only C/CXX left ggml's Metal backend
+# (ggml-metal.m) compiled for plain macOS, and the link then failed with
+#   ld: building for 'macCatalyst', but linking in object file (libggml-metal.a)
+# which surfaced as a bogus "whisper >= 1.7.5 not found using pkg-config".
+set(CMAKE_OBJC_FLAGS_INIT "-target ${MCAT_TARGET}")
+set(CMAKE_OBJCXX_FLAGS_INIT "-target ${MCAT_TARGET}")
+# ASM too. ggml embeds its Metal shader library through a GENERATED ASSEMBLY file
+# (GGML_METAL_EMBED_LIBRARY), and without the target on the assembler its object never
+# joined the macabi slice, leaving the link short:
+#   Undefined symbols for architecture x86_64: _ggml_metallib_start/_ggml_metallib_end
+# which configure then reported as the misleading "whisper >= 1.7.5 not found".
+set(CMAKE_ASM_FLAGS_INIT "-target ${MCAT_TARGET}")
+set(CMAKE_EXE_LINKER_FLAGS_INIT "-target ${MCAT_TARGET}")
+set(CMAKE_SHARED_LINKER_FLAGS_INIT "-target ${MCAT_TARGET}")
+# The SDK sits on the find root path beside DEPS_DIR so SDK FRAMEWORKS resolve while host
+# libraries still do not. Without it, MODE_LIBRARY ONLY confined the search to DEPS_DIR and
+# ggml's find_package(BLAS) could not see Accelerate:
+#   Could NOT find BLAS (missing: BLAS_LIBRARIES)  -- ggml-blas/CMakeLists.txt:98
+set(CMAKE_FIND_ROOT_PATH ${DEPS_DIR} ${MCAT_SYSROOT})
+set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+# Frameworks are searched separately from plain libraries; LAST lets the SDK supply
+# Accelerate without letting a stray framework outrank a dep we built ourselves.
+set(CMAKE_FIND_FRAMEWORK LAST)
+CMAKE
+    CMAKE_CROSS_ARGS+=(-DCMAKE_TOOLCHAIN_FILE="${MCAT_TOOLCHAIN}")
+    ;;
   ios-arm64|ios-sim-arm64)
     IOS_TOOLCHAIN="${WORK_DIR}/ios-toolchain.cmake"
     cat > "${IOS_TOOLCHAIN}" <<CMAKE
@@ -176,6 +216,32 @@ endian = 'little'
 [properties]
 pkg_config_libdir = '${DEPS_DIR}/lib/pkgconfig'
 needs_exe_wrapper = true
+MESON
+    ;;
+  maccatalyst-arm64|maccatalyst-x64)
+    MESON_CROSS_FILE="${WORK_DIR}/maccatalyst-meson-cross.ini"
+    cat > "${MESON_CROSS_FILE}" <<MESON
+[binaries]
+c = '${CC}'
+cpp = '${CXX}'
+ar = '${AR}'
+strip = 'strip'
+pkg-config = 'pkg-config'
+[built-in options]
+c_args = ['-target', '${MCAT_TARGET}', '-isysroot', '${MCAT_SYSROOT}']
+cpp_args = ['-target', '${MCAT_TARGET}', '-isysroot', '${MCAT_SYSROOT}']
+c_link_args = ['-target', '${MCAT_TARGET}', '-isysroot', '${MCAT_SYSROOT}']
+cpp_link_args = ['-target', '${MCAT_TARGET}', '-isysroot', '${MCAT_SYSROOT}']
+[host_machine]
+system = 'darwin'
+cpu_family = '${MCAT_FFARCH}'
+cpu = '${MCAT_FFARCH}'
+endian = 'little'
+[properties]
+pkg_config_libdir = '${DEPS_DIR}/lib/pkgconfig'
+# Catalyst binaries RUN on the build host (macOS), unlike ios-*, so meson may execute
+# its own test programs instead of guessing.
+needs_exe_wrapper = false
 MESON
     ;;
   ios-arm64|ios-sim-arm64)

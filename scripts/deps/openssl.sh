@@ -43,6 +43,27 @@ clone_dep openssl "${WORK_DIR}/openssl"
       export PATH="${TOOLCHAIN}/bin:${PATH}"
       OSSL_OPTS+=("-D__ANDROID_API__=${API}")
       ;;
+    maccatalyst-arm64|maccatalyst-x64)
+      # Catalyst is the only Apple RID that builds OpenSSL: macOS and iOS use
+      # SecureTransport, but the SDK marks that unavailable on macabi (see platform/apple.sh),
+      # so Catalyst takes the Linux/Android TLS ladder instead.
+      #
+      # OpenSSL has no macabi target, and it does not need one: the darwin64 targets select the
+      # arch and assembler, while the platform comes from the -target triple already exported in
+      # CFLAGS/LDFLAGS. OSSL_OPTS carries it explicitly too, because Configure builds its own
+      # compile lines rather than simply inheriting CFLAGS.
+      case "${RID}" in
+        maccatalyst-arm64) OSSL_TARGET=darwin64-arm64-cc  ;;
+        maccatalyst-x64)   OSSL_TARGET=darwin64-x86_64-cc ;;
+      esac
+      # The flags go in CC, NOT in Configure's argument list. Configure treats any argument that
+      # does not start with "-" as a TARGET name, so the two-token forms "-target <triple>" and
+      # "-isysroot <path>" had their second halves parsed as extra targets:
+      #   target already defined - darwin64-arm64-cc (offending arg: arm64-apple-ios14.0-macabi)
+      # Folding them into CC sidesteps the argument parser entirely and is what Configure uses
+      # to build every compile line.
+      export CC="${CC} -target ${MCAT_TARGET} -isysroot ${MCAT_SYSROOT}"
+      ;;
     *) echo "OpenSSL: unexpected RID ${RID}" >&2; exit 1 ;;
   esac
   ./Configure "${OSSL_TARGET}" "${OSSL_OPTS[@]}"

@@ -178,8 +178,19 @@ static int has_tls(void) {
 //   unset  -> report only (Android emulators expose Vulkan depending on the -gpu mode, which
 //             is a property of the test host, not of the artifact)
 // Builds without Vulkan (every v2 cell) return ENOSYS here and are silently fine either way.
+//
+// SMOKE_SKIP_VULKAN skips the probe outright. It exists because the graceful path above is not
+// always reachable: MoltenVK does not return an error when it cannot get a usable Metal device,
+// it calls abort(). That kills the process before av_hwdevice_ctx_create can return, so the
+// five checks ABOVE this one -- which are real properties of the artifact -- die with it. The
+// caller runs the probe as a separate invocation so a host without a usable GPU cannot
+// invalidate them. Seen on the macos-15-intel runner with the maccatalyst-x64 slice.
 static int vulkan_probe(void) {
     AVBufferRef *ctx = NULL;
+    if (getenv("SMOKE_SKIP_VULKAN")) {
+        printf("smoke: Vulkan probe skipped (SMOKE_SKIP_VULKAN)\n");
+        return 0;
+    }
     int r = av_hwdevice_ctx_create(&ctx, AV_HWDEVICE_TYPE_VULKAN, NULL, NULL, 0);
     if (r >= 0) {
         av_buffer_unref(&ctx);

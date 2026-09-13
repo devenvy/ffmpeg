@@ -23,8 +23,8 @@ edit. See the vocabulary note at the bottom.
 | **Web / WASM** | `browser-wasm` | Emscripten (`emcc`) toolchain; thread/syscall/HW-accel constraints. **Highest-value** for a media/DVR product — in-browser playback, no install (cf. `ffmpeg.wasm`). Own spike. |
 
 ## On-demand niche
-`linux-riscv64`, `linux-ppc64le`, `linux-loongarch64`, `android-arm` (32-bit), Mac
-Catalyst, FreeBSD (`freebsd-x64`).
+`linux-riscv64`, `linux-ppc64le`, `linux-loongarch64`, `android-arm` (32-bit),
+FreeBSD (`freebsd-x64`). *(Mac Catalyst shipped — see the RID table in DEVELOPMENT.md.)*
 
 ## Known asymmetries (not platform gaps, but worth fixing)
 - **iOS device vs. simulator filter set.** `04_select_license.sh` disables libplacebo

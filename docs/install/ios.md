@@ -21,6 +21,39 @@ slice from the shipped app automatically. Hardware decode uses **VideoToolbox**.
 slice is decode-focused (no software encoders) — that path is for development; ship and test
 encode/WebRTC-VP8/9 on a device.
 
+## Mac Catalyst
+
+The same `.xcframework`s carry a **Mac Catalyst** slice, so an iOS app brought to the Mac links
+the identical artifact with no extra download. It is a single universal slice covering both
+Apple Silicon and Intel (the `maccatalyst-arm64` and `maccatalyst-x64` builds are `lipo`-fused
+before packaging), and Xcode selects it automatically when the target's *Supports Mac Catalyst*
+is on — there is nothing to configure. Hardware decode is **VideoToolbox**, same as iOS.
+
+Catalyst is built against the macOS SDK with an `…-apple-ios14.0-macabi` target triple. **iOS
+14.0 is the deployment floor**: an app with a higher minimum still links fine (a library minimum
+below the app's is always compatible), but one targeting an earlier iOS will not.
+
+### No TLS in the `lgplv2` Catalyst slice
+
+This is the one place Catalyst differs from iOS in capability, and it is worth checking before
+you pick a cell. **SecureTransport is unavailable on Mac Catalyst** — the SDK marks
+`SSLRead`/`SSLWrite` "no longer supported" there, and FFmpeg's `tls_securetransport.c` does not
+merely warn but fails to *compile*. So Catalyst cannot use the OS-native TLS that every other
+Apple target relies on, and instead follows the Linux/Android ladder:
+
+| cell | Catalyst TLS | iOS TLS |
+|---|---|---|
+| `gplv3` / `lgplv3` | OpenSSL 3.x (Apache-2.0, hence v3-only) | SecureTransport |
+| `gplv2` | GnuTLS | SecureTransport |
+| `lgplv2` | **none** | SecureTransport |
+
+`https://`, `tls://` and `rtmps://` inputs therefore do not work in the **`lgplv2` Catalyst
+slice**. There is no LGPLv2.1-compatible TLS backend to fall back on, which is the same gap the
+`lgplv2` Linux and Android builds have. If your Catalyst app needs TLS *and* App-Store-safe
+licensing, fetch over TLS with `URLSession` on the app side and hand FFmpeg the data, or use a
+`v3` cell where the App Store is not a constraint. The iOS slices in the same
+`.xcframework` are unaffected — only the Catalyst slice lacks it.
+
 ## Vulkan GPU filters (v3 only)
 
 The **v3** iOS cells enable FFmpeg's Vulkan GPU filters (`scale_vulkan`, `gblur_vulkan`, …) —

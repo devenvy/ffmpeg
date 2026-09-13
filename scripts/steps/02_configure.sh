@@ -161,7 +161,8 @@ case "${RID}" in
   linux-armhf)             CROSS_HOST=arm-linux-gnueabihf ;;
   android-arm64)           CROSS_HOST=aarch64-linux-android ;;
   android-x64)             CROSS_HOST=x86_64-linux-android ;;
-  ios-arm64|ios-sim-arm64) CROSS_HOST=aarch64-apple-darwin ;;
+  ios-arm64|ios-sim-arm64|maccatalyst-arm64) CROSS_HOST=aarch64-apple-darwin ;;
+  maccatalyst-x64)                           CROSS_HOST=x86_64-apple-darwin ;;
 esac
 
 # Platform-specific toolchain, hwaccel flags, and BUILD_* switches. The per-RID detail
@@ -170,7 +171,7 @@ esac
 case "${RID}" in
   linux-*)     PLATFORM=linux ;;
   win-*)       PLATFORM=windows ;;
-  osx-*|ios-*) PLATFORM=apple ;;
+  osx-*|ios-*|maccatalyst-*) PLATFORM=apple ;;
   android-*)   PLATFORM=android ;;
   *) echo "Error: unsupported BUILD_RID '${RID}'" >&2; exit 1 ;;
 esac
@@ -182,5 +183,8 @@ esac
 # already got their native backend above.
 # shellcheck disable=SC2034  # BUILD_OPENSSL is consumed by the sourced openssl.sh
 case "${RID}" in
-  linux-*|android-*) BUILD_OPENSSL=1 ;;
+  # maccatalyst joins these: SecureTransport does not exist on macabi (see platform/apple.sh),
+  # so Catalyst has no OS TLS backend either. 04_select_license.sh applies the same per-cell
+  # licensing ladder it already applies to Linux/Android.
+  linux-*|android-*|maccatalyst-*) BUILD_OPENSSL=1 ;;
 esac

@@ -19,6 +19,7 @@ COMPONENTS="${SRC_DIR}/config_components.h"
 grep -q 'CONFIG_WHISPER_FILTER 1' "${COMPONENTS}" \
   || { echo "VERIFY FAIL: whisper filter not enabled"; VERIFY_FAIL=1; }
 
+
 # 2. License boundary — lgpl builds must not enable GPL encoders.
 if [[ "${LICENSE}" == "lgpl" ]]; then
   if grep -qE 'CONFIG_LIBX264 1|CONFIG_LIBX265 1|CONFIG_GPL 1' "${SRC_DIR}/config.h" 2>/dev/null; then

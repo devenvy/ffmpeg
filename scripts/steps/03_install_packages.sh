@@ -13,6 +13,12 @@ set -euo pipefail
 # ── Install dependencies ─────────────────────────────────────────────────
 
 if [[ "${SKIP_DEPS:-false}" != "true" ]]; then
+# Some RIDs build inside a container (linux-armhf in debian:bookworm, musl in alpine)
+# where the user is root and `sudo` is not installed, while the bare runners are non-root
+# and need it. Resolve once instead of assuming either.
+SUDO=""
+if [ "$(id -u)" -ne 0 ]; then SUDO="sudo"; fi
+
 case "${RID}" in
   osx-*|ios-*|maccatalyst-*)
     # autoconf/automake/libtool provide `autoreconf`, which several deps' autogen.sh
@@ -75,22 +81,22 @@ case "${RID}" in
       fi
     else
       # Building on a normal glibc host (e.g. local Ubuntu) — use apt like the others.
-      sudo apt-get update
-      sudo apt-get install -y --no-install-recommends "${PKGS[@]}" jq
+      ${SUDO} apt-get update
+      ${SUDO} apt-get install -y --no-install-recommends "${PKGS[@]}" jq
       # meson >= 1.11 for fontconfig 2.18+ (apt meson is older) — see the note in *) below.
-      sudo python3 -m pip install --break-system-packages --upgrade meson ninja \
-        || sudo python3 -m pip install --upgrade meson ninja
+      ${SUDO} python3 -m pip install --break-system-packages --upgrade meson ninja \
+        || ${SUDO} python3 -m pip install --upgrade meson ninja
     fi
     ;;
   *)
-    sudo apt-get update
-    sudo apt-get install -y --no-install-recommends "${PKGS[@]}" jq
+    ${SUDO} apt-get update
+    ${SUDO} apt-get install -y --no-install-recommends "${PKGS[@]}" jq
     # fontconfig 2.18+ (and other newer Meson projects) require meson >= 1.11; the distro's
     # apt meson is older (Ubuntu 24.04 ships 1.3.2). Pull a current meson/ninja from PyPI —
     # same approach the manylinux path uses. PEP-668 marks the system env externally-managed
     # on newer Ubuntu, so allow the override, with a plain-pip fallback for older hosts.
-    sudo python3 -m pip install --break-system-packages --upgrade meson ninja \
-      || sudo python3 -m pip install --upgrade meson ninja
+    ${SUDO} python3 -m pip install --break-system-packages --upgrade meson ninja \
+      || ${SUDO} python3 -m pip install --upgrade meson ninja
     # Windows-on-ARM needs LLVM-MinGW: Debian/Ubuntu's mingw-w64 packages provide only the
     # x86 targets (i686/x86_64-w64-mingw32) and no aarch64-w64-mingw32 at all, so win-arm64
     # cannot be built from the distro toolchain. llvm-mingw ships prebuilt cross toolchains
@@ -105,7 +111,7 @@ case "${RID}" in
       echo "Fetching ${LLVM_MINGW} (aarch64-w64-mingw32 cross toolchain)..."
       curl -fsSL -o /tmp/llvm-mingw.tar.xz \
         "https://github.com/mstorsjo/llvm-mingw/releases/download/${LLVM_MINGW_VER}/${LLVM_MINGW}.tar.xz"
-      sudo tar -xf /tmp/llvm-mingw.tar.xz -C /opt
+      ${SUDO} tar -xf /tmp/llvm-mingw.tar.xz -C /opt
       rm -f /tmp/llvm-mingw.tar.xz
       # 03 is SOURCED by build.sh, so exporting PATH here reaches every later step — which is
       # what makes ${CROSS_PREFIX}-clang resolvable in platform/windows.sh and the dep scripts.

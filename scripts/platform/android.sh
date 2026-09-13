@@ -58,6 +58,17 @@ case "${RID}" in
     PKGS=(autoconf automake build-essential cmake curl gperf git libtool meson nasm ninja-build
           patchelf pkg-config xz-utils yasm
           glslc glslang-tools)
+    # Android 15+ devices may use 16 KB memory pages, and a library whose LOAD segments are
+    # aligned to 4 KB cannot be loaded on them. Google requires 16 KB alignment for Play
+    # Store submissions targeting Android 15+ (enforced since Nov 2025). Our libav*.so were
+    # built at the linker default of 0x1000 while the NDK's OWN libc++_shared.so in the same
+    # tarball was already 0x4000 — so the mismatch was visible inside a single artifact.
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
+    EXTRA_LDFLAGS="-Wl,-z,max-page-size=16384"
+    # Exported so any dependency that links a shared object gets the same alignment, not
+    # just FFmpeg's own libraries.
+    export LDFLAGS="${EXTRA_LDFLAGS}"
+
     CONFIGURE_FLAGS+=(
       --enable-cross-compile --target-os=android --arch="${FF_ARCH}"
       --cc="${CC}" --cxx="${CXX}" --ar="${AR}" --ranlib="${RANLIB}"

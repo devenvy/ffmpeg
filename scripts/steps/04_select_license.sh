@@ -65,8 +65,10 @@ case "${LICENSE_VERSION}" in
     # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     RIST_CRYPTO=none
     [[ "${WHISPER_BACKEND}" == "vulkan" ]] && WHISPER_BACKEND="cpu"   # Apple is already metal
-    # TLS for the v2 cells on Linux/Android, which have no OS-native backend. (Windows keeps
-    # SChannel and macOS/iOS keep SecureTransport in every cell, so they are unaffected.)
+    # TLS for the v2 cells on the platforms with no OS-native backend: Linux, Android and Mac
+    # Catalyst. (Windows keeps SChannel and macOS/iOS keep SecureTransport in every cell, so
+    # they are unaffected. Catalyst is the exception among Apple targets — SecureTransport is
+    # unavailable on macabi, so it follows this same ladder; see scripts/platform/apple.sh.)
     #   • gpl-2  → GnuTLS. Its deps GMP + nettle are dual LGPLv3+/GPLv2+; under a GPLv2 work
     #              their GPLv2+ option applies cleanly, so this is fine.
     #   • lgpl-2 → NO TLS. GMP + nettle offer no LGPLv2.1 route (GMP 6 is dual LGPLv3/GPLv2;

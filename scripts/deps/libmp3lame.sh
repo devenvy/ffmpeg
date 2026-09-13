@@ -31,7 +31,7 @@ case "${RID}" in
   # undefined and mpglib/mpg123.h falls back to `#define memcpy(d,s,n) bcopy(...)` —
   # which Xcode's clang rejects (C99). Supply the answer configure can't probe (iOS has
   # conforming STDC headers) so mpglib uses <string.h>.
-  ios-arm64|ios-sim-arm64) LAME_ENV+=(ac_cv_header_stdc=yes) ;;
+  ios-arm64|ios-sim-arm64|maccatalyst-*) LAME_ENV+=(ac_cv_header_stdc=yes) ;;
 esac
 # Scope the cache override to configure only (via env) — don't leak it to later deps.
 env "${LAME_ENV[@]+"${LAME_ENV[@]}"}" ./configure "${LAME_ARGS[@]}"

@@ -11,6 +11,7 @@ set -euo pipefail
 #                            win-x64, win-arm64, osx-x64, osx-arm64,
 #                            android-arm64, android-x64,
 #                            ios-arm64, ios-sim-arm64
+#                            maccatalyst-arm64, maccatalyst-x64
 #   BUILD_LICENSE          - License family: gpl or lgpl (default: lgpl)
 #   BUILD_LICENSE_VERSION  - License series: 3 (default) or 2 (GPLv2 / LGPLv2.1)
 #   SKIP_DEPS              - true to skip host toolchain/package installation

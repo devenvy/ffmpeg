@@ -42,6 +42,88 @@ case "${RID}" in
     BUILD_TYPE_LABEL="macOS (native)"
     ;;
 
+  maccatalyst-arm64|maccatalyst-x64)
+    # Every Apple arm sets these individually; omitting them silently inherited the Linux
+    # defaults, and NPROC="nproc" does not exist on macOS -- openh264 died with
+    # "meson compile: error: argument -j/--jobs: invalid int value". Found by diffing the
+    # assignments of this arm against the osx/ios arms rather than one CI round-trip each.
+    NPROC="sysctl -n hw.ncpu"
+    WHISPER_BACKEND="metal"          # Catalyst has Metal, same as macOS/iOS
+    BUILD_VULKAN=1                   # via MoltenVK; 04_select_license clears it for v2 cells
+    # Follows iOS, not macOS, for the rest: Catalyst is a framework/link-only target, and
+    # BUILD_VULKAN_LOADER stays off because MoltenVK is linked STATICALLY here (the loader is
+    # only bundled for the flat osx-* layout).
+    BUILD_FONTCONFIG=0
+    BUILD_LIBSVTAV1=0                # same cross-compile static-archive failure as iOS
+    BUILD_LIBWEBP=0                  # WebP cmake ships no .pc
+    # Mac Catalyst: an iOS-API (UIKit) app running on macOS. It is neither ios-* nor osx-* —
+    # it uses the macOS SDK with an ios*-macabi target triple, so it needs its own arm.
+    # Consumers are .NET MAUI / Xcode targets that resolve the maccatalyst slice of the
+    # xcframework; osx-* cannot substitute, because the slice would not validate.
+    case "${RID}" in
+      maccatalyst-arm64) MCAT_ARCH=arm64;  MCAT_FFARCH=aarch64 ;;
+      maccatalyst-x64)   MCAT_ARCH=x86_64; MCAT_FFARCH=x86_64  ;;
+    esac
+    # 14.0 is the deployment floor: low enough that an app with a higher minimum still links
+    # against us (a library min below the app's is always compatible), high enough to avoid
+    # the earliest macabi releases. Catalyst itself starts at iOS 13.1 / macOS 10.15.
+    MCAT_TARGET="${MCAT_ARCH}-apple-ios14.0-macabi"
+    MCAT_SYSROOT="$(xcrun --sdk macosx --show-sdk-path)"
+    # Same assign-then-export discipline as the iOS arm: `export X=$(cmd)` would mask an
+    # xcrun failure from set -e and yield an empty CC.
+    CC="$(xcrun --sdk macosx --find clang)";      export CC
+    CXX="$(xcrun --sdk macosx --find clang++)";   export CXX
+    AR="$(xcrun --sdk macosx --find ar)";         export AR
+    RANLIB="$(xcrun --sdk macosx --find ranlib)"; export RANLIB
+    # Autotools deps that build a host tool and RUN it (nettle generates its ECC tables with
+    # eccdata; gnutls has similar generators) need a compiler aimed at the BUILD machine, not
+    # the macabi target. Left unset, nettle falls back to a bare `clang`, which resolves to the
+    # Xcode toolchain binary -- and unlike the /usr/bin/clang shim, nothing injects an SDK for
+    # it, so eccdata.c fails on a missing assert.h. Native arch, real sysroot, no -target.
+    # Catalyst is the first Apple RID to hit this: it is the only one that builds the GnuTLS
+    # chain, because it is the only one without SecureTransport.
+    CC_FOR_BUILD="$(xcrun --sdk macosx --find clang) -isysroot ${MCAT_SYSROOT}"; export CC_FOR_BUILD
+    # Catalyst reaches the iOS-only frameworks (UIKit and friends) through the macOS SDK's
+    # System/iOSSupport subtree -- they are NOT in the SDK's top-level Frameworks dir. Xcode
+    # adds these search paths itself, but we drive clang directly, so without them the link
+    # dies on "ld: framework 'UIKit' not found" at FFmpeg's very first configure probe (the
+    # -framework UIKit that moltenvk.sh appends to EXTRA_LIBS lands on every test), which
+    # configure then reports only as the generic "C compiler test failed".
+    MCAT_IOSSUPPORT="${MCAT_SYSROOT}/System/iOSSupport"
+    if [ ! -d "${MCAT_IOSSUPPORT}/System/Library/Frameworks" ]; then
+      echo "ERROR: ${MCAT_IOSSUPPORT}/System/Library/Frameworks is missing --" >&2
+      echo "  the macOS SDK at ${MCAT_SYSROOT} has no Catalyst (iOSSupport) subtree." >&2
+      exit 1
+    fi
+    # -target carries BOTH arch and deployment target for macabi; there is no
+    # -mmaccatalyst-version-min, and -arch alone would build a plain macOS object.
+    EXTRA_CFLAGS="-target ${MCAT_TARGET} -isysroot ${MCAT_SYSROOT} -iframework ${MCAT_IOSSUPPORT}/System/Library/Frameworks -isystem ${MCAT_IOSSUPPORT}/usr/include"
+    EXTRA_CXXFLAGS="${EXTRA_CFLAGS}"
+    EXTRA_LDFLAGS="-target ${MCAT_TARGET} -isysroot ${MCAT_SYSROOT} -F${MCAT_IOSSUPPORT}/System/Library/Frameworks -L${MCAT_IOSSUPPORT}/usr/lib"
+    # Exported for the same reason as iOS: autotools deps invoke a generic clang and their
+    # configure link test fails without the target/sysroot in the environment.
+    export CFLAGS="${EXTRA_CFLAGS}"
+    export CXXFLAGS="${EXTRA_CXXFLAGS}"
+    export LDFLAGS="${EXTRA_LDFLAGS}"
+    CONFIGURE_FLAGS+=(
+      --enable-cross-compile --target-os=darwin --arch="${MCAT_FFARCH}"
+      --cc="${CC}" --cxx="${CXX}" --ar="${AR}" --ranlib="${RANLIB}"
+      --sysroot="${MCAT_SYSROOT}"
+      --enable-videotoolbox
+      --enable-hwaccel=h264_videotoolbox --enable-hwaccel=hevc_videotoolbox
+      # NO --enable-securetransport. SecureTransport is unavailable on Mac Catalyst --
+      # the SDK marks SSLRead/SSLWrite "first deprecated in macCatalyst 13.1 - No longer
+      # supported", and libavformat/tls_securetransport.c fails to COMPILE (6 errors), not
+      # merely warn. Catalyst therefore has no usable native TLS and takes the same route as
+      # Linux/Android: BUILD_OPENSSL in 02_configure.sh, which 04_select_license.sh then
+      # resolves per cell (v3 OpenSSL / gplv2 GnuTLS / lgplv2 none).
+    )
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
+    HWACCEL_FEATURES="VideoToolbox"
+    BUILD_TYPE_LABEL="Mac Catalyst (macabi)"
+    ;;
+
+
   ios-arm64|ios-sim-arm64)
     case "${RID}" in
       ios-arm64)     IOS_SDK=iphoneos;        IOS_MINVER="-miphoneos-version-min=13.0" ;;

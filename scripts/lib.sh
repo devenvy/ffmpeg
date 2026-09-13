@@ -39,8 +39,38 @@ cmake() {
 # per-transfer ceiling is ever wanted.
 #
 # --retry 8 means eight retries AFTER the initial attempt, i.e. nine attempts total.
+#
+# curl's OWN --retry is not enough, which a real CI failure proved:
+#   curl: (35) OpenSSL SSL_connect: SSL_ERROR_SYSCALL in connection to
+#             release-assets.githubusercontent.com:443
+# killed a linux-x64 build outright. curl's default retry set covers timeouts and transient
+# HTTP/FTP responses — NOT connection-level failures like 35 (TLS connect), 6 (resolve) or 7
+# (connect). Those need --retry-all-errors, which requires curl >= 7.71, and the manylinux
+# image ships 7.61.1. So an OUTER loop supplies the version-independent behaviour, retrying a
+# specific allowlist of transient exit codes with the same jittered exponential backoff the git
+# wrapper uses. Codes NOT listed (2 unknown option, 3 bad URL, 37 unreadable file) are
+# configuration errors and must fail immediately rather than burn six attempts — that also
+# keeps 07_build_ffmpeg.sh's `curl --retry-all-errors --version` capability probe fast on old
+# curl, where it exits 2. 22 IS included: with -f a 429 or 5xx surfaces as 22, which is exactly
+# the Hugging Face rate-limit case; the cost is that a genuine 404 takes the full backoff first.
+CURL_ATTEMPTS="${CURL_ATTEMPTS:-6}"
 curl() {
-  command curl --retry 8 --retry-connrefused --retry-max-time 300 "$@"
+  local n=1 delay=4 rc
+  while :; do
+    command curl --retry 8 --retry-connrefused --retry-max-time 300 "$@" && return 0
+    rc=$?
+    case "${rc}" in
+      5|6|7|16|18|22|23|26|28|35|52|55|56|92) ;;      # transient — worth another attempt
+      *) return "${rc}" ;;                             # everything else is a real error
+    esac
+    if [[ "${n}" -ge "${CURL_ATTEMPTS}" ]]; then
+      echo "ERROR: curl failed after ${n} attempts (exit ${rc})" >&2; return "${rc}"
+    fi
+    local wait=$(( delay + (RANDOM % 5) ))
+    echo "  curl failed (exit ${rc}, attempt ${n}/${CURL_ATTEMPTS}) — retrying in ${wait}s..." >&2
+    sleep "${wait}"
+    delay=$(( delay * 2 )); n=$(( n + 1 ))
+  done
 }
 
 # ── git wrapper: retry clones on transient network failures ───────────────

@@ -12,7 +12,7 @@ tasn1_ver="$(dep_version libtasn1)"
 echo "Building libtasn1 ${tasn1_ver} (static, GnuTLS chain)..."
 cd "${WORK_DIR}" || exit 1
 rm -rf "libtasn1-${tasn1_ver}"
-curl -fsSL --retry 3 --retry-delay 5 --retry-connrefused --connect-timeout 30 \
+curl -fsSL --connect-timeout 30 \
   "https://ftp.gnu.org/gnu/libtasn1/libtasn1-${tasn1_ver}.tar.gz" -o libtasn1.tar.gz
 tar -xf libtasn1.tar.gz
 cd "libtasn1-${tasn1_ver}" || exit 1

@@ -11,7 +11,7 @@ amr_ver="$(dep_version opencore-amr)"
 echo "Building opencore-amr ${amr_ver} (static)..."
 cd "${WORK_DIR}" || exit 1
 rm -rf "opencore-amr-${amr_ver}"
-curl -fsSL --retry 3 --retry-delay 5 --retry-connrefused --connect-timeout 30 \
+curl -fsSL --connect-timeout 30 \
   "https://downloads.sourceforge.net/opencore-amr/opencore-amr-${amr_ver}.tar.gz" -o opencore-amr.tar.gz
 tar -xf opencore-amr.tar.gz
 cd "opencore-amr-${amr_ver}" || exit 1

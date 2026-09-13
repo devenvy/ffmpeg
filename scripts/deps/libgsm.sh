@@ -22,7 +22,7 @@ set -euo pipefail
 gsm_ver="$(dep_version libgsm)"
 echo "Building libgsm ${gsm_ver} (static)..."
 cd "${WORK_DIR}" || exit 1
-curl -fsSL --retry 3 --retry-delay 5 --retry-connrefused --connect-timeout 30 \
+curl -fsSL --connect-timeout 30 \
   "https://www.quut.com/gsm/gsm-${gsm_ver}.tar.gz" -o gsm.tar.gz
 # The tarball's top dir is NOT gsm-${ver} — libgsm names it by version+patchlevel
 # (gsm-1.0.22.tar.gz extracts to gsm-1.0-pl22/). Extract, then glob the one gsm-*/ dir.

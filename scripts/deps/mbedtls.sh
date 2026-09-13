@@ -21,7 +21,7 @@ mbed_ver="$(dep_version mbedtls)"; mbed_ver="${mbed_ver#v}"   # v3.6.7 -> 3.6.7 
 echo "Building mbedtls ${mbed_ver} (static)..."
 cd "${WORK_DIR}" || exit 1
 rm -rf "mbedtls-${mbed_ver}"
-curl -fsSL --retry 3 --retry-delay 5 --retry-connrefused --connect-timeout 30 \
+curl -fsSL --connect-timeout 30 \
   "https://github.com/Mbed-TLS/mbedtls/releases/download/mbedtls-${mbed_ver}/mbedtls-${mbed_ver}.tar.bz2" \
   -o mbedtls.tar.bz2
 tar -xf mbedtls.tar.bz2

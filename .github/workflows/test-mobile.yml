@@ -41,11 +41,14 @@ jobs:
     strategy:
       fail-fast: ${{ inputs.fail_fast }}
       matrix:
-        rid: [android-arm64, android-x64, ios-arm64, ios-sim-arm64]
+        rid: [android-arm64, android-x64, ios-arm64, ios-sim-arm64, maccatalyst-arm64, maccatalyst-x64]
         license: [lgpl, gpl]
         # v3 = OpenSSL 3.x TLS + Vulkan on Linux/Android. v2 = Vulkan dropped everywhere; on
-        # Linux/Android, gplv2 gets GnuTLS but lgplv2 has NO TLS backend at all. Apple/Windows
-        # keep their native SecureTransport/SChannel TLS in every cell, v3 or v2.
+        # Linux/Android, gplv2 gets GnuTLS but lgplv2 has NO TLS backend at all. iOS/macOS/Windows
+        # keep their native SecureTransport/SChannel TLS in every cell, v3 or v2. Mac Catalyst is
+        # the exception among Apple targets: SecureTransport is unavailable there (the SDK marks
+        # it "no longer supported" and tls_securetransport.c fails to COMPILE), so Catalyst takes
+        # the Linux/Android route and its lgplv2 cell has no TLS backend either.
         license_version: [3, 2]
         include:
           - rid: android-arm64
@@ -61,6 +64,14 @@ jobs:
             runner: macos-latest
           - rid: ios-sim-arm64
             runner: macos-latest
+          # Catalyst binaries are native macOS Mach-O, so each slice is tested on a runner of
+          # its OWN arch and actually EXECUTES (scripts/test/ios.sh runs the smoke program when
+          # host arch == slice arch). Running the x86_64 slice on an Apple-Silicon runner would
+          # depend on Rosetta, so it gets the Intel runner instead of being emulated.
+          - rid: maccatalyst-arm64
+            runner: macos-latest
+          - rid: maccatalyst-x64
+            runner: macos-15-intel
 
     runs-on: ${{ matrix.runner }}
     name: ${{ inputs.ffmpeg_version }} ${{ matrix.rid }} (${{ matrix.license }}v${{ matrix.license_version }})

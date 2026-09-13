@@ -28,7 +28,7 @@ if [[ "${BUILD_ZLIB}" == "1" ]]; then
         CHOST="${CROSS_PREFIX}" \
         ./configure --prefix="${DEPS_DIR}" --static
       ;;
-    android-arm64|android-x64|ios-arm64|ios-sim-arm64)
+    android-arm64|android-x64|ios-arm64|ios-sim-arm64|maccatalyst-arm64|maccatalyst-x64)
       CFLAGS="${EXTRA_CFLAGS:-}" ./configure --prefix="${DEPS_DIR}" --static
       ;;
     *)

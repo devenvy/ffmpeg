@@ -23,13 +23,15 @@ jobs:
     strategy:
       fail-fast: ${{ inputs.fail_fast }}
       matrix:
-        rid: [linux-x64, linux-arm64, linux-armhf, linux-musl-x64, linux-musl-arm64, win-x64, win-arm64, osx-x64, osx-arm64, android-arm64, android-x64, ios-arm64, ios-sim-arm64]
+        rid: [linux-x64, linux-arm64, linux-armhf, linux-musl-x64, linux-musl-arm64, win-x64, win-arm64, osx-x64, osx-arm64, android-arm64, android-x64, ios-arm64, ios-sim-arm64, maccatalyst-arm64, maccatalyst-x64]
         license: [lgpl, gpl]
         # License version series. 3 = (L)GPLv3 (OpenSSL 3.x TLS + Vulkan on Linux/Android, both
         # Apache-2.0). 2 = LGPLv2.1 / GPLv2 (App-Store-safe): Vulkan dropped everywhere; on
-        # Linux/Android, gplv2 gets GnuTLS but lgplv2 ships with NO TLS backend at all (GnuTLS's
-        # deps can't stay LGPLv2.1). Apple/Windows are unaffected by any of this — they keep their
-        # native SecureTransport/SChannel TLS in every cell, v3 or v2.
+        # Linux/Android/Catalyst, gplv2 gets GnuTLS but lgplv2 ships with NO TLS backend at all
+        # (GnuTLS's deps can't stay LGPLv2.1). Windows, macOS and iOS are unaffected by any of
+        # this — they keep their native SChannel/SecureTransport TLS in every cell, v3 or v2.
+        # Mac Catalyst is NOT: SecureTransport is unavailable on macabi, so it follows the
+        # Linux/Android ladder (see scripts/platform/apple.sh's Catalyst arm).
         license_version: [3, 2]
         include:
           - rid: linux-x64
@@ -70,6 +72,13 @@ jobs:
           - rid: ios-arm64
             runner: macos-latest
           - rid: ios-sim-arm64
+            runner: macos-latest
+          # Catalyst cross-compiles from the macOS SDK, so either runner arch can build either
+          # slice; both use the default. The TEST jobs are the ones that need matching arches,
+          # because Catalyst binaries actually execute (see test-mobile.yml).
+          - rid: maccatalyst-arm64
+            runner: macos-latest
+          - rid: maccatalyst-x64
             runner: macos-latest
 
     runs-on: ${{ matrix.runner }}

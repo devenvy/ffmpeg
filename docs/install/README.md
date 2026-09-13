@@ -61,8 +61,11 @@ steps.
 Linux/Android, `v3` cells carry **OpenSSL**, the `gplv2` cell carries **GnuTLS**, and the
 **`lgplv2` cell ships no TLS backend at all** — `https`/`tls` are unavailable, because GnuTLS's
 GMP + nettle dependencies are never LGPLv2.1-licensed and no other FFmpeg TLS backend is
-LGPLv2.1-compatible. Windows (**SChannel**) and macOS (**SecureTransport**) use the OS-native
-backend in every cell, so their TLS is unaffected by the split. The `v2` cells also omit
+LGPLv2.1-compatible. Windows (**SChannel**) and macOS/iOS (**SecureTransport**) use the OS-native
+backend in every cell, so their TLS is unaffected by the split. **Mac Catalyst is the exception
+among Apple targets**: SecureTransport is unavailable there (the SDK marks it no longer supported
+and FFmpeg's backend fails to compile), so Catalyst follows the Linux/Android ladder above and its
+`lgplv2` slice has no TLS either — see [iOS / Mac Catalyst](./ios.md#no-tls-in-the-lgplv2-catalyst-slice). The `v2` cells also omit
 **Vulkan**, so GPU Whisper on Linux/Android/Windows requires a `v3` cell (macOS/iOS use Metal
 either way).
 

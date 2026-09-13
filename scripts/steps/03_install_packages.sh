@@ -20,7 +20,7 @@ SUDO=""
 if [ "$(id -u)" -ne 0 ]; then SUDO="sudo"; fi
 
 case "${RID}" in
-  osx-*|ios-*)
+  osx-*|ios-*|maccatalyst-*)
     # autoconf/automake/libtool provide `autoreconf`, which several deps' autogen.sh
     # needs (kvazaar, libogg, libvorbis, zimg — cloned from git with no pre-generated
     # configure). GitHub's macOS runners no longer ship them, so install explicitly.

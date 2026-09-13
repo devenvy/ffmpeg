@@ -43,6 +43,42 @@ done
 mkdir -p "${SRC_DIR}"
 tar -xf "${FF_ARCHIVE}" -C "${SRC_DIR}" --strip-components=1
 
+# Mac Catalyst: FFmpeg picks between two CoreVideo pixel-buffer keys on TARGET_OS_IPHONE --
+# kCVPixelBufferOpenGLESCompatibilityKey for iOS, kCVPixelBufferIOSurfaceOpenGLTextureCompatibilityKey
+# for macOS. macabi sets TARGET_OS_IPHONE=1, and Apple marks BOTH keys API_UNAVAILABLE on
+# macCatalyst, so neither branch compiles there:
+#   error: kCVPixelBufferOpenGLESCompatibilityKey is unavailable: not available on macCatalyst
+#   error: kCVPixelBufferIOSurfaceOpenGLTextureCompatibilityKey is unavailable: ... macCatalyst
+# Catalyst has no OpenGL(ES) interop at all, so the correct result is to request neither key.
+# Nothing is lost: both are only GL-interop hints, and kCVPixelBufferIOSurfacePropertiesKey --
+# the one that actually gets zero-copy IOSurface/Metal buffers -- is set unconditionally just
+# above the guard. The alternative was dropping VideoToolbox on Catalyst entirely, i.e. no
+# hardware decode on a platform that has it. Upstream master still has the bare
+# TARGET_OS_IPHONE test, so there is no release to wait for; drop this once FFmpeg guards the
+# keys itself. awk, not sed: inserting lines portably across GNU and BSD sed is a trap.
+if [ "${RID#maccatalyst-}" != "${RID}" ]; then
+  vt_src="${SRC_DIR}/libavcodec/videotoolbox.c"
+  if ! grep -q TARGET_OS_MACCATALYST "${vt_src}"; then
+    awk '
+      /^#if TARGET_OS_IPHONE$/ && !patched {
+        print "#if TARGET_OS_MACCATALYST"
+        print "    /* Mac Catalyst: no OpenGL(ES) interop; both compatibility keys are"
+        print "       API_UNAVAILABLE on macabi. Patched by scripts/steps/07_build_ffmpeg.sh. */"
+        print "#elif TARGET_OS_IPHONE"
+        patched = 1
+        next
+      }
+      { print }
+    ' "${vt_src}" > "${vt_src}.patched"
+    mv "${vt_src}.patched" "${vt_src}"
+    if ! grep -q "^#if TARGET_OS_MACCATALYST$" "${vt_src}"; then
+      echo "ERROR: videotoolbox.c Mac Catalyst patch did not apply" >&2
+      exit 1
+    fi
+    echo "Patched videotoolbox.c for Mac Catalyst (no OpenGL(ES) pixel-buffer keys on macabi)."
+  fi
+fi
+
 # ── Patch pkg-config for Windows static linking ──────────────────────────
 # Dependency .pc files declare -lpthread and -lstdc++ in Libs/Libs.private.
 # When FFmpeg links shared DLLs, -static-libgcc/-static-libstdc++ are
@@ -106,7 +142,7 @@ case "${RID}" in
   # §6 requires the end user be able to relink the app against a modified library; static
   # linking forces shipping object files for that, dynamic frameworks satisfy it inherently.
   # So the App-Store lgplv2 iOS build MUST be dynamic. Same shared libav*.dylib as macOS.
-  ios-*|android-*)
+  ios-*|android-*|maccatalyst-*)
     PROGRAM_FLAGS=(--disable-programs)
     ;;
 esac
@@ -139,8 +175,21 @@ echo "Configuring FFmpeg..."
 if ! "${CONFIGURE_CMD[@]}"; then
   rc=$?
   if [ -f ffbuild/config.log ]; then
-    echo "───── ffbuild/config.log (last 120 lines) ─────" >&2
-    tail -n 120 ffbuild/config.log >&2
+    # 120 lines proved too small twice: configure keeps probing OPTIONAL features after the
+    # one that will ultimately fail, so the decisive probe scrolls off the tail. Dump more,
+    # and additionally pull out the last probe for the component configure named, since that
+    # is the one whose compile/link error explains the failure.
+    echo "───── ffbuild/config.log (last 400 lines) ─────" >&2
+    tail -n 400 ffbuild/config.log >&2
+    echo "───── end config.log ─────" >&2
+    for comp in vulkan vulkan_static whisper openssl gnutls mbedtls placebo; do
+      if grep -q -- "-l${comp}" ffbuild/config.log 2>/dev/null; then
+        echo "───── last -l${comp} probe in config.log ─────" >&2
+        grep -n -- "-l${comp}" ffbuild/config.log | tail -1 | cut -d: -f1 | while read -r ln; do
+          sed -n "$((ln>20 ? ln-20 : 1)),$((ln+12))p" ffbuild/config.log >&2
+        done
+      fi
+    done
     echo "───── end config.log ─────" >&2
   else
     echo "(no ffbuild/config.log was produced)" >&2

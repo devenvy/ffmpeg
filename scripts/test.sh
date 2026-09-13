@@ -15,6 +15,11 @@ case "$RID" in
   win-*)     exec bash "${HERE}/test/win.sh"     "$RID" "$DIR" ;;
   android-*) exec bash "${HERE}/test/android.sh" "$RID" "$DIR" ;;
   osx-*)     exec bash "${HERE}/test/macos.sh"   "$RID" "$DIR" ;;
+  # Catalyst ships the same per-library .framework layout as iOS, so it shares ios.sh
+  # (which branches internally on arch, Mach-O platform and how it compiles the smoke
+  # program). Matched before ios-* would be irrelevant -- the prefixes do not overlap --
+  # but it is listed next to it to keep the family together.
   ios-*)     exec bash "${HERE}/test/ios.sh"     "$RID" "$DIR" ;;
+  maccatalyst-*) exec bash "${HERE}/test/ios.sh" "$RID" "$DIR" ;;
   *) echo "test.sh: unknown RID '$RID'" >&2; exit 2 ;;
 esac

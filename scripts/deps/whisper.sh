@@ -80,7 +80,14 @@ case "${WHISPER_BACKEND}" in
         ;;
     esac
     ;;
-  metal)  WHISPER_CMAKE+=(-DGGML_METAL=ON -DGGML_METAL_EMBED_LIBRARY=ON -DGGML_CPU=ON)
+  metal)  WHISPER_CMAKE+=(-DGGML_BLAS_VENDOR=Apple -DGGML_METAL=ON -DGGML_METAL_EMBED_LIBRARY=ON -DGGML_CPU=ON)
+          # GGML_BLAS_VENDOR is pinned to Apple rather than left to ggml's platform
+          # detection. That detection works for a native macOS build but not through the
+          # macabi cross-build, where it fell back to a generic BLAS search and failed:
+          #   -- x86 detected / Could NOT find BLAS (missing: BLAS_LIBRARIES)
+          #   CMake Error at ggml/src/ggml-blas/CMakeLists.txt:98
+          # Accelerate is present in the macOS SDK for Catalyst, so naming the vendor is
+          # enough; every Apple RID wants Apple here, so this is not Catalyst-specific.
           # Apple auto-enables the BLAS backend (Accelerate); its archive is picked up by the
           # installed-archive enumeration below. Frameworks: Metal + Foundation + Accelerate.
           WHISPER_SYS_LIBS="-lc++ -lm -framework Foundation -framework Metal -framework MetalKit -framework Accelerate" ;;

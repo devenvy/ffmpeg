@@ -62,14 +62,19 @@ license cells — `gplv3`, `gplv2`, `lgplv3`, `lgplv2` — not one:
 | `android-x64` | Android x86_64 | Cross-compiled (Android NDK) | `lib/x86_64/*.so` (unversioned) + `include/`, no binaries |
 | `ios-arm64` | iOS device (arm64) | Cross-compiled (iOS SDK, on macOS) | dynamic `*.dylib` + `include/`, no binaries |
 | `ios-sim-arm64` | iOS simulator (Apple Silicon) | Cross-compiled (simulator SDK) | dynamic `*.dylib` + `include/` (lean slice) |
+| `maccatalyst-arm64` | Mac Catalyst (Apple Silicon) | Cross-compiled (macOS SDK, `-target arm64-apple-ios14.0-macabi`) | dynamic `*.dylib` + `include/`, no binaries |
+| `maccatalyst-x64` | Mac Catalyst (Intel) | Cross-compiled (macOS SDK, `-target x86_64-apple-ios14.0-macabi`) | dynamic `*.dylib` + `include/`, no binaries |
 
-Each RID is built in 4 license cells: `{rid}-{gplv3,gplv2,lgplv3,lgplv2}` (13 RIDs × 4 = 52 build
+Each RID is built in 4 license cells: `{rid}-{gplv3,gplv2,lgplv3,lgplv2}` (15 RIDs × 4 = 60 build
 jobs). The two axes are **family** — `gpl` (`--enable-gpl`, includes x264 + x265) vs `lgpl`
 (`--disable-gpl`, kvazaar for HEVC, no x264/x265) — and **version** — `v3` (`--enable-version3`,
 may link Apache-2.0 deps like OpenSSL and Vulkan) vs `v2` (GPLv2 / LGPLv2.1, no `--enable-version3`,
 no Vulkan). The `lgplv2` series is the App-Store-safe one (v3's anti-tivoization terms are
 incompatible with the Apple App Store); it exists chiefly for the iOS App Store build. The two iOS
-slices (`ios-arm64`, `ios-sim-arm64`) are published as one combined `.xcframework` per license cell.
+slices (`ios-arm64`, `ios-sim-arm64`) plus Mac Catalyst are published as one combined
+`.xcframework` per license cell — three slices, with the two Catalyst RIDs `lipo`-fused into a
+single universal arm64 + x86_64 slice (an `.xcframework` holds at most one framework per
+platform+variant).
 Desktop targets additionally ship a `-dev` archive (headers, plus MSVC import libraries on Windows).
 
 **Why build the glibc Linux targets in a container?** `linux-x64` and `linux-arm64` build inside
@@ -172,7 +177,7 @@ The unified build script (`scripts/build.sh`) accepts environment variables:
 
 | Variable | Required | Default | Values |
 |---|---|---|---|
-| `BUILD_RID` | Yes | — | `linux-x64`, `linux-arm64`, `linux-armhf`, `linux-musl-x64`, `linux-musl-arm64`, `win-x64`, `win-arm64`, `osx-x64`, `osx-arm64`, `android-arm64`, `android-x64`, `ios-arm64`, `ios-sim-arm64` |
+| `BUILD_RID` | Yes | — | `linux-x64`, `linux-arm64`, `linux-armhf`, `linux-musl-x64`, `linux-musl-arm64`, `win-x64`, `win-arm64`, `osx-x64`, `osx-arm64`, `android-arm64`, `android-x64`, `ios-arm64`, `ios-sim-arm64`, `maccatalyst-arm64`, `maccatalyst-x64` |
 | `BUILD_LICENSE` | No | `lgpl` | `lgpl`, `gpl` — family (`--disable-gpl` vs `--enable-gpl`) |
 | `BUILD_LICENSE_VERSION` | No | `3` | `3` (`--enable-version3`) or `2` (GPLv2 / LGPLv2.1, no version3) |
 | `ANDROID_NDK_HOME` | for `android-*` | — | path to the Android NDK (r26+) |
@@ -319,8 +324,12 @@ Two build-mechanics notes that aren't about coverage:
   in GMP + nettle + libtasn1 — fine under GPLv2); the **lgpl-2** cell has **no TLS at all** (no
   `https`/`tls`), because GnuTLS's GMP + nettle deps are dual LGPLv3+/GPLv2+ (never LGPLv2.1) and
   no other FFmpeg TLS backend is LGPLv2.1-compatible, so a genuine LGPLv2.1 build must drop TLS.
-  **Windows/Apple** are unaffected by the v2/v3 split: Windows uses OS-native **SChannel** and
-  Apple **SecureTransport** in every cell, with no dependency. (`--disable-autodetect` is set, so
+  **Windows, macOS and iOS** are unaffected by the v2/v3 split: Windows uses OS-native
+  **SChannel** and macOS/iOS **SecureTransport** in every cell, with no dependency. **Mac Catalyst
+  is not** — SecureTransport is unavailable on macabi (the SDK marks `SSLRead`/`SSLWrite` no longer
+  supported and `tls_securetransport.c` fails to compile, so `apple.sh`'s Catalyst arm omits
+  `--enable-securetransport`), which puts it on the Linux/Android ladder: OpenSSL on v3, GnuTLS on
+  gplv2, and no TLS at all on lgplv2. (`--disable-autodetect` is set, so
   each backend is requested explicitly.) See [License version](#lgpl-vs-gpl).
 - **x265** tracks the latest release on x86, but is **held at 3.6 on the ARM64 targets** (4.0+
   ships broken aarch64 NEON intrinsics) via a per-platform ledger override — see

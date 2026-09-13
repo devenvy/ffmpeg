@@ -14,190 +14,190 @@ _This is the **LGPLv2.1** cell — one of four ({gplv3, gplv2, lgplv3, lgplv2});
 ### Video codecs  
 _6 of 23 built._
 
-| Feature | Version | lin-x64 | lin-a64 | lin-hf | musl | musl-a64 | win | win-a64 | osx-x64 | osx-a64 | android | android-x64 | ios | ios-sim |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| dav1d — AV1 decode | 1.5.4 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Kvazaar — HEVC encoder | v2.3.2 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | n/a |
-| libaom — AV1 enc/dec | v3.15.0 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | n/a |
-| libvpx — VP8/VP9 | v1.17.0 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | n/a |
-| OpenH264 — H.264 encode | v2.6.0 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| SVT-AV1 — AV1 encode[^svtav1] | v4.2.0 | ✓ | ✓ | n/a | ✓ | ✓ | ✓ | — | ✓ | ✓ | n/a | n/a | n/a | n/a |
-| davs2 — AVS2 decode (GPL) |  | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
-| LCEVC decode |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| libtheora — Theora |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| OpenAPV — APV codec |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| OpenHarmony HW codec |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| rav1e — AV1 encoder (Rust) |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| uavs3d — AVS3 decode |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| vvenc — H.266/VVC encoder |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| x264 — H.264 encode (GPL) |  | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
-| x265 — H.265 encode (GPL) |  | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
-| xavs — AVS1 encode (GPL) |  | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
-| xavs2 — AVS2 encode (GPL) |  | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
-| XEVD baseline — EVC decode |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| XEVD — MPEG-5 EVC decode |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| XEVE baseline — EVC encode |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| XEVE — MPEG-5 EVC encode |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| Xvid — MPEG-4 ASP (GPL) |  | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| Feature | Version | lin-x64 | lin-a64 | lin-hf | musl | musl-a64 | win | win-a64 | osx-x64 | osx-a64 | android | android-x64 | ios | ios-sim | mcat-a64 | mcat-x64 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| dav1d — AV1 decode | 1.5.4 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Kvazaar — HEVC encoder | v2.3.2 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | n/a | ✓ | ✓ |
+| libaom — AV1 enc/dec | v3.15.0 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | n/a | ✓ | ✓ |
+| libvpx — VP8/VP9 | v1.17.0 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | n/a | ✓ | ✓ |
+| OpenH264 — H.264 encode | v2.6.0 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| SVT-AV1 — AV1 encode[^svtav1] | v4.2.0 | ✓ | ✓ | n/a | ✓ | ✓ | ✓ | — | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a | n/a |
+| davs2 — AVS2 decode (GPL) |  | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| LCEVC decode |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| libtheora — Theora |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| OpenAPV — APV codec |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| OpenHarmony HW codec |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| rav1e — AV1 encoder (Rust) |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| uavs3d — AVS3 decode |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| vvenc — H.266/VVC encoder |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| x264 — H.264 encode (GPL) |  | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| x265 — H.265 encode (GPL) |  | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| xavs — AVS1 encode (GPL) |  | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| xavs2 — AVS2 encode (GPL) |  | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| XEVD baseline — EVC decode |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| XEVD — MPEG-5 EVC decode |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| XEVE baseline — EVC encode |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| XEVE — MPEG-5 EVC encode |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| Xvid — MPEG-4 ASP (GPL) |  | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
 
 ### Audio codecs  
 _6 of 22 built._
 
-| Feature | Version | lin-x64 | lin-a64 | lin-hf | musl | musl-a64 | win | win-a64 | osx-x64 | osx-a64 | android | android-x64 | ios | ios-sim |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| libgsm — GSM | 1.0.24 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| libmp3lame — MP3 encode | 3.100 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| libopus — Opus | v1.6.1 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | n/a |
-| libvorbis — Vorbis | v1.3.7 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| SoX resampler | 0.1.3 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Speex — speech | Speex-1.2.1 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| bs2b — stereo→binaural |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| CELT — audio (legacy) |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| Codec2 — low-bitrate speech |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| Flite — speech synthesis |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| Game Music Emu |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| iLBC — speech |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| LC3 — Bluetooth audio |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| libmodplug — tracker music |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| libmysofa — SOFA HRTF |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| libopenmpt — tracker music |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| OpenCORE — AMR-NB en/decode |  | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
-| OpenCORE — AMR-WB decode |  | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
-| Rubber Band — time-stretch/pitch (GPL) |  | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
-| Shine — fixed-point MP3 |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| TwoLAME — MP2 encode |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| VisualOn — AMR-WB encode |  | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| Feature | Version | lin-x64 | lin-a64 | lin-hf | musl | musl-a64 | win | win-a64 | osx-x64 | osx-a64 | android | android-x64 | ios | ios-sim | mcat-a64 | mcat-x64 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| libgsm — GSM | 1.0.24 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| libmp3lame — MP3 encode | 3.100 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| libopus — Opus | v1.6.1 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | n/a | ✓ | ✓ |
+| libvorbis — Vorbis | v1.3.7 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| SoX resampler | 0.1.3 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Speex — speech | Speex-1.2.1 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| bs2b — stereo→binaural |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| CELT — audio (legacy) |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| Codec2 — low-bitrate speech |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| Flite — speech synthesis |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| Game Music Emu |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| iLBC — speech |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| LC3 — Bluetooth audio |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| libmodplug — tracker music |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| libmysofa — SOFA HRTF |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| libopenmpt — tracker music |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| OpenCORE — AMR-NB en/decode |  | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| OpenCORE — AMR-WB decode |  | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| Rubber Band — time-stretch/pitch (GPL) |  | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| Shine — fixed-point MP3 |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| TwoLAME — MP2 encode |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| VisualOn — AMR-WB encode |  | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
 
 ### Images / subtitles / text  
 _8 of 15 built._
 
-| Feature | Version | lin-x64 | lin-a64 | lin-hf | musl | musl-a64 | win | win-a64 | osx-x64 | osx-a64 | android | android-x64 | ios | ios-sim |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| fontconfig — font-by-name[^fontconfig] | 2.18.3 | ✓ | ✓ | ✓ | ✓ | ✓ | n/a | n/a | ✓ | ✓ | n/a | n/a | n/a | n/a |
-| FreeType — drawtext | VER-2-14-3 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | n/a |
-| libass — SSA/ASS subtitles | 0.17.5 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | n/a |
-| libfribidi — bidi text (drawtext) | v1.0.16 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | n/a |
-| libharfbuzz — text shaping | 14.4.0 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | n/a |
-| libjxl — JPEG XL | v0.12.0 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| libwebp — WebP[^webp] | v1.6.0 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | n/a | n/a | n/a | n/a |
-| OpenJPEG — JPEG 2000 | v2.5.4 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| ARIB caption decode |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| Cairo — vector rendering |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| libqrencode — QR encode |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| librsvg — SVG rasterize |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| libzvbi — teletext/VBI |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| SVT JPEG-XS |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| Tesseract — OCR |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| Feature | Version | lin-x64 | lin-a64 | lin-hf | musl | musl-a64 | win | win-a64 | osx-x64 | osx-a64 | android | android-x64 | ios | ios-sim | mcat-a64 | mcat-x64 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| fontconfig — font-by-name[^fontconfig] | 2.18.3 | ✓ | ✓ | ✓ | ✓ | ✓ | n/a | n/a | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a | n/a |
+| FreeType — drawtext | VER-2-14-3 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | n/a | ✓ | ✓ |
+| libass — SSA/ASS subtitles | 0.17.5 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | n/a | ✓ | ✓ |
+| libfribidi — bidi text (drawtext) | v1.0.16 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | n/a | ✓ | ✓ |
+| libharfbuzz — text shaping | 14.4.0 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | n/a | ✓ | ✓ |
+| libjxl — JPEG XL | v0.12.0 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| libwebp — WebP[^webp] | v1.6.0 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a | n/a |
+| OpenJPEG — JPEG 2000 | v2.5.4 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| ARIB caption decode |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| Cairo — vector rendering |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| libqrencode — QR encode |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| librsvg — SVG rasterize |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| libzvbi — teletext/VBI |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| SVT JPEG-XS |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| Tesseract — OCR |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
 
 ### Processing  
 _4 of 19 built._
 
-| Feature | Version | lin-x64 | lin-a64 | lin-hf | musl | musl-a64 | win | win-a64 | osx-x64 | osx-a64 | android | android-x64 | ios | ios-sim |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| Chromaprint — audio fingerprint | v1.6.1 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| libvmaf — VMAF quality metric | v3.2.0 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Little CMS — color management | lcms2.19.1 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| zimg — scaling/colorspace | release-3.0.6 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| frei0r — effect plugins (GPL) |  | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
-| glslang — shader compile |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| LADSPA — audio plugins |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| libplacebo — GPU processing |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| LibTorch — DNN backend |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| LV2 — audio plugins |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| OpenColorIO |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| OpenCV — CV filters |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| OpenVINO — DNN backend |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| shaderc — shader compile |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| Snappy — HAP |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| TensorFlow — DNN backend |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| VapourSynth — frameserver |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| vid.stab — stabilization (GPL) |  | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
-| ZeroMQ — zmq/azmq filters |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| Feature | Version | lin-x64 | lin-a64 | lin-hf | musl | musl-a64 | win | win-a64 | osx-x64 | osx-a64 | android | android-x64 | ios | ios-sim | mcat-a64 | mcat-x64 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Chromaprint — audio fingerprint | v1.6.1 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| libvmaf — VMAF quality metric | v3.2.0 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Little CMS — color management | lcms2.19.1 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| zimg — scaling/colorspace | release-3.0.6 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| frei0r — effect plugins (GPL) |  | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| glslang — shader compile |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| LADSPA — audio plugins |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| libplacebo — GPU processing |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| LibTorch — DNN backend |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| LV2 — audio plugins |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| OpenColorIO |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| OpenCV — CV filters |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| OpenVINO — DNN backend |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| shaderc — shader compile |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| Snappy — HAP |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| TensorFlow — DNN backend |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| VapourSynth — frameserver |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| vid.stab — stabilization (GPL) |  | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| ZeroMQ — zmq/azmq filters |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
 
 ### Speech-to-text  
 _1 of 2 built._
 
-| Feature | Version | lin-x64 | lin-a64 | lin-hf | musl | musl-a64 | win | win-a64 | osx-x64 | osx-a64 | android | android-x64 | ios | ios-sim |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| whisper.cpp — af_whisper ASR | v1.9.3 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| PocketSphinx — speech recognition |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| Feature | Version | lin-x64 | lin-a64 | lin-hf | musl | musl-a64 | win | win-a64 | osx-x64 | osx-a64 | android | android-x64 | ios | ios-sim | mcat-a64 | mcat-x64 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| whisper.cpp — af_whisper ASR | v1.9.3 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| PocketSphinx — speech recognition |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
 
 ### Networking / streaming / TLS  
 _4 of 14 built._
 
-| Feature | Version | lin-x64 | lin-a64 | lin-hf | musl | musl-a64 | win | win-a64 | osx-x64 | osx-a64 | android | android-x64 | ios | ios-sim |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| RIST — reliable stream | v0.2.20 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| SChannel — TLS/https (OS-native)[^tls] |  | n/a | n/a | n/a | n/a | n/a | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a | n/a |
-| SecureTransport — TLS/https (OS-native)[^tls] |  | n/a | n/a | n/a | n/a | n/a | n/a | n/a | ✓ | ✓ | n/a | n/a | ✓ | ✓ |
-| SRT — secure transport | v1.5.7 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| GMP — bignum (GnuTLS dep; not enabled as an FFmpeg lib) |  | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
-| GnuTLS — TLS/https[^tls] |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| libgcrypt — crypto |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| librtmp — RTMP |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| libssh — SFTP |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| libtls (LibreSSL) — TLS |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| mbedTLS — SRT/librist transport crypto (not FFmpeg's own TLS backend) |  | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
-| OpenSSL — TLS/https[^tls] |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| RabbitMQ — AMQP |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| SMB/CIFS |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| Feature | Version | lin-x64 | lin-a64 | lin-hf | musl | musl-a64 | win | win-a64 | osx-x64 | osx-a64 | android | android-x64 | ios | ios-sim | mcat-a64 | mcat-x64 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| RIST — reliable stream | v0.2.20 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| SChannel — TLS/https (OS-native)[^tls] |  | n/a | n/a | n/a | n/a | n/a | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
+| SecureTransport — TLS/https (OS-native)[^tls] |  | n/a | n/a | n/a | n/a | n/a | n/a | n/a | ✓ | ✓ | n/a | n/a | ✓ | ✓ | n/a | n/a |
+| SRT — secure transport | v1.5.7 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| GMP — bignum (GnuTLS dep; not enabled as an FFmpeg lib) |  | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| GnuTLS — TLS/https[^tls] |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| libgcrypt — crypto |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| librtmp — RTMP |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| libssh — SFTP |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| libtls (LibreSSL) — TLS |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| mbedTLS — SRT/librist transport crypto (not FFmpeg's own TLS backend) |  | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| OpenSSL — TLS/https[^tls] |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| RabbitMQ — AMQP |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| SMB/CIFS |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
 
 ### Hardware acceleration  
 _15 of 23 built._
 
-| Feature | Version | lin-x64 | lin-a64 | lin-hf | musl | musl-a64 | win | win-a64 | osx-x64 | osx-a64 | android | android-x64 | ios | ios-sim |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| AMF (AMD) | c35f613ae | n/a | n/a | n/a | n/a | n/a | ✓ | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
-| AudioToolbox |  | n/a | n/a | n/a | n/a | n/a | n/a | n/a | ✓ | ✓ | n/a | n/a | n/a | n/a |
-| CUDA |  | ✓ | ✓ | — | ✓ | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
-| CUVID (NVIDIA decode) |  | ✓ | ✓ | — | ✓ | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
-| D3D11VA |  | n/a | n/a | n/a | n/a | n/a | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a | n/a |
-| DXVA2 |  | n/a | n/a | n/a | n/a | n/a | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a | n/a |
-| ffnvcodec headers | n13.1.15.0 | ✓ | ✓ | — | ✓ | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
-| libdrm |  | ✓ | ✓ | — | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
-| MediaFoundation |  | n/a | n/a | n/a | n/a | n/a | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a | n/a |
-| NVDEC (NVIDIA decode) |  | ✓ | ✓ | — | ✓ | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
-| NVENC (NVIDIA encode) |  | ✓ | ✓ | — | ✓ | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
-| QSV (oneVPL) | v2.17.0 | ✓ | — | — | ✓ | — | ✓ | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
-| V4L2-M2M |  | ✓ | ✓ | ✓ | — | ✓ | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
-| VAAPI | 2.24.1 | ✓ | ✓ | — | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
-| VideoToolbox |  | n/a | n/a | n/a | n/a | n/a | n/a | n/a | ✓ | ✓ | n/a | n/a | ✓ | ✓ |
-| CUDA (LLVM/NVVM) |  | — | — | — | — | — | — | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
-| D3D12VA[^d3d12] |  | n/a | n/a | n/a | n/a | n/a | — | — | n/a | n/a | n/a | n/a | n/a | n/a |
-| MMAL (Raspberry Pi) |  | — | — | — | — | — | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
-| OpenCL |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| OpenMAX IL |  | — | — | — | — | — | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
-| QSV (MediaSDK, legacy) |  | — | — | — | — | — | — | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
-| VDPAU |  | — | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
-| Vulkan (filters + whisper GPU) |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| Feature | Version | lin-x64 | lin-a64 | lin-hf | musl | musl-a64 | win | win-a64 | osx-x64 | osx-a64 | android | android-x64 | ios | ios-sim | mcat-a64 | mcat-x64 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| AMF (AMD) | c35f613ae | n/a | n/a | n/a | n/a | n/a | ✓ | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
+| AudioToolbox |  | n/a | n/a | n/a | n/a | n/a | n/a | n/a | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a | n/a |
+| CUDA |  | ✓ | ✓ | — | ✓ | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
+| CUVID (NVIDIA decode) |  | ✓ | ✓ | — | ✓ | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
+| D3D11VA |  | n/a | n/a | n/a | n/a | n/a | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
+| DXVA2 |  | n/a | n/a | n/a | n/a | n/a | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
+| ffnvcodec headers | n13.1.15.0 | ✓ | ✓ | — | ✓ | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
+| libdrm |  | ✓ | ✓ | — | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
+| MediaFoundation |  | n/a | n/a | n/a | n/a | n/a | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
+| NVDEC (NVIDIA decode) |  | ✓ | ✓ | — | ✓ | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
+| NVENC (NVIDIA encode) |  | ✓ | ✓ | — | ✓ | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
+| QSV (oneVPL) | v2.17.0 | ✓ | — | — | ✓ | — | ✓ | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
+| V4L2-M2M |  | ✓ | ✓ | ✓ | — | ✓ | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
+| VAAPI | 2.24.1 | ✓ | ✓ | — | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
+| VideoToolbox |  | n/a | n/a | n/a | n/a | n/a | n/a | n/a | ✓ | ✓ | n/a | n/a | ✓ | ✓ | ✓ | ✓ |
+| CUDA (LLVM/NVVM) |  | — | — | — | — | — | — | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
+| D3D12VA[^d3d12] |  | n/a | n/a | n/a | n/a | n/a | — | — | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
+| MMAL (Raspberry Pi) |  | — | — | — | — | — | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
+| OpenCL |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| OpenMAX IL |  | — | — | — | — | — | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
+| QSV (MediaSDK, legacy) |  | — | — | — | — | — | — | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
+| VDPAU |  | — | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
+| Vulkan (filters + whisper GPU) |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
 
 ### Other / miscellaneous  
 _3 of 22 built._
 
-| Feature | Version | lin-x64 | lin-a64 | lin-hf | musl | musl-a64 | win | win-a64 | osx-x64 | osx-a64 | android | android-x64 | ios | ios-sim |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| JNI (Android bridge) |  | — | — | — | — | — | — | — | — | — | ✓ | ✓ | — | — |
-| libxml2 — DASH/IMF parse | v2.15.4 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| MediaCodec (Android) |  | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | ✓ | ✓ | n/a | n/a |
-| AviSynth — frameserver (GPL) |  | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
-| FireWire capture |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| JACK — audio I/O |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| KLV/VANC |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| libaribb24 |  | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
-| libbluray — Blu-ray input |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| libcaca — ASCII-art output |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| libcdio — CD input (GPL) |  | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
-| libdc1394 — IIDC cameras |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| libdvdnav — DVD nav (GPL) |  | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
-| libdvdread — DVD read (GPL) |  | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
-| liblensfun |  | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
-| OpenAL — audio capture |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| OpenGL — output |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| PulseAudio — audio I/O |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| quirc — QR decode |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| rkmpp |  | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
-| Video4Linux2 |  | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| Vulkan (static ICD) |  | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | — | — |
+| Feature | Version | lin-x64 | lin-a64 | lin-hf | musl | musl-a64 | win | win-a64 | osx-x64 | osx-a64 | android | android-x64 | ios | ios-sim | mcat-a64 | mcat-x64 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| JNI (Android bridge) |  | — | — | — | — | — | — | — | — | — | ✓ | ✓ | — | — | — | — |
+| libxml2 — DASH/IMF parse | v2.15.4 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| MediaCodec (Android) |  | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | ✓ | ✓ | n/a | n/a | n/a | n/a |
+| AviSynth — frameserver (GPL) |  | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| FireWire capture |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| JACK — audio I/O |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| KLV/VANC |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| libaribb24 |  | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| libbluray — Blu-ray input |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| libcaca — ASCII-art output |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| libcdio — CD input (GPL) |  | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| libdc1394 — IIDC cameras |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| libdvdnav — DVD nav (GPL) |  | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| libdvdread — DVD read (GPL) |  | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| liblensfun |  | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| OpenAL — audio capture |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| OpenGL — output |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| PulseAudio — audio I/O |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| quirc — QR decode |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| rkmpp |  | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| Video4Linux2 |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| Vulkan (static ICD) |  | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | — | — | — | — |
 
 [^tls]: TLS/https backend — depends on the license SERIES. v3 builds link OpenSSL 3.x (Apache-2.0, requires --enable-version3) on Linux/Android. The App-Store-safe v2 builds instead use GnuTLS on gpl-2 (its GMP/nettle deps are fine under GPLv2) and DROP TLS ENTIRELY on lgpl-2 (GMP/nettle are never LGPLv2.1 and no other backend is either). Windows uses SChannel and Apple uses SecureTransport (OS-native) in every series. All enable the `https`/`tls` protocols EXCEPT lgpl-2 on Linux/Android, which has no TLS.
 [^d3d12]: Not built: FFmpeg's `d3d12va` needs `ID3D12VideoDecoder` from `d3d12video.h`, which the mingw-w64 cross-toolchain doesn't ship (it has `d3d12.h` only). Windows hw decode is covered by D3D11VA + DXVA2.

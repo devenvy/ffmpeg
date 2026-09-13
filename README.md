@@ -16,6 +16,7 @@ governing license text and each bundled dependency's license under `legal/`.
 | macOS | `osx-x64`, `osx-arm64` |
 | Android | `android-arm64`, `android-x64` |
 | iOS | `ios-arm64` (device) + `ios-sim-arm64` (simulator), shipped as one `.xcframework` |
+| Mac Catalyst | `maccatalyst-arm64` + `maccatalyst-x64`, fused into one universal slice of that same `.xcframework` |
 
 Every platform ships **dynamic** libraries (`.dll` / `.so` / `.dylib`; iOS as a dynamic-framework
 `.xcframework`). The glibc Linux builds are self-contained (old-glibc floor, hwaccel libs
@@ -34,9 +35,11 @@ Each platform is built in **four cells** — pick by family and version:
 
 Artifact naming: `ffmpeg-{version}-{rid}-{gplv3|gplv2|lgplv3|lgplv2}`.
 
-The **TLS backend depends on the cell**: OpenSSL on `v3` (Linux/Android), GnuTLS on `gplv2`, and
-**no TLS at all** on `lgplv2` (Linux/Android — no LGPLv2.1-compatible backend exists); Windows uses
-SChannel and Apple uses SecureTransport in every cell. See the docs for the full breakdown.
+The **TLS backend depends on the cell**: OpenSSL on `v3` (Linux/Android/Mac Catalyst), GnuTLS on
+`gplv2`, and **no TLS at all** on `lgplv2` (Linux/Android/Mac Catalyst — no LGPLv2.1-compatible
+backend exists); Windows uses SChannel and macOS/iOS use SecureTransport in every cell. **Mac
+Catalyst is the exception among Apple targets** — SecureTransport is unavailable there, so it
+follows the Linux/Android ladder. See the docs for the full breakdown.
 
 ## Documentation
 

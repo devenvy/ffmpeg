@@ -129,8 +129,29 @@ jobs:
           m="whisper-model/ggml-tiny.en.bin"
           mkdir -p whisper-model
           if [ ! -f "$m" ]; then
-            curl -fsSL --retry 5 --retry-delay 5 --retry-all-errors \
-              "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.en.bin" -o "$m"
+            # Every matrix cell races for this file on a cold cache, and Hugging Face answers the
+            # herd with 429. curl's own --retry uses a FIXED delay, so 6 attempts were spent inside
+            # ~25s and the job failed while the rate-limit window was still open. Back off
+            # progressively with jitter instead: the cells spread themselves out and later ones find
+            # the window clear. Worst case is ~7min of waiting, against a >2h matrix.
+            url="https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.en.bin"
+            ok=0
+            for attempt in 1 2 3 4 5 6 7 8; do
+              if curl -fsSL --retry 2 --retry-delay 3 --retry-all-errors "$url" -o "$m"; then
+                ok=1; break
+              fi
+              echo "whisper model fetch attempt ${attempt}/8 failed; backing off" >&2
+              sleep $(( attempt * 15 + (RANDOM % 20) ))
+            done
+            if [ "$ok" -ne 1 ]; then
+              echo "::error::whisper model fetch failed after 8 attempts"; exit 1
+            fi
+            # A short file means a truncated transfer or an error page that still exited 0.
+            # The model is 77704715 bytes; anything under 70MB is not it.
+            sz=$(wc -c < "$m")
+            if [ "$sz" -lt 70000000 ]; then
+              echo "::error::whisper model is only ${sz} bytes — truncated download"; rm -f "$m"; exit 1
+            fi
           fi
           # Pass a RELATIVE, colon-free path: the test runs from the workspace (run_functional never
           # cd's), so ffmpeg resolves it against cwd on every OS — and unlike an absolute Windows path

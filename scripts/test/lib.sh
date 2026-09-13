@@ -250,7 +250,10 @@ check_config_absent() {
 
 # check_tls  — every build must have exactly one TLS backend, and which one is
 # platform-appropriate: OpenSSL on Linux/Android, SChannel on Windows,
-# SecureTransport on Apple. Structural, so it also covers the mobile static libs.
+# SecureTransport on macOS/iOS. Mac Catalyst is the exception among Apple targets --
+# SecureTransport is unavailable on macabi, so it takes the Linux/Android ladder
+# (v3 OpenSSL / gplv2 GnuTLS / lgplv2 none). Structural, so it also covers the mobile
+# static libs.
 check_tls() {
   if [ -z "$CONFIG_STR" ]; then fail "tls check: no embedded config string — artifact unreadable"; return; fi
   case " ${CONFIG_STR} " in
@@ -469,7 +472,7 @@ exercise_whisper() {
   if [ "$ec" -eq 0 ] && [ -e "${tmp}/out.txt" ]; then
     pass "whisper inference: af_whisper ran a CPU forward pass to completion"
   else
-    fail "whisper inference: af_whisper did not complete (exit ${ec}) — $(printf '%s' "$out" | tr '\n' ' ' | tail -c 400)"
+    fail "whisper inference: af_whisper did not complete (exit ${ec}; exit 139 is the known intermittent segfault, see issue #20 — re-run before investigating) — $(printf '%s' "$out" | tr '\n' ' ' | tail -c 400)"
   fi
   rm -rf "$tmp"
 }

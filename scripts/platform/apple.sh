@@ -4,6 +4,26 @@ set -euo pipefail
 # SOURCED by steps/02_configure.sh based on the RID family; shares its environment.
 case "${RID}" in
   osx-*)
+    # Pin the deployment target. Without -mmacosx-version-min the binary inherits the CI
+    # RUNNER's OS, so the published osx-arm64 artifact carried "minos 26.0" and would not
+    # launch on anything older than the runner image — an audience of almost nobody. The
+    # iOS arm has always pinned its minimum; macOS simply never did.
+    #
+    # 11.0 (Big Sur) is the floor: it is the first release supporting Apple Silicon, so it is
+    # the lowest value that can be shared by both osx RIDs, and a library minimum below the
+    # consuming app's is always compatible.
+    MACOS_MIN="11.0"
+    EXTRA_CFLAGS="-mmacosx-version-min=${MACOS_MIN}"
+    EXTRA_CXXFLAGS="-mmacosx-version-min=${MACOS_MIN}"
+    # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
+    EXTRA_LDFLAGS="-mmacosx-version-min=${MACOS_MIN}"
+    # Exported for the same reason as the iOS arm: autotools deps invoke a generic clang and
+    # would otherwise each bake in the runner OS, leaving the artifact only as portable as its
+    # least portable dependency.
+    export CFLAGS="${EXTRA_CFLAGS}"
+    export CXXFLAGS="${EXTRA_CXXFLAGS}"
+    export LDFLAGS="${EXTRA_LDFLAGS}"
+    export MACOSX_DEPLOYMENT_TARGET="${MACOS_MIN}"   # cmake/meson deps read this
     # macOS — native build (Intel or Apple Silicon)
     CONFIGURE_FLAGS+=(
       --enable-videotoolbox --enable-audiotoolbox

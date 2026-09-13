@@ -54,6 +54,32 @@ audit_runtime_dll_imports() {
 }
 audit_runtime_dll_imports
 
+# The Vulkan runtime must NEVER be a hard import. vulkan-1.dll normally arrives with a GPU
+# driver, so a hard import is invisible on a dev desktop and fatal everywhere else: a headless
+# server, a container or a fresh VM cannot load libavfilter at all, which means ffmpeg.exe does
+# not start -- not a degraded filter, a dead artifact. Our published 9.0.1.6 shipped exactly
+# that. deps/vulkan-shim.sh links a static stub that resolves the loader on first use instead,
+# which is what BtbN ships. Asserted on the BINARY, because this whole class of bug walked
+# past every other check we had.
+audit_no_vulkan_hard_import() {
+  local f bad=""
+  command -v llvm-readobj >/dev/null 2>&1 || { skip "llvm-readobj unavailable - cannot audit Vulkan imports"; return; }
+  for f in "${DIR}"/*.dll "${DIR}"/*.exe; do
+    [ -f "$f" ] || continue
+    if llvm-readobj --coff-imports "$f" 2>/dev/null \
+         | grep -oE "Name: [^ ]+" | awk '{print $2}' \
+         | grep -qi "^vulkan-1[.]dll$"; then
+      bad="${bad} $(basename "$f")"
+    fi
+  done
+  if [ -n "$bad" ]; then
+    fail "vulkan-1.dll is a HARD import of:${bad} - artifact cannot start without a Vulkan runtime"
+  else
+    pass "no hard vulkan-1.dll import (Vulkan resolved at runtime)"
+  fi
+}
+audit_no_vulkan_hard_import
+
 # MSVC import libraries live in the native tree (packaged into the -dev tarball).
 n_lib=$(ls "${DIR}"/lib/*.lib 2>/dev/null | wc -l)
 [ "$n_lib" -ge 6 ] && pass "MSVC import libs present (${n_lib} .lib)" || fail "missing .lib import libs (found ${n_lib})"

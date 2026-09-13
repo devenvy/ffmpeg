@@ -65,15 +65,56 @@ case "${LICENSE_VERSION}" in
     # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     RIST_CRYPTO=none
     [[ "${WHISPER_BACKEND}" == "vulkan" ]] && WHISPER_BACKEND="cpu"   # Apple is already metal
-    # TLS for v2 on Linux/Android, where OpenSSL (Apache-2.0) can't be used without version3.
-    # (Windows/Apple never had OpenSSL — they keep OS-native SChannel/SecureTransport.)
+    # TLS for the v2 cells on Linux/Android, which have no OS-native backend. (Windows keeps
+    # SChannel and macOS/iOS keep SecureTransport in every cell, so they are unaffected.)
     #   • gpl-2  → GnuTLS. Its deps GMP + nettle are dual LGPLv3+/GPLv2+; under a GPLv2 work
     #              their GPLv2+ option applies cleanly, so this is fine.
-    #   • lgpl-2 → NO TLS. GMP + nettle are NEVER LGPLv2.1, so linking them would force the
-    #              artifact up to LGPLv3 (or GPLv2), breaking the LGPLv2.1 guarantee — and no
-    #              other FFmpeg TLS backend is LGPLv2.1-compatible (mbedTLS = Apache-2.0/version3,
-    #              LibreSSL carries the OpenSSL advertising clause). A genuine LGPLv2.1 build on
-    #              Linux/Android therefore ships without https/tls.
+    #   • lgpl-2 → NO TLS. GMP + nettle offer no LGPLv2.1 route (GMP 6 is dual LGPLv3/GPLv2;
+    #              nettle is dual GPLv2+/LGPLv3+, and GnuTLS's own README says binaries linking
+    #              them must follow LGPLv3+ or GPLv2+), so linking them would force the artifact
+    #              up to LGPLv3 or GPLv2 and break the LGPLv2.1 guarantee. The remaining backends
+    #              are no better: mbedTLS is version3-gated by FFmpeg, and LibreSSL is not
+    #              ISC-only — its COPYING keeps the OpenSSL/SSLeay terms on the inherited code.
+    #              This is a conservative PROJECT POLICY on Apache-2.0 TLS combinations pending
+    #              legal review, not a claim that no arrangement could ever be lawful.
+    #
+    # "But FFmpeg's configure ALLOWS OpenSSL here — why not just enable it?"
+    # Asked and investigated more than once, so the answer lives here rather than being
+    # rediscovered. The premise is CORRECT: configure only rejects OpenSSL >= 3 when --enable-gpl
+    # is set without --enable-version3 —
+    #     enabled gplv3 || ! enabled gpl || enabled nonfree || die "...requires --enable-version3"
+    # — and in an LGPL build `! enabled gpl` is true, so FFmpeg does permit OpenSSL 3.x in this
+    # cell. We decline anyway:
+    #   1. FFmpeg treats the two Apache-2.0 routes inconsistently. mbedTLS sits in
+    #      EXTERNAL_LIBRARY_VERSION3_LIST and FFmpeg's LICENSE.md calls that license incompatible
+    #      with LGPLv2.1, while OpenSSL 3 is deliberately permitted in non-GPL builds. (mbedTLS is
+    #      additionally dual Apache-2.0 / GPL-2.0-or-later, though for an LGPLv2.1 artifact the
+    #      only usable route is still Apache-2.0.) The LGPL allowance was introduced ON PURPOSE by
+    #      the 2021 "configure: account for openssl3 license change" commit — it is not a leftover
+    #      from the pre-3.0 licence — but that commit gives no legal rationale for the LGPL branch.
+    #   2. The FSF routes Apache-2.0 to GNU licences of version 3 or later, citing patent
+    #      termination AND indemnification as incompatible with version 2. LGPLv2.1 §6 is the
+    #      wrong provision to lean on: it covers an APPLICATION that uses an LGPL library, not a
+    #      library containing another library. §7 is the relevant one and does permit combined
+    #      libraries, but subject to separate-distribution and notice conditions we do not
+    #      currently produce. Neither section settles the compatibility question by itself.
+    #   3. openssl.sh builds no-shared, so OpenSSL object code is absorbed into the FFmpeg shared
+    #      library that references it — principally libavformat — rather than being a separately
+    #      installed library the user could replace.
+    #
+    # Precedent, among the high-profile projects reviewed: none ships a TLS-enabled LGPLv2.1
+    # FFmpeg. They take one of three routes instead — OS-native TLS (libVLC/libvlccore and its
+    # modules/misc/securetransport.c are LGPLv2.1+, giving macOS/iOS a native TLS client; VLC the
+    # application is GPLv2+); shipping at v3 (FFmpegKit is LGPLv3; BtbN's LGPL variant starts with
+    # --enable-version3 and ships COPYING.LGPLv3); or the end-user package being GPL (Debian's
+    # package enables --enable-gpl, Fedora's ffmpeg-free declares GPL-3.0-or-later, the VLC-Android
+    # application is GPLv2+ — though VideoLAN does publish libVLC metadata as LGPLv2.1).
+    # That is not proof none exists: at least one smaller project, serversideup/ffmpeg-lgpl-builds,
+    # publishes --disable-version3 builds with OpenSSL 3 statically linked and labels them
+    # LGPL-2.1. Noted, not followed — its adoption is small and self-labelling is not clearance.
+    #
+    # Changing this is a legal decision, not a build fix: it needs counsel, not a patch.
+    # Consumers who need both TLS and LGPL should take an lgplv3 cell.
     if [[ "${BUILD_OPENSSL:-0}" == "1" ]]; then
       BUILD_OPENSSL=0
       # gpl-2: GnuTLS provides FFmpeg's HTTPS/TLS. The SRT + librist transports, however, both

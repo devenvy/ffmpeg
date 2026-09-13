@@ -192,13 +192,32 @@ if command -v xcrun >/dev/null 2>&1; then
   # execution. iOS device cannot be executed on CI at all, and the simulator needs simctl
   # (ios-run.sh). Only when the host arch matches the slice -- running the x86_64 slice on an
   # Apple-Silicon runner would depend on Rosetta being installed, which is not guaranteed.
+  #
+  # The run is SPLIT in two. smoke.c checks five properties of the ARTIFACT and then probes
+  # Vulkan, which is a property of the HOST GPU. Those cannot share a process: MoltenVK does not
+  # return an error when it has no usable Metal device, it calls abort(), so the probe took the
+  # five real checks down with it (Abort trap: 6 on macos-15-intel / maccatalyst-x64, while the
+  # arm64 runner passed). Artifact checks gate; the Vulkan probe reports.
   if [ "${RID#maccatalyst-}" != "${RID}" ] && [ -x /tmp/smoke_ios ]; then
     if [ "$(uname -m)" = "${EXPECT_ARCH}" ]; then
-      if DYLD_FRAMEWORK_PATH="${FWDIR}" /tmp/smoke_ios >/tmp/smoke-run.out 2>&1; then
+      if SMOKE_SKIP_VULKAN=1 DYLD_FRAMEWORK_PATH="${FWDIR}" /tmp/smoke_ios >/tmp/smoke-run.out 2>&1; then
         pass "Catalyst smoke program EXECUTES on the host: $(head -1 /tmp/smoke-run.out)"
       else
-        fail "Catalyst smoke program linked but failed to run: $(tail -3 /tmp/smoke-run.out | tr '
-' ' ')"
+        rc=$?
+        # Whole output, not tail -3: a crash prints nothing, so the tail showed only the last
+        # successful line and hid which step actually died.
+        fail "Catalyst smoke program linked but failed to run (exit ${rc}): $(tr '\n' ' ' < /tmp/smoke-run.out)"
+      fi
+      # Informational: proves MoltenVK reaches a real GPU when the host has one. Never gates --
+      # the runner's GPU is not a property of what we shipped, the same reasoning smoke.c already
+      # applies to the Android emulator. The static evidence that Vulkan is actually in the
+      # binary (check_symbol av_vkfmt_from_pixfmt + the --enable-vulkan-static config check)
+      # stays gating above, so nothing is silently lost by this being soft.
+      if DYLD_FRAMEWORK_PATH="${FWDIR}" /tmp/smoke_ios >/tmp/smoke-vk.out 2>&1; then
+        info "Catalyst Vulkan probe: $(tail -1 /tmp/smoke-vk.out)"
+      else
+        rc=$?
+        info "Catalyst Vulkan probe did not complete (exit ${rc}) — MoltenVK could not reach a Metal device on this runner; host GPU property, not a gate"
       fi
     else
       skip "Catalyst smoke run: host is $(uname -m), slice is ${EXPECT_ARCH}"

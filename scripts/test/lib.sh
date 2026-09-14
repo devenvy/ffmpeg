@@ -368,7 +368,12 @@ check_smoke_link() {
 # external-lib ENCODERS are cross-checked against the embedded config: registered iff built.
 # Uses the parameterized RUNNER + FFMPEG (so it works native / wine / qemu). CLI-only; the
 # mobile library builds do the same via av_*_iterate in smoke.c.
-_enum() { "${RUNNER[@]}" "$FFMPEG" -hide_banner "$1" 2>/dev/null || true; }
+# Word-splits $1 on purpose: most rows query a single option (-filters, -encoders), but some
+# capabilities have no enumerable component and are only visible through `-h full` (libsoxr
+# registers no filter or codec -- it adds a RESAMPLER ENGINE, so the only honest CLI evidence is
+# the "select SoX Resampler" line). Every value comes from capabilities.tsv, which is in-repo.
+# shellcheck disable=SC2086  # deliberate word splitting; see above
+_enum() { "${RUNNER[@]}" "$FFMPEG" -hide_banner $1 2>/dev/null || true; }
 # check_claimed_capabilities — assert the binary actually HAS what its configure line CLAIMS.
 #
 # This is the counterpart to check_config. check_config proves we asked; this proves we got it.

@@ -58,7 +58,13 @@
 --enable-libopenjpeg	-encoders	libopenjpeg	avcodec	libopenjpeg
 --enable-libspeex	-decoders	libspeex	avcodec	libspeex
 --enable-libgsm	-decoders	libgsm	avcodec	libgsm
---enable-libsoxr	-filters	aresample	avfilter	aresample
+# libsoxr registers NO filter, codec or format: it adds a resampler ENGINE to
+# libswresample. The old row asserted the `aresample` filter, which FFmpeg builds
+# unconditionally (its only dep is swresample) -- so that row passed on a build with no
+# libsoxr at all. Verified against the artifact: `-h full` is the only CLI evidence that
+# discriminates. No static equivalent: the engine name lives in libswresample, which the
+# static check does not map.
+--enable-libsoxr	-h full	select SoX Resampler	-	-
 --enable-libzimg	-filters	zscale	avfilter	zscale
 --enable-chromaprint	-muxers	chromaprint	avformat	chromaprint
 --enable-libsrt	-protocols	^[[:space:]]*srt$	avformat	srt
@@ -92,4 +98,6 @@
 --enable-libvpl	-encoders	av1_qsv	avcodec	av1_qsv
 --enable-mediacodec	-decoders	hevc_mediacodec	avcodec	hevc_mediacodec
 --enable-videotoolbox	-encoders	hevc_videotoolbox	avcodec	hevc_videotoolbox
---enable-d3d11va	-decoders	hevc	avcodec	hevc_d3d11va
+# No CLI columns: measured on the artifact, ffmpeg lists no per-codec d3d11va entry under
+# -decoders (0 matches) and -hwaccels names only the stack. Static-only row.
+--enable-d3d11va			avcodec	hevc_d3d11va

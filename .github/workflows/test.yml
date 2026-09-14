@@ -214,9 +214,30 @@ jobs:
             # `container:` on the job (which breaks actions/checkout — see
             # linux-musl-x64, which stays on `container:` because its x64
             # runner *is* supported).
+            # `docker run` pulls the image implicitly, and that pull is a NETWORK operation with no
+            # retry of any kind -- a registry blip takes the whole build down for a reason that is not
+            # our code, which is the failure class the curl/git wrappers exist to remove. Observed on
+            # this branch: "docker: Error response from daemon: received unexpected HTTP status:
+            # 502 Bad Gateway" pulling quay.io/pypa/manylinux_2_28_x86_64.
+            #
+            # Pull explicitly first, with the same exponential+jitter backoff scripts/lib.sh uses, so
+            # `docker run` below finds the image locally. Retrying the PULL rather than the `docker run`
+            # matters: re-running the run would repeat the entire build.
+            _img="alpine:latest"
+            _delay=4
+            for _try in 1 2 3 4 5 6; do
+              docker pull "${_img}" && break
+              if [ "${_try}" -eq 6 ]; then
+                echo "ERROR: docker pull ${_img} failed after 6 attempts" >&2; exit 1
+              fi
+              _wait=$(( _delay + (RANDOM % 5) ))
+              echo "  docker pull failed (attempt ${_try}/6) - retrying in ${_wait}s..." >&2
+              sleep "${_wait}"
+              _delay=$(( _delay * 2 ))
+            done
             docker run --rm -v "${PWD}:/work" -w /work \
               -e BUILD_RID -e WHISPER_MODEL \
-              alpine:latest \
+              "${_img}" \
               sh -c 'apk add --no-cache bash git file binutils libstdc++ libgcc curl build-base && chmod +x scripts/test.sh scripts/test/*.sh && bash scripts/test.sh "${BUILD_RID}" "artifacts/${BUILD_RID}/native"'
           else
             bash scripts/test.sh "${BUILD_RID}" "artifacts/${BUILD_RID}/native"

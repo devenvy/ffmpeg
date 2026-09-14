@@ -333,6 +333,37 @@ case "${RID}" in
         for _so in "${OUT_DIR}"/*.so*; do
           [ -e "${_so}" ] || continue
           [ -L "${_so}" ] && continue
+          # A DT_NEEDED entry is only a problem if symbols are actually TAKEN from it. Measured on
+          # linux-musl-arm64 with everything correct -- -static-libgcc in LDFLAGS, EXTRALIBS fully
+          # static, libgcc_eh.a present -- libavfilter still carried libgcc_s.so.1 while needing ZERO
+          # symbols from it. Alpine's gcc adds -lgcc_s for -shared in a form -Wl,--as-needed does not
+          # strip, so the entry is pure noise: the loader would demand a library on a bare Alpine image
+          # that nothing in the artifact calls into.
+          #
+          # So: drop a PROVABLY unused entry (exactly what --as-needed is for), and fail only when the
+          # dependency is real. The proof is required first and the removal is verified after, because
+          # "strip the error away" is otherwise indistinguishable from hiding it.
+          _rt_needed="$(patchelf --print-needed "${_so}" 2>/dev/null | grep -E "^(libstdc\\+\\+|libgcc_s)\\.so" || true)"
+          if [ -n "${_rt_needed}" ]; then
+            for _dep in ${_rt_needed}; do
+              _dp="$("${CC:-gcc}" -print-file-name="${_dep}" 2>/dev/null)"
+              _used=1
+              if [ -e "${_dp}" ] && command -v nm >/dev/null 2>&1; then
+                _u="$(mktemp)"; _d="$(mktemp)"
+                nm -D --undefined-only "${_so}" 2>/dev/null | awk '{print $NF}' | sort -u > "${_u}"
+                nm -D --defined-only   "${_dp}" 2>/dev/null | awk '{print $NF}' | sort -u > "${_d}"
+                [ -s "$(comm -12 "${_u}" "${_d}" > "${_u}.i"; echo "${_u}.i")" ] || _used=0
+                rm -f "${_u}" "${_d}" "${_u}.i"
+              fi
+              if [ "${_used}" -eq 0 ]; then
+                echo "  ${_so##*/}: ${_dep} is DT_NEEDED but no symbol is taken from it - removing (--as-needed should have)."
+                patchelf --remove-needed "${_dep}" "${_so}"
+                if patchelf --print-needed "${_so}" | grep -qx "${_dep}"; then
+                  echo "ERROR: failed to remove the unused ${_dep} entry from ${_so##*/}" >&2; exit 1
+                fi
+              fi
+            done
+          fi
           if patchelf --print-needed "${_so}" 2>/dev/null | grep -qE "^(libstdc\+\+\.so|libgcc_s\.so)"; then
             echo "ERROR: ${_so##*/} depends on a host C++ runtime:" >&2
             patchelf --print-needed "${_so}" | grep -E "^(libstdc\+\+\.so|libgcc_s\.so)" | sed "s/^/  /" >&2

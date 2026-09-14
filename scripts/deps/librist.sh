@@ -32,34 +32,32 @@ esac
 [[ "${PLATFORM:-}" == "windows" ]] && RIST_ARGS+=(-Dhave_mingw_pthreads=true)
 [[ -n "${MESON_CROSS_FILE:-}" ]] && RIST_ARGS+=(--cross-file "${MESON_CROSS_FILE}")
 meson setup build "${RIST_ARGS[@]}"
-# -Duse_mbedtls=true is a REQUEST. librist resolves the backend with meson's dependency()
-# machinery, and a miss leaves the option on while the crypto code is compiled out -- rist://
-# still works, unencrypted. FFmpeg's -secret/-encryption options prove nothing: they are
-# FFmpeg's own AVOptions and exist regardless. Ask MESON what it actually resolved, via the
-# stable meson-info introspection files, rather than re-deriving it from source layout.
-if [[ "${RIST_CRYPTO:-none}" != "none" ]]; then
-  _rist_info="build/meson-info/intro-dependencies.json"
-  if [[ ! -f "${_rist_info}" ]]; then
-    echo "ERROR: ${_rist_info} missing - cannot verify librist picked up ${RIST_CRYPTO}." >&2
-    echo "  (meson introspection layout changed? the probe needs updating, not skipping.)" >&2
-    exit 1
-  fi
-  # Schema-tolerant: meson has shipped intro-dependencies.json as a bare array and (in some
-  # versions) wrapped in an object; a not-found dependency can also be RECORDED with
-  # found:false, so presence of the name alone is not enough. Tested against all three shapes.
-  # Single-quoted throughout: $n is a JQ variable (supplied by --arg), not a shell one.
-  _q='(if type=="array" then . else (.dependencies // []) end)'
-  _q=${_q}' | any(.[]; (.name|ascii_downcase|contains($n)) and (.found != false))'
-  if ! jq -e --arg n "${RIST_CRYPTO}" "${_q}" "${_rist_info}" >/dev/null 2>&1; then
-    echo "ERROR: librist was configured with ${RIST_CRYPTO} encryption, but meson resolved no" >&2
-    echo "  such dependency - rist:// would transport in the clear." >&2
-    echo "  Dependencies meson did find:" >&2
-    jq -r '.[].name' "${_rist_info}" 2>/dev/null | sed 's/^/    /' >&2
-    exit 1
-  fi
-  echo "librist: ${RIST_CRYPTO} resolved by meson - encryption verified."
-fi
 meson compile -C build -j "$(${NPROC})"
+# -Dbuiltin_mbedtls=false is a REQUEST, and librist does not fail when it cannot be honoured.
+# contrib/mbedtls/meson.build resolves the external library as
+#     dependency('MbedTLS', method: 'cmake', modules: ['MbedTLS::mbedcrypto'])
+# falling back to cc.find_library('mbedcrypto'), and if BOTH miss it simply sets
+# builtin_mbedtls = true and compiles its own vendored copy from contrib/mbedtls/library/*.c.
+#
+# So the failure mode is not "rist:// in the clear" -- encryption still works. It is that the
+# artifact would carry an UNPINNED, un-Renovate-tracked mbedTLS vendored inside librist instead
+# of the version deps.json pins, silently diverging from the ledger that the whole dependency
+# policy rests on.
+#
+# The vendored path is unambiguous in the build tree: it declares static_library('mbedcrypto'),
+# so a libmbedcrypto.a under build/ means the external one was not found. Checked after compile,
+# because that is when the library would exist. (An earlier version of this check queried meson's
+# intro-dependencies.json, which cannot see the cc.find_library fallback at all.)
+if [[ "${RIST_CRYPTO:-none}" == "mbedtls" ]]; then
+  _rist_vendored="$(find build -name 'libmbedcrypto.a' -print -quit 2>/dev/null || true)"
+  if [[ -n "${_rist_vendored}" ]]; then
+    echo "ERROR: librist fell back to its VENDORED mbedTLS (${_rist_vendored})." >&2
+    echo "  -Dbuiltin_mbedtls=false was set, so our pinned mbedTLS should have been found." >&2
+    echo "  The artifact would ship an unpinned crypto library that deps.json does not track." >&2
+    exit 1
+  fi
+  echo "librist: linked the external pinned mbedTLS (no vendored copy built)."
+fi
 meson install -C build
 CONFIGURE_FLAGS+=(--enable-librist)
 echo "librist (RIST transport, crypto=${RIST_CRYPTO:-none}) enabled."

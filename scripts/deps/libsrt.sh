@@ -30,9 +30,14 @@ build_cmake_dep srt "${SRT_ARGS[@]}"
 # marker is libsrt's HaiCrypt layer, which is compiled ONLY with ENABLE_ENCRYPTION=ON (verified
 # present in the published linux-x64 artifact, which does have encryption).
 if [[ "${SRT_ENCLIB:-off}" != "off" ]]; then
-  _srt_a="${DEPS_DIR}/lib/libsrt.a"
-  if [[ ! -f "${_srt_a}" ]]; then
-    echo "ERROR: libsrt built but ${_srt_a} is missing - cannot verify encryption." >&2
+  # Locate the archive rather than hardcoding one name: build_cmake_dep installs into
+  # ${DEPS_DIR}/lib, but the exact filename is SRT's to choose. A wrong guess here would fail a
+  # perfectly good build, which is the failure mode this branch keeps having to correct.
+  _srt_a="$(find "${DEPS_DIR}/lib" -maxdepth 1 -name 'libsrt*.a' -print -quit 2>/dev/null || true)"
+  if [[ -z "${_srt_a}" ]]; then
+    echo "ERROR: libsrt built but no libsrt*.a found under ${DEPS_DIR}/lib -" >&2
+    echo "  cannot verify that encryption was compiled in." >&2
+    ls -1 "${DEPS_DIR}/lib" 2>/dev/null | sed 's/^/    /' >&2
     exit 1
   fi
   # grep -a, not strings(1): this runs in the BUILD environment, where binutils is not something

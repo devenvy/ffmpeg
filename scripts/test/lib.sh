@@ -275,22 +275,27 @@ check_config_absent() {
 # (v3 OpenSSL / gplv2 GnuTLS / lgplv2 none). Structural, so it also covers the mobile
 # static libs.
 check_tls() {
-  if [ -z "$CONFIG_STR" ]; then fail "tls check: no embedded config string — artifact unreadable"; return; fi
-  case " ${CONFIG_STR} " in
-    *" --enable-openssl "*)         pass "TLS backend: OpenSSL (https/tls)" ;;
-    *" --enable-gnutls "*)          pass "TLS backend: GnuTLS (https/tls)" ;;   # v2 series
-    *" --enable-schannel "*)        pass "TLS backend: SChannel (https/tls)" ;;
-    *" --enable-securetransport "*) pass "TLS backend: SecureTransport (https/tls)" ;;
-    *)
-      # The only builds with NO TLS backend are lgpl-2 (LGPLv2.1) on Linux/Android:
-      # GnuTLS's GMP/nettle deps are LGPLv3+/GPLv2+ (never LGPLv2.1) and no other FFmpeg
-      # TLS backend is LGPLv2.1-compatible, so TLS is intentionally dropped there. That
-      # signature is --disable-gpl (lgpl) AND no --enable-version3 (v2).
+  if [ -z "$CONFIG_STR" ]; then fail "tls check: no embedded config string - artifact unreadable"; return; fi
+  # COUNT the backends rather than stopping at the first `case` arm that matches. The function
+  # claims "exactly one TLS backend", but a first-match case cannot tell one from two -- a build
+  # that somehow configured both OpenSSL and GnuTLS would have reported the first and passed.
+  local found=() b
+  for b in openssl gnutls schannel securetransport; do
+    case " ${CONFIG_STR} " in *" --enable-${b} "*) found+=("${b}") ;; esac
+  done
+  case "${#found[@]}" in
+    1) pass "TLS backend: ${found[0]} (https/tls)" ;;
+    0)
+      # The only builds with NO TLS backend are lgpl-2 (LGPLv2.1) on Linux/Android/Catalyst:
+      # GnuTLS's GMP/nettle deps are LGPLv3+/GPLv2+ (never LGPLv2.1) and no other FFmpeg TLS
+      # backend is LGPLv2.1-compatible, so TLS is intentionally dropped there. That signature is
+      # --disable-gpl (lgpl) AND no --enable-version3 (v2).
       if [[ " ${CONFIG_STR} " == *" --disable-gpl "* && " ${CONFIG_STR} " != *" --enable-version3 "* ]]; then
-        pass "no TLS backend — lgplv2 intentionally omits it (no LGPLv2.1-compatible TLS)"
+        pass "no TLS backend - lgplv2 intentionally omits it (no LGPLv2.1-compatible TLS)"
       else
         fail "no TLS backend configured (expected openssl/gnutls/schannel/securetransport)"
       fi ;;
+    *) fail "more than one TLS backend configured (${found[*]}) - exactly one is expected" ;;
   esac
 }
 
@@ -614,9 +619,20 @@ exercise_tls() {
   # ffmpeg fails to DEMUX it ("Invalid data found") — that failure PROVES the handshake worked
   # and bytes were transferred. We only truly fail if the https protocol is missing entirely.
   local url="https://raw.githubusercontent.com/FFmpeg/FFmpeg/master/RELEASE" out
-  out="$("${RUNNER[@]}" "$FFMPEG" -hide_banner -v error -i "$url" -f null - 2>&1)"
-  if [ -z "$out" ] || grep -qiE 'Invalid data found|could not find codec|Unknown input format|does not contain any stream|End of file' <<<"$out"; then
+  local rc=0
+  out="$("${RUNNER[@]}" "$FFMPEG" -hide_banner -v error -i "$url" -f null - 2>&1)" || rc=$?
+  # Positive evidence only. The resource is a TEXT file, so a working handshake ALWAYS ends in a
+  # demux complaint -- that message is the proof bytes arrived. Empty output used to count as a
+  # pass on its own; it cannot, because it is also what a silently-dead ffmpeg produces. Empty is
+  # accepted only alongside a zero exit status.
+  if grep -qiE 'Invalid data found|could not find codec|Unknown input format|does not contain any stream|End of file' <<<"$out"; then
     pass "TLS handshake: fetched bytes over https:// (backend negotiates)"; return
+  fi
+  if [ -z "$out" ] && [ "$rc" -eq 0 ]; then
+    pass "TLS handshake: https:// transfer completed cleanly (exit 0)"; return
+  fi
+  if [ -z "$out" ]; then
+    fail "TLS handshake: ffmpeg exited ${rc} with no output on ${url} - cannot confirm a transfer"; return
   fi
   case "$out" in
     *"Protocol not found"*|*"Unknown protocol"*)

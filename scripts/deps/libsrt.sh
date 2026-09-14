@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# libsrt — Secure Reliable Transport (MPL-2.0; dynamic-linked → fine on every cell). Enables
+# libsrt — Secure Reliable Transport (MPL-2.0). Built and linked STATICALLY (ENABLE_STATIC=ON,
+# ENABLE_SHARED=OFF) like every other dependency here; MPL-2.0 is file-level copyleft, so static
+# linking is fine on every cell provided the library's own sources stay available, which
+# SOURCE_OFFER.txt and legal/licenses/ cover. Enables
 # FFmpeg's srt:// protocol. Encryption backend is chosen per license cell via SRT_ENCLIB
 # (set in 04_select_license): mbedtls on v3, gnutls on gpl-2 Linux/Android, off on the
 # nocrypto cells (lgpl-2 everywhere + gpl-2 Win/Apple). C++ → its runtime is appended to

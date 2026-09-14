@@ -400,11 +400,27 @@ jobs:
         run: |
           VERSION="${{ matrix.build.version }}"
           VARIANT="${{ matrix.rid }}-${{ matrix.license }}v${{ matrix.license_version }}"
-          gh release upload "${{ matrix.build.tag }}" \
-            "ffmpeg-${VERSION}-${VARIANT}.tar.gz" --clobber --repo "${{ github.repository }}"
+          # Asset upload is a mutable network operation against the API and had no retry, while every
+          # other network call in this repo now has one -- and this is the worst place to lack one: the
+          # release is already PUBLIC by the time these run, so a blip leaves a published release missing
+          # an artifact. --clobber makes the retry idempotent: a partially-uploaded asset is replaced,
+          # not duplicated.
+          upload_retry() { # <file>
+            local f="$1" try delay=4 wait
+            for try in 1 2 3 4 5 6; do
+              gh release upload "${{ matrix.build.tag }}" "${f}" --clobber \
+                --repo "${{ github.repository }}" && return 0
+              if [ "${try}" -eq 6 ]; then
+                echo "ERROR: gh release upload ${f} failed after 6 attempts" >&2; return 1
+              fi
+              wait=$(( delay + (RANDOM % 5) ))
+              echo "  upload of ${f} failed (attempt ${try}/6) - retrying in ${wait}s..." >&2
+              sleep "${wait}"; delay=$(( delay * 2 ))
+            done
+          }
+          upload_retry "ffmpeg-${VERSION}-${VARIANT}.tar.gz"
           if [ -f "ffmpeg-${VERSION}-${VARIANT}-dev.tar.gz" ]; then
-            gh release upload "${{ matrix.build.tag }}" \
-              "ffmpeg-${VERSION}-${VARIANT}-dev.tar.gz" --clobber --repo "${{ github.repository }}"
+            upload_retry "ffmpeg-${VERSION}-${VARIANT}-dev.tar.gz"
           fi
 
   publish-ios:

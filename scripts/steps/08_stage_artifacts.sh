@@ -235,7 +235,7 @@ case "${RID}" in
     # Fix: do not guess. Read the load commands off each binary and rewrite whatever points
     # into the build tree, whatever it happens to be called.
     echo "Fixing macOS install names for the flat layout..."
-  
+
     # Install name = @rpath + MAJOR-only, matching upstream's
     #   -install_name $(INSTALL_NAME_DIR)/$(SLIBNAME_WITH_MAJOR) -compatibility_version $(LIBMAJOR)
     # so a consumer records libavcodec.63.dylib and keeps working across patch bumps. The real
@@ -247,7 +247,7 @@ case "${RID}" in
       major="$(printf '%s' "${libname}" | sed -E 's/^(lib[a-z0-9]+)\.([0-9]+)(\..*)?\.dylib$/\1.\2.dylib/')"
       install_name_tool -id "@rpath/${major}" "${lib}"
     done
-  
+
     for target in "${OUT_DIR}/ffmpeg" "${OUT_DIR}/ffprobe" "${OUT_DIR}"/*.dylib; do
       [ -L "${target}" ] && continue
       [ -f "${target}" ] || continue
@@ -263,7 +263,7 @@ case "${RID}" in
       # incorrectly-signed image. Re-sign ad-hoc after the last edit.
       codesign --force --sign - "${target}" 2>/dev/null || true
     done
-  
+
     # Assert the result rather than trusting it: nothing may still point into the build tree.
     _leaked=""
     for target in "${OUT_DIR}/ffmpeg" "${OUT_DIR}/ffprobe" "${OUT_DIR}"/*.dylib; do

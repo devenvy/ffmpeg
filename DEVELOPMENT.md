@@ -421,10 +421,14 @@ additions broke CI, usually only on one platform.
    in each container's package list: `PKGS` (apt), the manylinux `DNF_PKGS` in
    `03_install_packages.sh`, and **`PKGS_APK`** (Alpine) in `scripts/platform/linux.sh`. Alpine
    ships **busybox stubs** — its `xxd` lacks `-i`, so libvmaf's model embedding failed on musl
-   until the real `xxd` package was added (while glibc had no `xxd` at all and fell back cleanly).
-   A tool can be fine on three platforms and broken on the fourth.
+   until the real `xxd` package was added. The manylinux (glibc) images had no `xxd` at all, and
+   there was **no clean fallback**: libvmaf's meson marks `xxd` `required: false` and emits its
+   built-in models only inside `if xxd.found()`, so those artifacts shipped a `libvmaf` filter
+   that registered and then returned `-EINVAL` for its own default model. It is a hard build
+   failure now. A tool can be fine on three platforms and quietly wrong on the fourth.
 
-7. **Regenerate the matrix.** `bash scripts/gen-matrix.sh` (needs a fake NDK locally — see below).
+7. **Regenerate the matrix.** `bash scripts/gen-matrix.sh` — no Android NDK needed; it builds its
+   own NDK-shaped stub, so the output is identical on any host.
    FFmpeg-facing libs appear automatically; if one shows as a bare token, add a category + label
    to the maps in `gen-matrix.sh`. Commit the regenerated `docs/matrix/*.md` (the `docs-matrix`
    gate enforces zero drift).
@@ -434,13 +438,18 @@ additions broke CI, usually only on one platform.
    linux-musl-x64 (Alpine — genuinely different), linux-musl-arm64, linux-armhf, win-x64,
    win-arm64, android-arm64, android-x64** — not just linux-x64. Only **osx/ios** need
    a macOS runner.
-   Done = the lib compiles on every buildable
-   cell and FFmpeg's `config.h` shows `CONFIG_MYLIB=1` (a lib that fails to link is silently
-   autodetect-disabled). Local-env notes: the harness lives in the **Ubuntu-24.04** WSL distro
+   Done is NOT "it compiled". `config.h` showing `CONFIG_MYLIB=1` is an intermediate result: it
+   says configure accepted the library, not that anything it provides survived into the artifact.
+   That distinction is the whole reason this repo shipped `--enable-vulkan` with zero Vulkan
+   filters on 9 of 15 RIDs. **Done = the component the library provides is REGISTERED in the
+   staged artifact on every applicable cell** — add a row to `scripts/test/capabilities.tsv`
+   naming it, and confirm the capability check passes. `config.h` is worth a glance on the way
+   (a lib that fails to link is silently autodetect-disabled) but it is not the finish line. Local-env notes: the harness lives in the **Ubuntu-24.04** WSL distro
    (`wsl.exe -d Ubuntu-24.04`); **⚠ root-clean reused build dirs** (`docker run --rm -v "$DST:/work"
    … rm -rf /work/.build /work/artifacts`) — docker leaves root-owned files a host `rm` can't
-   delete, and a stale target-arch `glslc` once broke a rebuild; **⚠ gen-matrix** needs a fake NDK
-   (`mkdir -p /tmp/fakendk/toolchains/llvm/prebuilt/linux-x86_64/bin; export ANDROID_NDK_HOME=/tmp/fakendk`).
+   delete, and a stale target-arch `glslc` once broke a rebuild. `gen-matrix` needs no NDK: it
+   creates an NDK-shaped stub itself (it only reads `BUILD_*` flags and never invokes a compiler),
+   which is also what keeps its output byte-identical across hosts.
 
 9. **Gates:** `shellcheck` (inline per-line disables only, never file-wide), `jq -e . deps.json`,
    `bash scripts/deps/ledger-validate.sh`, `bash scripts/ci/select-versions-test.sh`, matrix zero-drift.

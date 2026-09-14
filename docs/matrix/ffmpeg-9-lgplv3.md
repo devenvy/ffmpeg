@@ -120,10 +120,11 @@ _1 of 2 built._
 | PocketSphinx — speech recognition |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
 
 ### Networking / streaming / TLS  
-_5 of 14 built._
+_6 of 14 built._
 
 | Feature | Version | lin-x64 | lin-a64 | lin-hf | musl | musl-a64 | win | win-a64 | osx-x64 | osx-a64 | android | android-x64 | ios | ios-sim | mcat-a64 | mcat-x64 |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| mbedTLS — SRT/librist transport crypto (not FFmpeg's own TLS backend) | v3.6.7 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | OpenSSL — TLS/https[^tls] | openssl-3.5.7 | ✓ | ✓ | ✓ | ✓ | ✓ | — | — | — | — | ✓ | ✓ | — | — | ✓ | ✓ |
 | RIST — reliable stream | v0.2.20 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | SChannel — TLS/https (OS-native)[^tls] |  | n/a | n/a | n/a | n/a | n/a | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
@@ -135,7 +136,6 @@ _5 of 14 built._
 | librtmp — RTMP |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
 | libssh — SFTP |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
 | libtls (LibreSSL) — TLS |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| mbedTLS — SRT/librist transport crypto (not FFmpeg's own TLS backend) |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
 | RabbitMQ — AMQP |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
 | SMB/CIFS |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
 
@@ -151,7 +151,7 @@ _16 of 22 built._
 | D3D11VA |  | n/a | n/a | n/a | n/a | n/a | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
 | DXVA2 |  | n/a | n/a | n/a | n/a | n/a | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
 | ffnvcodec headers | n13.1.15.0 | ✓ | ✓ | — | ✓ | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
-| libdrm |  | ✓ | ✓ | — | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
+| libdrm | libdrm-2.4.134 | ✓ | ✓ | — | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
 | MediaFoundation |  | n/a | n/a | n/a | n/a | n/a | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
 | NVDEC (NVIDIA decode) |  | ✓ | ✓ | — | ✓ | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
 | NVENC (NVIDIA encode) |  | ✓ | ✓ | — | ✓ | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |

@@ -168,7 +168,7 @@ active = set()
 for line in open("scripts/steps/06_build_libraries.sh"):
     m = re.match(r'\s*\.\s+"\$\{D\}/([a-z0-9_-]+)\.sh"', line)
     if m: active.add(m.group(1))
-tok_build = {}; tok_uncond = set(); tok_dep = {}
+tok_build = {}; tok_uncond = set(); tok_dep = {}; guard_only = {}
 for f in sorted(glob.glob("scripts/deps/*.sh")):   # sorted -> deterministic token ownership across hosts
     name = os.path.basename(f)[:-3]
     if name not in active: continue
@@ -182,6 +182,9 @@ for f in sorted(glob.glob("scripts/deps/*.sh")):   # sorted -> deterministic tok
     # from the ledger key (e.g. --enable-vaapi comes from libva.sh -> key "libva").
     km = re.search(r'\b(?:clone_dep|build_cmake_dep|dep_version|dep_source)\s+([a-z0-9][a-z0-9_-]*)', code)
     key = km.group(1) if km else None
+    if not re.search(r'--enable-', code) and g:
+        # A dep with a BUILD_ guard but no FFmpeg --enable- flag (see guard_only below).
+        guard_only[name] = (g.group(1), key)
     for tok in re.findall(r'--enable-([a-z0-9_-]+)', code):
         t = tok.replace("-", "_")
         if g: tok_build[t] = g.group(1)
@@ -314,6 +317,18 @@ DESC = {
   "mmal":"MMAL (Raspberry Pi)","omx":"OpenMAX IL","opencl":"OpenCL",
   "schannel":"SChannel — TLS/https (OS-native)","securetransport":"SecureTransport — TLS/https (OS-native)",
 }
+# Deps that have a matrix ROW but no FFmpeg --enable- flag. mbedTLS is the case: it is SRT's and
+# librist's transport crypto, linked into those libraries rather than into FFmpeg, so mbedtls.sh
+# carries no --enable- token at all ("No FFmpeg --enable-* flag", says its own header). The scan
+# above keys purely off --enable-, so mbedTLS's row rendered as NOT BUILT on all 15 RIDs in every
+# cell -- including the v3 cells, where BUILD_MBEDTLS=1 and it is genuinely built and linked into
+# both transports. Drive those rows off the guard instead, keyed by the script's own name.
+for _n, (_g, _k) in guard_only.items():
+    _t = _n.replace('-', '_')
+    if _t not in DESC: continue          # a support lib with no row of its own (brotli, kissfft, ...)
+    tok_build.setdefault(_t, _g)
+    if _k: tok_dep.setdefault(_t, _k)
+
 APPLIES = {
   "cuda":LINUX|WINX86,"cuda_llvm":LINUX|WINX86,"cuvid":LINUX|WINX86,"nvenc":LINUX|WINX86,
   "nvdec":LINUX|WINX86,"ffnvcodec":LINUX|WINX86,"vaapi":LINUX,"vdpau":{"linux-x64"},

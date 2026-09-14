@@ -453,8 +453,7 @@ if it needs a build tool) · regenerated `docs/matrix/`.
 
 Every third-party library's version is pinned in one file — **[`deps.json`](deps.json)**, the
 dependency ledger — not scattered across the `scripts/deps/*.sh` build scripts. The scripts read
-it through a small loader and clone each dep at the pinned ref. (Design record:
-[docs/superpowers/specs/2026-08-22-dependency-ledger-design.md](docs/superpowers/specs/2026-08-22-dependency-ledger-design.md).)
+it through a small loader and clone each dep at the pinned ref.
 
 ### The ledger — `deps.json`
 

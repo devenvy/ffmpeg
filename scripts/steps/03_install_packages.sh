@@ -24,7 +24,13 @@ case "${RID}" in
     # autoconf/automake/libtool provide `autoreconf`, which several deps' autogen.sh
     # needs (kvazaar, libogg, libvorbis, zimg — cloned from git with no pre-generated
     # configure). GitHub's macOS runners no longer ship them, so install explicitly.
-    for pkg in autoconf automake libtool cmake gperf meson nasm pkg-config yasm jq; do
+    # shaderc provides glslc, which FFmpeg's configure probes for spirv_compiler -- without it
+    # every Vulkan FILTER is silently dropped while --enable-vulkan still appears in the configure
+    # string (measured: the published ios-arm64 and maccatalyst slices have zero of them).
+    # Homebrew's shaderc is current, so this is the fast path; the capability probe further down
+    # still verifies it and falls back to building the pinned shaderc from source, which needs
+    # ninja. Both are listed so neither path depends on what the runner image happens to ship.
+    for pkg in autoconf automake libtool cmake gperf meson nasm ninja pkg-config shaderc yasm jq; do
       brew list "$pkg" &>/dev/null || brew install "$pkg"
     done
     ;;
@@ -174,10 +180,33 @@ esac
       sleep "${_sync_wait}"
       _sync_delay=$(( _sync_delay * 2 ))
     done
-    cmake -S /tmp/shaderc -B /tmp/shaderc/build -G Ninja \
-      -DCMAKE_BUILD_TYPE=Release -DSHADERC_SKIP_TESTS=ON -DSHADERC_SKIP_EXAMPLES=ON \
-      -DCMAKE_INSTALL_PREFIX=/usr/local
-    cmake --build /tmp/shaderc/build --target glslc_exe -j"$(nproc)"
+    # glslc is a BUILD-HOST tool: FFmpeg's configure executes it ON THE RUNNER to compile
+    # shaders. But 02_configure.sh has already exported the TARGET cross toolchain by this point
+    # -- CC=x86_64-w64-mingw32-gcc-win32 for win-x64, the NDK clang for Android, an -isysroot
+    # CFLAGS for the Apple targets -- and CMake reads all of that from the environment. So this
+    # was configuring a WINDOWS build of glslc on a Linux runner, and died at generate time:
+    #     Unable to determine default CMAKE_INSTALL_LIBDIR ... no target architecture is known
+    #     The install of the spirv-as target requires changing an RPATH from the build tree,
+    #     but this is not supported with the Ninja generator unless on an ELF-based ... platform
+    # Had it generated, it would have produced a glslc.exe that cannot run on the runner at all,
+    # which is a worse failure: the capability probe would reject it and the build would stop
+    # with a confusing message. Cross variables are cleared in a subshell so the export list
+    # above is untouched for the real (target) build that follows. CC/CXX are unset rather than
+    # forced, letting CMake pick the platform's default host compiler -- which is what this
+    # block did when it lived inside the manylinux branch and worked.
+    (
+      unset CC CXX AR RANLIB LD NM STRIP OBJDUMP RC WINDRES \
+            CFLAGS CXXFLAGS CPPFLAGS LDFLAGS \
+            PKG_CONFIG_PATH PKG_CONFIG_LIBDIR PKG_CONFIG_SYSROOT_DIR \
+            CMAKE_TOOLCHAIN_FILE SDKROOT
+      cmake -S /tmp/shaderc -B /tmp/shaderc/build -G Ninja \
+        -DCMAKE_BUILD_TYPE=Release -DSHADERC_SKIP_TESTS=ON -DSHADERC_SKIP_EXAMPLES=ON \
+        -DCMAKE_INSTALL_PREFIX=/usr/local
+      # ${NPROC}, not bare `nproc`: this block runs for EVERY Vulkan RID now, Apple included,
+      # and macOS has no nproc -- 02_configure.sh sets NPROC=nproc, apple.sh sets
+      # NPROC="sysctl -n hw.ncpu".
+      cmake --build /tmp/shaderc/build --target glslc_exe -j"$(${NPROC:-nproc})"
+    )
     ${SUDO} install -m755 /tmp/shaderc/build/glslc/glslc /usr/local/bin/glslc
     hash -r   # drop the shell's cached path to the old /usr/bin/glslc
     # Building it is not the same as USING it: /usr/local/bin must win over the distro copy.

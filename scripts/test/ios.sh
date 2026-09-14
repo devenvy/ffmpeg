@@ -127,6 +127,14 @@ check_tls
 LEAN=""; [ "$RID" = "ios-sim-arm64" ] && LEAN=lean
 check_license_boundary "$LEAN"
 
+# Claimed-vs-present, read out of the frameworks themselves -- see the Android note. The lean
+# ios-sim slice needs no special case: expectations come from THIS slice's own configure string,
+# so a library it never enabled is never asserted.
+_fw() { printf '%s' "${FWDIR}/lib$1.framework/lib$1"; }
+check_claimed_capabilities_static \
+  "$(_fw avutil)"   "$(_fw avcodec)" \
+  "$(_fw avfilter)" "$(_fw avformat)"
+
 [ -f "${FWDIR}/libavcodec.framework/Headers/avcodec.h" ] \
   && pass "framework headers present (libavcodec.framework/Headers/avcodec.h)" \
   || fail "missing libavcodec.framework/Headers/avcodec.h"

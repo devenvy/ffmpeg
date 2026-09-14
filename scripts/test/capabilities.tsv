@@ -15,46 +15,58 @@
 # actually registered in the binary. Expectations come from the artifact, so this needs no
 # per-RID upkeep: enable a library anywhere and it is checked there.
 #
-# FORMAT (tab-separated):  configure-flag <TAB> ffmpeg-list-option <TAB> extended-regex
+# FORMAT (tab-separated), five columns:
+#   configure-flag  ffmpeg-list-option  extended-regex  static-library  static-string
 # Lines starting with # and blank lines are ignored.
 #
-# Only for RIDs whose binaries we can execute (Linux, macOS, and the Windows test runners).
-# Mobile/cross slices ship no CLI, and are covered by symbol checks instead.
+# Columns 2-3 drive check_claimed_capabilities, which RUNS ffmpeg and greps a listing. That
+# covers only the RIDs whose binaries execute on a test runner (Linux, macOS, Windows).
+#
+# Columns 4-5 drive check_claimed_capabilities_static, for the cross-built slices that ship no
+# CLI (Android .so, iOS/Catalyst frameworks). Those were previously verified by INTENT ALONE --
+# which is precisely how android-arm64, ios-arm64 and maccatalyst each shipped --enable-vulkan
+# with zero Vulkan filters in 9.0.1.7 and 8.1.2.7. Column 4 names the library the component
+# registers in (avfilter / avcodec / avformat), column 5 the EXACT string to find there; "-"
+# means the row has no static equivalent (the hwaccels that are desktop-only). Matching is
+# exact-line: "scale" as a substring occurs 67 times in libavfilter.
+#
+# Keep the two sides consistent: a row's static-string should name the same component its
+# regex matches, so neither check can quietly drift from the other.
 # scale_vulkan specifically, NOT a loose /_vulkan/ match. A couple of Vulkan filters
 # (avgblur_vulkan, bwdif_vulkan) need no SPIR-V compiler and survive even when the shader
 # toolchain is missing, so a loose match passes a build that lost the other 16. Measured:
 # published 8.1.2 linux-x64 has 2 vulkan filters, 9.0.1 has 18. scale_vulkan is in the
 # SPIR-V-dependent set, so it is the honest canary.
---enable-vulkan	-filters	scale_vulkan
---enable-libplacebo	-filters	libplacebo
---enable-libass	-filters	[[:space:]](subtitles|ass)[[:space:]]
---enable-libfreetype	-filters	drawtext
---enable-whisper	-filters	whisper
---enable-libvmaf	-filters	libvmaf
---enable-libx264	-encoders	libx264
---enable-libx265	-encoders	libx265
---enable-libkvazaar	-encoders	libkvazaar
---enable-libvpx	-encoders	libvpx
---enable-libaom	-encoders	libaom
---enable-libsvtav1	-encoders	libsvtav1
---enable-libopus	-encoders	libopus
---enable-libmp3lame	-encoders	libmp3lame
---enable-libvorbis	-encoders	libvorbis
---enable-libopenh264	-encoders	libopenh264
---enable-libwebp	-encoders	libwebp
---enable-libjxl	-decoders	libjxl
---enable-libopenjpeg	-encoders	libopenjpeg
---enable-libspeex	-decoders	libspeex
---enable-libgsm	-decoders	libgsm
---enable-libsoxr	-filters	aresample
---enable-libzimg	-filters	zscale
---enable-chromaprint	-muxers	chromaprint
---enable-libsrt	-protocols	^[[:space:]]*srt$
---enable-librist	-protocols	^[[:space:]]*rist$
---enable-libxml2	-demuxers	dash
---enable-vaapi	-hwaccels	vaapi
---enable-nvdec	-hwaccels	cuda
---enable-videotoolbox	-hwaccels	videotoolbox
---enable-mediacodec	-hwaccels	mediacodec
---enable-d3d11va	-hwaccels	d3d11va
---enable-dxva2	-hwaccels	dxva2
+--enable-vulkan	-filters	scale_vulkan	avfilter	scale_vulkan
+--enable-libplacebo	-filters	libplacebo	avfilter	libplacebo
+--enable-libass	-filters	[[:space:]](subtitles|ass)[[:space:]]	avfilter	subtitles
+--enable-libfreetype	-filters	drawtext	avfilter	drawtext
+--enable-whisper	-filters	whisper	avfilter	whisper
+--enable-libvmaf	-filters	libvmaf	avfilter	libvmaf
+--enable-libx264	-encoders	libx264	avcodec	libx264
+--enable-libx265	-encoders	libx265	avcodec	libx265
+--enable-libkvazaar	-encoders	libkvazaar	avcodec	libkvazaar
+--enable-libvpx	-encoders	libvpx	avcodec	libvpx
+--enable-libaom	-encoders	libaom	avcodec	libaom
+--enable-libsvtav1	-encoders	libsvtav1	avcodec	libsvtav1
+--enable-libopus	-encoders	libopus	avcodec	libopus
+--enable-libmp3lame	-encoders	libmp3lame	avcodec	libmp3lame
+--enable-libvorbis	-encoders	libvorbis	avcodec	libvorbis
+--enable-libopenh264	-encoders	libopenh264	avcodec	libopenh264
+--enable-libwebp	-encoders	libwebp	avcodec	libwebp
+--enable-libjxl	-decoders	libjxl	avcodec	libjxl
+--enable-libopenjpeg	-encoders	libopenjpeg	avcodec	libopenjpeg
+--enable-libspeex	-decoders	libspeex	avcodec	libspeex
+--enable-libgsm	-decoders	libgsm	avcodec	libgsm
+--enable-libsoxr	-filters	aresample	avfilter	aresample
+--enable-libzimg	-filters	zscale	avfilter	zscale
+--enable-chromaprint	-muxers	chromaprint	avformat	chromaprint
+--enable-libsrt	-protocols	^[[:space:]]*srt$	-	-
+--enable-librist	-protocols	^[[:space:]]*rist$	avformat	rist
+--enable-libxml2	-demuxers	dash	avformat	dash
+--enable-vaapi	-hwaccels	vaapi	-	-
+--enable-nvdec	-hwaccels	cuda	-	-
+--enable-videotoolbox	-hwaccels	videotoolbox	avcodec	videotoolbox
+--enable-mediacodec	-hwaccels	mediacodec	avcodec	mediacodec
+--enable-d3d11va	-hwaccels	d3d11va	-	-
+--enable-dxva2	-hwaccels	dxva2	-	-

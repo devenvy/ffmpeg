@@ -387,9 +387,12 @@ check_claimed_capabilities() {
   tsv="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/capabilities.tsv"
   [ -f "${tsv}" ] || { fail "capabilities.tsv missing - cannot verify claimed capabilities"; return; }
   [ -n "${CONFIG_STR:-}" ] || { fail "no embedded configure string - cannot verify capabilities"; return; }
-  while IFS=$'\t' read -r flag opt re; do
+  # Five fields now: the last two belong to check_claimed_capabilities_static and are unused
+  # here, but they must still be READ or `read` folds them into ${re} and no regex matches.
+  while IFS=$'\t' read -r flag opt re slib sname; do
     case "${flag}" in '#'*|"") continue ;; esac
     [ -n "${opt}" ] && [ -n "${re}" ] || continue
+    : "${slib}" "${sname}"                    # consumed by the static variant, not here
     case " ${CONFIG_STR} " in *" ${flag} "*) ;; *) continue ;; esac
     claimed=$(( claimed + 1 ))
     listing="$(_enum "${opt}")"
@@ -407,6 +410,81 @@ check_claimed_capabilities() {
     info "capability check: ${claimed} claimed, ${missing} silently missing"
   fi
 }
+
+# ── The same check, for slices with no runnable CLI ───────────────────────
+# check_claimed_capabilities above has to RUN ffmpeg to ask what is registered, so it covers only
+# the RIDs whose binaries execute on a test runner. The mobile slices (Android .so, iOS/Catalyst
+# frameworks) were therefore verified by INTENT alone -- test/android.sh asserted --enable-vulkan
+# appears in the configure line and stopped there.
+#
+# That is exactly how this shipped. Measured in the published 9.0.1.7 and 8.1.2.7 artifacts:
+# android-arm64, ios-arm64 and the maccatalyst slice each carry --enable-vulkan (iOS also
+# --enable-vulkan-static) and ZERO Vulkan filters. No test noticed, because no test asked the
+# binary anything.
+#
+# A cross-built library cannot be executed, but it can be READ. Every registered component's name
+# is stored as a string in the library that registers it (the .name field of AVFilter / FFCodec /
+# AVOutputFormat), so strings(1) finds it there, and finds nothing when the component was not
+# compiled in. The ff_* registration symbols are NOT usable for this: they are hidden in a shared
+# build and stripped besides (measured -- 0 hits via nm, nm -D and readelf on a library whose
+# filters are definitely present).
+#
+# Matching is exact-line, never substring: "scale" as a substring occurs 67 times in libavfilter
+# and would pass anything. Calibrated against real published artifacts -- present components
+# score >= 1 (a universal Mach-O scores 2, once per arch slice), absent ones score exactly 0.
+#
+# Usage: check_claimed_capabilities_static <libavutil> <libavcodec> <libavfilter> <libavformat>
+# Explicit paths rather than a directory: the Android (lib/<abi>/libX.so) and Apple
+# (X.xcframework/<slice>/X.framework/X) layouts share no shape.
+check_claimed_capabilities_static() {
+  local avutil="$1" avcodec="$2" avfilter="$3" avformat="$4"
+  local tsv flag opt re slib sname cfg path n claimed=0 missing=0 d
+
+  command -v strings >/dev/null 2>&1 || {
+    fail "strings(1) unavailable - cannot verify capabilities on a non-executable slice"
+    return
+  }
+  tsv="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/capabilities.tsv"
+  [ -f "${tsv}" ]    || { fail "capabilities.tsv missing"; return; }
+  [ -f "${avutil}" ] || { fail "libavutil not found at ${avutil}"; return; }
+
+  d="$(mktemp -d)"
+  # The configure line lives in libavutil (av_configuration): the one string carrying --enable-.
+  cfg="$(strings -a "${avutil}" | grep -m1 -- '--enable-' || true)"
+  if [ -z "${cfg}" ]; then
+    fail "no embedded configure string in ${avutil##*/} - cannot verify claimed capabilities"
+    rm -rf "${d}"; return
+  fi
+
+  # One strings(1) pass per library, reused across every row.
+  for path in "avcodec=${avcodec}" "avfilter=${avfilter}" "avformat=${avformat}"; do
+    if [ -f "${path#*=}" ]; then strings -a "${path#*=}" > "${d}/${path%%=*}"
+    else : > "${d}/${path%%=*}"; fi
+  done
+
+  while IFS=$'\t' read -r flag opt re slib sname; do
+    case "${flag}" in '#'*|"") continue ;; esac
+    : "${opt}" "${re}"                        # columns belonging to the CLI variant
+    [ -n "${slib:-}" ] && [ "${slib}" != "-" ] || continue
+    case " ${cfg} " in *" ${flag} "*) ;; *) continue ;; esac
+    claimed=$(( claimed + 1 ))
+    n="$(grep -cx -- "${sname}" "${d}/${slib}" || true)"
+    if [ "${n}" -gt 0 ]; then
+      pass "capability: ${flag} -> '${sname}' registered in lib${slib}"
+    else
+      missing=$(( missing + 1 ))
+      fail "capability: ${flag} is in the configure line but '${sname}' is NOT registered in lib${slib} - silently dropped at build time"
+    fi
+  done < "${tsv}"
+
+  rm -rf "${d}"
+  if [ "${claimed}" -eq 0 ]; then
+    fail "capability table matched no flags in this slice's configure line - the table or the parse is broken"
+  else
+    info "capability check (static): ${claimed} claimed, ${missing} silently missing"
+  fi
+}
+
 
 check_registry() {
   local list w

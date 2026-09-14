@@ -77,6 +77,14 @@ esac
 check_tls
 check_license_boundary
 
+# Claimed-vs-present, read out of the libraries themselves. Everything above this line checks
+# INTENT -- check_config greps the configure string embedded in the artifact, which answers "did
+# we ask for it", never "did we get it". That is how android-arm64 shipped --enable-vulkan with
+# zero Vulkan filters through a green matrix, in both 9.0.1.7 and 8.1.2.7.
+check_claimed_capabilities_static \
+  "${LIBDIR}/libavutil.so"   "${LIBDIR}/libavcodec.so" \
+  "${LIBDIR}/libavfilter.so" "${LIBDIR}/libavformat.so"
+
 # Link artifact must ship headers.
 [ -f "${DIR}/include/libavcodec/avcodec.h" ] \
   && pass "headers present (include/libavcodec/avcodec.h)" \

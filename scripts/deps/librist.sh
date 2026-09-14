@@ -21,7 +21,15 @@ RIST_ARGS=(--prefix="${DEPS_DIR}" --libdir=lib --default-library=static --buildt
            -Dbuilt_tools=false -Dtest=false
            -Dbuiltin_cjson=true -Dbuiltin_lz4=true -Dbuiltin_mbedtls=false)
 case "${RIST_CRYPTO:-none}" in
-  mbedtls) RIST_ARGS+=(-Duse_mbedtls=true  -Duse_gnutls=false) ;;
+  # cmake_prefix_path is what actually makes our pinned mbedTLS findable. librist resolves it with
+  #     dependency('MbedTLS', method: 'cmake', modules: ['MbedTLS::mbedcrypto'])
+  # -- a CMake package lookup, NOT pkg-config (a comment in mbedtls.sh said pkg-config; that is
+  # wrong for this consumer). Nothing else points meson's CMake search at DEPS_DIR: the cross
+  # files set pkg_config_libdir only, and a native build has no reason to look there either. So
+  # the lookup missed, the cc.find_library('mbedcrypto') fallback missed too (no -L for DEPS_DIR),
+  # and librist quietly compiled its own vendored copy instead -- which the guard after the build
+  # now catches. Measured on win-arm64 v3 before this was added.
+  mbedtls) RIST_ARGS+=(-Duse_mbedtls=true  -Duse_gnutls=false "-Dcmake_prefix_path=${DEPS_DIR}") ;;
   gnutls)  RIST_ARGS+=(-Duse_mbedtls=false -Duse_gnutls=true)  ;;
   *)       RIST_ARGS+=(-Duse_mbedtls=false -Duse_gnutls=false) ;;
 esac

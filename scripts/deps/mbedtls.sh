@@ -28,8 +28,11 @@ tar -xf mbedtls.tar.bz2
 cd "mbedtls-${mbed_ver}" || exit 1
 
 # Static libs only; no tests/programs/fuzzers. Installs libmbed{tls,x509,crypto}.a + headers +
-# pkg-config (.pc) + cmake package config into DEPS_DIR, so SRT finds it via find_package(MbedTLS)
-# and librist via pkg-config. The cmake wrapper (scripts/lib.sh) injects the policy minimum;
+# pkg-config (.pc) + cmake package config into DEPS_DIR. BOTH consumers use the CMake package,
+# not pkg-config: SRT via find_package(MbedTLS), and librist via
+#   dependency('MbedTLS', method: 'cmake', modules: ['MbedTLS::mbedcrypto'])
+# (this comment previously said librist used pkg-config, which is why nothing noticed that
+# librist was not finding this build at all -- see the cmake_prefix_path note in librist.sh). The cmake wrapper (scripts/lib.sh) injects the policy minimum;
 # CMAKE_CROSS_ARGS carries the per-RID toolchain file for cross targets.
 cmake -B _build \
   -DCMAKE_INSTALL_PREFIX="${DEPS_DIR}" \

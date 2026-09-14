@@ -50,6 +50,7 @@ if [[ "${BUILD_LIBX265}" == "1" ]]; then
   esac
 
   cmake -B build -S source \
+    -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX="${DEPS_DIR}" \
     -DCMAKE_INSTALL_LIBDIR=lib \
     -DLIB_INSTALL_DIR=lib \

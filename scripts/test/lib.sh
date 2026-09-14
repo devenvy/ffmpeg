@@ -247,16 +247,25 @@ load_config_string() {
 check_config() {
   local flag="$1" label="${2:-$1}"
   if [ -z "$CONFIG_STR" ]; then fail "config check ($label): no embedded config string — artifact unreadable"; return; fi
-  if grep -q -- " ${flag}\b" <<<" ${CONFIG_STR} "; then pass "configured: ${label} (${flag})"
-  else fail "not configured: ${label} (${flag})"; fi
+  # Whole-token match, not \b: in a configure string the flags are space-separated, and \b
+  # matches at a "-" boundary -- so " --enable-vulkan\b" was satisfied by --enable-vulkan-static,
+  # meaning a check for the bare flag passed on a build that only had the variant. Match
+  # space-delimited tokens, exactly how check_claimed_capabilities reads them.
+  case " ${CONFIG_STR} " in
+    *" ${flag} "*) pass "configured: ${label} (${flag})" ;;
+    *)             fail "not configured: ${label} (${flag})" ;;
+  esac
 }
 
 # check_config_absent <flag> <label>  — the build must NOT have <flag> (license gate).
 check_config_absent() {
   local flag="$1" label="${2:-$1}"
   if [ -z "$CONFIG_STR" ]; then fail "config check ($label): no embedded config string — artifact unreadable"; return; fi
-  if grep -q -- " ${flag}\b" <<<" ${CONFIG_STR} "; then fail "unexpectedly configured: ${label} (${flag})"
-  else pass "absent as required: ${label} (${flag})"; fi
+  # Same whole-token rule as check_config, and it matters more here: this is the licence gate.
+  case " ${CONFIG_STR} " in
+    *" ${flag} "*) fail "unexpectedly configured: ${label} (${flag})" ;;
+    *)             pass "absent as required: ${label} (${flag})" ;;
+  esac
 }
 
 # check_tls  — every build must have exactly one TLS backend, and which one is
@@ -414,7 +423,9 @@ check_claimed_capabilities() {
   # here, but they must still be READ or `read` folds them into ${re} and no regex matches.
   while IFS=$'\t' read -r flag opt re slib sname; do
     case "${flag}" in '#'*|"") continue ;; esac
-    [ -n "${opt}" ] && [ -n "${re}" ] || continue
+    # "-" means this row has no CLI form (see capabilities.tsv: an unused field is a sentinel,
+    # never empty, because TAB is IFS whitespace and adjacent empty fields collapse).
+    [ -n "${opt}" ] && [ "${opt}" != "-" ] && [ -n "${re}" ] && [ "${re}" != "-" ] || continue
     : "${slib}" "${sname}"                    # consumed by the static variant, not here
     case " ${CONFIG_STR} " in *" ${flag} "*) ;; *) continue ;; esac
     claimed=$(( claimed + 1 ))

@@ -13,6 +13,9 @@ clone_dep whisper "${WORK_DIR}/whisper.cpp"
 cd whisper.cpp || exit 1
 
 WHISPER_CMAKE=(
+  # Explicit Release, like build_cmake_dep gives the helper-built deps: without a build
+  # type a single-configuration generator leaves whisper/ggml with NO optimisation flags.
+  -DCMAKE_BUILD_TYPE=Release
   -DCMAKE_INSTALL_PREFIX="${DEPS_DIR}"
   -DCMAKE_INSTALL_LIBDIR=lib
   -DCMAKE_PREFIX_PATH="${DEPS_DIR}"

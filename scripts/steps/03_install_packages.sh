@@ -132,95 +132,118 @@ case "${RID}" in
     fi
     ;;
 esac
-
-  # glslc is needed by EVERY RID that enables Vulkan, not just the manylinux ones. It lived
-  # inside the linux-x64/arm64 manylinux branch, so armhf (debian), Windows and Android (both
-  # cross-built on the Ubuntu runner) never reached it -- and those hosts DO have a distro
-  # glslc, just one too old for FFmpeg's --target-env=vulkan1.4 probe. Result: those four RIDs
-  # shipped with every Vulkan filter silently missing, while the manylinux and Alpine RIDs
-  # (which build or package a new enough glslc) had them. Measured in the published 9.0.1.6
-  # artifacts: linux-x64 9, linux-arm64 11, musl 9/11 -- armhf, win-x64, win-arm64 and
-  # android-arm64 all 0. Hoisted here so the check is per-capability, not per-platform.
-  if [[ "${BUILD_VULKAN:-0}" == "1" ]]; then
-  _glslc_supports_target_env() {
-    command -v glslc >/dev/null 2>&1 || return 1
-    local d rc=0
-    d="$(mktemp -d)"
-    printf '#version 460\nlayout (local_size_x = 1) in;\nvoid main() {}\n' > "${d}/probe.comp"
-    glslc --target-env=vulkan1.4 --target-spv=spv1.6 -std=460 -fshader-stage=compute \
-          "${d}/probe.comp" -o "${d}/probe.spv" >/dev/null 2>&1 || rc=1
-    rm -rf "${d}"
-    return "${rc}"
-  }
-  if ! _glslc_supports_target_env; then
-    echo "glslc missing or too old for --target-env=vulkan1.4; building the pinned shaderc." >&2
-    # Build glslc from the SAME shaderc tag the ledger pins (deps.json .defaults.shaderc,
-    # which Renovate tracks) via dep_version — so this build-tool copy can't drift from the
-    # shaderc dep and gets version bumps automatically. An unpinned clone tracked shaderc
-    # master, and git-sync-deps pulled glslang/SPIRV-Tools HEAD — non-deterministic: a
-    # glslang change made spirv-opt emit LocalSizeId execution mode, which whisper's
-    # ggml-vulkan shaders (compiled --target-env=vulkan1.2) reject ("LocalSizeId mode is not
-    # allowed by the current environment"), breaking the build whenever master moved.
-    SHADERC_TAG="$(dep_version shaderc)"
-    git clone --depth 1 --branch "${SHADERC_TAG}" https://github.com/google/shaderc /tmp/shaderc
-    # git-sync-deps is a PYTHON child process, so the retrying git() wrapper in
-    # scripts/lib.sh cannot reach it -- shell functions are not exported to child
-    # processes. It clones glslang/SPIRV-Tools/SPIRV-Headers over the network, so it has
-    # the same exposure to a DNS or TLS blip as any other clone and had no protection at
-    # all. Retry the whole invocation with the same jittered exponential backoff.
-    _sync_delay=4
-    for _sync_try in 1 2 3 4 5 6; do
-      ( cd /tmp/shaderc && ./utils/git-sync-deps ) && break
-      if [ "${_sync_try}" -eq 6 ]; then
-        echo "ERROR: shaderc git-sync-deps failed after ${_sync_try} attempts" >&2
-        exit 1
-      fi
-      _sync_wait=$(( _sync_delay + (RANDOM % 5) ))
-      echo "  git-sync-deps failed (attempt ${_sync_try}/6) - retrying in ${_sync_wait}s..." >&2
-      sleep "${_sync_wait}"
-      _sync_delay=$(( _sync_delay * 2 ))
-    done
-    # glslc is a BUILD-HOST tool: FFmpeg's configure executes it ON THE RUNNER to compile
-    # shaders. But 02_configure.sh has already exported the TARGET cross toolchain by this point
-    # -- CC=x86_64-w64-mingw32-gcc-win32 for win-x64, the NDK clang for Android, an -isysroot
-    # CFLAGS for the Apple targets -- and CMake reads all of that from the environment. So this
-    # was configuring a WINDOWS build of glslc on a Linux runner, and died at generate time:
-    #     Unable to determine default CMAKE_INSTALL_LIBDIR ... no target architecture is known
-    #     The install of the spirv-as target requires changing an RPATH from the build tree,
-    #     but this is not supported with the Ninja generator unless on an ELF-based ... platform
-    # Had it generated, it would have produced a glslc.exe that cannot run on the runner at all,
-    # which is a worse failure: the capability probe would reject it and the build would stop
-    # with a confusing message. Cross variables are cleared in a subshell so the export list
-    # above is untouched for the real (target) build that follows. CC/CXX are unset rather than
-    # forced, letting CMake pick the platform's default host compiler -- which is what this
-    # block did when it lived inside the manylinux branch and worked.
-    (
-      unset CC CXX AR RANLIB LD NM STRIP OBJDUMP RC WINDRES \
-            CFLAGS CXXFLAGS CPPFLAGS LDFLAGS \
-            PKG_CONFIG_PATH PKG_CONFIG_LIBDIR PKG_CONFIG_SYSROOT_DIR \
-            CMAKE_TOOLCHAIN_FILE SDKROOT
-      cmake -S /tmp/shaderc -B /tmp/shaderc/build -G Ninja \
-        -DCMAKE_BUILD_TYPE=Release -DSHADERC_SKIP_TESTS=ON -DSHADERC_SKIP_EXAMPLES=ON \
-        -DCMAKE_INSTALL_PREFIX=/usr/local
-      # ${NPROC}, not bare `nproc`: this block runs for EVERY Vulkan RID now, Apple included,
-      # and macOS has no nproc -- 02_configure.sh sets NPROC=nproc, apple.sh sets
-      # NPROC="sysctl -n hw.ncpu".
-      cmake --build /tmp/shaderc/build --target glslc_exe -j"$(${NPROC:-nproc})"
-    )
-    ${SUDO} install -m755 /tmp/shaderc/build/glslc/glslc /usr/local/bin/glslc
-    hash -r   # drop the shell's cached path to the old /usr/bin/glslc
-    # Building it is not the same as USING it: /usr/local/bin must win over the distro copy.
-    # If it does not, configure still probes the old glslc and still silently drops every
-    # Vulkan filter -- the exact failure this replaces.
-    if ! _glslc_supports_target_env; then
-      echo "ERROR: built the pinned glslc but the capability probe still fails." >&2
-      echo "  which glslc: $(command -v glslc)" >&2
-      echo "  version:     $(glslc --version 2>&1 | head -1)" >&2
-      exit 1
-    fi
-    echo "glslc supports --target-env=vulkan1.4: $(glslc --version 2>&1 | head -1)"
-  fi
-  fi
 else
   echo "Skipping dependency installation (SKIP_DEPS=true)."
+fi
+
+# OUTSIDE the SKIP_DEPS guard on purpose. SKIP_DEPS is documented for local builds that already
+# have a toolchain, and it used to skip this probe along with the package installs -- so a
+# developer with a too-old distro glslc got silently Vulkan-less artifacts, which is precisely
+# the failure this block exists to prevent. The PROBE is a correctness check, not an install, so
+# it always runs; only the shaderc BUILD is an install, and that is what SKIP_DEPS suppresses
+# (with an actionable message rather than a silent pass).
+# glslc is needed by EVERY RID that enables Vulkan, not just the manylinux ones. It lived
+# inside the linux-x64/arm64 manylinux branch, so armhf (debian), Windows and Android (both
+# cross-built on the Ubuntu runner) never reached it -- and those hosts DO have a distro
+# glslc, just one too old for FFmpeg's --target-env=vulkan1.4 probe. Result: those four RIDs
+# shipped with every Vulkan filter silently missing, while the manylinux and Alpine RIDs
+# (which build or package a new enough glslc) had them. Measured in the published 9.0.1.6
+# artifacts: linux-x64 9, linux-arm64 11, musl 9/11 -- armhf, win-x64, win-arm64 and
+# android-arm64 all 0. Hoisted here so the check is per-capability, not per-platform.
+if [[ "${BUILD_VULKAN:-0}" == "1" ]]; then
+_glslc_supports_target_env() {
+  command -v glslc >/dev/null 2>&1 || return 1
+  local d rc=0
+  d="$(mktemp -d)"
+  printf '#version 460\nlayout (local_size_x = 1) in;\nvoid main() {}\n' > "${d}/probe.comp"
+  glslc --target-env=vulkan1.4 --target-spv=spv1.6 -std=460 -fshader-stage=compute \
+        "${d}/probe.comp" -o "${d}/probe.spv" >/dev/null 2>&1 || rc=1
+  rm -rf "${d}"
+  return "${rc}"
+}
+if ! _glslc_supports_target_env; then
+  # SKIP_DEPS suppresses INSTALLS, not correctness checks. Building shaderc here would be an
+  # install, so say what is wrong and stop, rather than continuing into a build that would
+  # silently drop every Vulkan filter.
+  if [[ "${SKIP_DEPS:-false}" == "true" ]]; then
+    echo "ERROR: SKIP_DEPS=true, but this RID enables Vulkan and the host glslc cannot compile" >&2
+    echo "  --target-env=vulkan1.4 (FFmpeg's spirv_compiler probe). Continuing would produce an" >&2
+    echo "  artifact claiming --enable-vulkan with NO Vulkan filters." >&2
+    echo "  which glslc: $(command -v glslc || echo 'not found')" >&2
+    echo "  version:     $(glslc --version 2>&1 | head -1 || true)" >&2
+    echo "  Install shaderc $(dep_version shaderc) or newer, or unset SKIP_DEPS to have it built." >&2
+    exit 1
+  fi
+  echo "glslc missing or too old for --target-env=vulkan1.4; building the pinned shaderc." >&2
+  # Build glslc from the SAME shaderc tag the ledger pins (deps.json .defaults.shaderc,
+  # which Renovate tracks) via dep_version — so this build-tool copy can't drift from the
+  # shaderc dep and gets version bumps automatically. An unpinned clone tracked shaderc
+  # master, and git-sync-deps pulled glslang/SPIRV-Tools HEAD — non-deterministic: a
+  # glslang change made spirv-opt emit LocalSizeId execution mode, which whisper's
+  # ggml-vulkan shaders (compiled --target-env=vulkan1.2) reject ("LocalSizeId mode is not
+  # allowed by the current environment"), breaking the build whenever master moved.
+  # mktemp, not a fixed /tmp/shaderc path: `git clone` refuses a non-empty destination, so a rerun
+  # after any earlier attempt (successful, interrupted, or failed mid-way) failed on the clone
+  # rather than on anything real. Cleaned up on exit so repeated local runs stay cheap.
+  _shaderc_dir="$(mktemp -d)"
+  trap 'rm -rf "${_shaderc_dir}"' RETURN
+  SHADERC_TAG="$(dep_version shaderc)"
+  git clone --depth 1 --branch "${SHADERC_TAG}" https://github.com/google/shaderc "${_shaderc_dir}"
+  # git-sync-deps is a PYTHON child process, so the retrying git() wrapper in
+  # scripts/lib.sh cannot reach it -- shell functions are not exported to child
+  # processes. It clones glslang/SPIRV-Tools/SPIRV-Headers over the network, so it has
+  # the same exposure to a DNS or TLS blip as any other clone and had no protection at
+  # all. Retry the whole invocation with the same jittered exponential backoff.
+  _sync_delay=4
+  for _sync_try in 1 2 3 4 5 6; do
+    ( cd "${_shaderc_dir}" && ./utils/git-sync-deps ) && break
+    if [ "${_sync_try}" -eq 6 ]; then
+      echo "ERROR: shaderc git-sync-deps failed after ${_sync_try} attempts" >&2
+      exit 1
+    fi
+    _sync_wait=$(( _sync_delay + (RANDOM % 5) ))
+    echo "  git-sync-deps failed (attempt ${_sync_try}/6) - retrying in ${_sync_wait}s..." >&2
+    sleep "${_sync_wait}"
+    _sync_delay=$(( _sync_delay * 2 ))
+  done
+  # glslc is a BUILD-HOST tool: FFmpeg's configure executes it ON THE RUNNER to compile
+  # shaders. But 02_configure.sh has already exported the TARGET cross toolchain by this point
+  # -- CC=x86_64-w64-mingw32-gcc-win32 for win-x64, the NDK clang for Android, an -isysroot
+  # CFLAGS for the Apple targets -- and CMake reads all of that from the environment. So this
+  # was configuring a WINDOWS build of glslc on a Linux runner, and died at generate time:
+  #     Unable to determine default CMAKE_INSTALL_LIBDIR ... no target architecture is known
+  #     The install of the spirv-as target requires changing an RPATH from the build tree,
+  #     but this is not supported with the Ninja generator unless on an ELF-based ... platform
+  # Had it generated, it would have produced a glslc.exe that cannot run on the runner at all,
+  # which is a worse failure: the capability probe would reject it and the build would stop
+  # with a confusing message. Cross variables are cleared in a subshell so the export list
+  # above is untouched for the real (target) build that follows. CC/CXX are unset rather than
+  # forced, letting CMake pick the platform's default host compiler -- which is what this
+  # block did when it lived inside the manylinux branch and worked.
+  (
+    unset CC CXX AR RANLIB LD NM STRIP OBJDUMP RC WINDRES \
+          CFLAGS CXXFLAGS CPPFLAGS LDFLAGS \
+          PKG_CONFIG_PATH PKG_CONFIG_LIBDIR PKG_CONFIG_SYSROOT_DIR \
+          CMAKE_TOOLCHAIN_FILE SDKROOT
+    cmake -S "${_shaderc_dir}" -B "${_shaderc_dir}/build" -G Ninja \
+      -DCMAKE_BUILD_TYPE=Release -DSHADERC_SKIP_TESTS=ON -DSHADERC_SKIP_EXAMPLES=ON \
+      -DCMAKE_INSTALL_PREFIX=/usr/local
+    # ${NPROC}, not bare `nproc`: this block runs for EVERY Vulkan RID now, Apple included,
+    # and macOS has no nproc -- 02_configure.sh sets NPROC=nproc, apple.sh sets
+    # NPROC="sysctl -n hw.ncpu".
+    cmake --build "${_shaderc_dir}/build" --target glslc_exe -j"$(${NPROC:-nproc})"
+  )
+  ${SUDO} install -m755 "${_shaderc_dir}/build/glslc/glslc" /usr/local/bin/glslc
+  hash -r   # drop the shell's cached path to the old /usr/bin/glslc
+  # Building it is not the same as USING it: /usr/local/bin must win over the distro copy.
+  # If it does not, configure still probes the old glslc and still silently drops every
+  # Vulkan filter -- the exact failure this replaces.
+  if ! _glslc_supports_target_env; then
+    echo "ERROR: built the pinned glslc but the capability probe still fails." >&2
+    echo "  which glslc: $(command -v glslc)" >&2
+    echo "  version:     $(glslc --version 2>&1 | head -1)" >&2
+    exit 1
+  fi
+  echo "glslc supports --target-env=vulkan1.4: $(glslc --version 2>&1 | head -1)"
+fi
 fi

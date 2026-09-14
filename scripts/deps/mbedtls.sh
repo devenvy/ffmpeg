@@ -35,6 +35,7 @@ cd "mbedtls-${mbed_ver}" || exit 1
 # librist was not finding this build at all -- see the cmake_prefix_path note in librist.sh). The cmake wrapper (scripts/lib.sh) injects the policy minimum;
 # CMAKE_CROSS_ARGS carries the per-RID toolchain file for cross targets.
 cmake -B _build \
+  -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_INSTALL_PREFIX="${DEPS_DIR}" \
   -DCMAKE_INSTALL_LIBDIR=lib \
   -DCMAKE_PREFIX_PATH="${DEPS_DIR}" \

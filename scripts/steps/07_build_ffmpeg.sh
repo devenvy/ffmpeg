@@ -197,8 +197,14 @@ echo "Configuring FFmpeg..."
 # from a missing .pc, a bad version or a broken link line, so diagnosing one costs a
 # full CI round-trip per guess. Dump the tail -- it ends with the failing command and
 # the linker's actual error -- and keep configure's exit status.
-if ! "${CONFIGURE_CMD[@]}"; then
-  rc=$?
+# NOT `if ! "${CONFIGURE_CMD[@]}"`: inside a negated test, $? is the status of the NEGATION,
+# which is 0 precisely when the command failed. `rc=$?` therefore captured 0 and `exit "${rc}"`
+# below exited SUCCESSFULLY on a failed configure -- ending the build with status 0, before
+# compile, staging or verification, so the job reported success and simply produced nothing.
+# Capture the status from the command itself instead.
+rc=0
+"${CONFIGURE_CMD[@]}" || rc=$?
+if [ "${rc}" -ne 0 ]; then
   if [ -f ffbuild/config.log ]; then
     # 120 lines proved too small twice: configure keeps probing OPTIONAL features after the
     # one that will ultimately fail, so the decisive probe scrolls off the tail. Dump more,

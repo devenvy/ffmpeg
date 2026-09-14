@@ -39,4 +39,26 @@ if ! badplat="$(jq -r '
   echo "ledger-validate: platforms check errored (jq)" >&2; exit 1
 fi
 if [ -n "${badplat}" ]; then echo "ledger-validate: overrides with bad platforms (must be a non-empty array of known RIDs): ${badplat}" >&2; exit 1; fi
+# A tarball origin that embeds its own version rots on the first Renovate bump: the custom
+# managers update `tag` only, so origin keeps naming the OLD file. libgsm demonstrated it --
+# origin said gsm-1.0.22.tar.gz while tag was 1.0.24. Nothing breaks (the download URL is built
+# from dep_version), but it is wrong in exactly the place a reader would check, which is how the
+# librist/mbedTLS misdescription survived for months. Applied only to tarball-looking origins;
+# git URLs legitimately contain no version, and capture() simply yields nothing for them.
+if ! drift="$(jq -r '
+   paths as $p | getpath($p) | objects
+   | select(has("origin") and has("tag")) | select(.origin | type == "string")
+   | select(.origin | test("[.](tar[.](gz|xz|bz2)|tgz)$"))
+   | . as $e
+   | ($e.origin | capture("(?<v>[0-9]+[.][0-9]+([.][0-9]+)?)")) as $c
+   | select(($e.tag | tostring | contains($c.v)) | not)
+   | "\($e.origin) names \($c.v) but tag is \($e.tag)"' "${LEDGER}" | sort -u)"; then
+  echo "ledger-validate: origin/tag drift check errored (jq)" >&2; exit 1
+fi
+if [ -n "${drift}" ]; then
+  echo "ledger-validate: tarball origin embeds a version that does not match its tag:" >&2
+  echo "${drift}" | sed 's/^/  /' >&2
+  echo "  Use an unversioned origin (the release directory) so it cannot go stale." >&2
+  exit 1
+fi
 echo "ledger-validate: OK"

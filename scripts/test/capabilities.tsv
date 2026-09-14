@@ -17,7 +17,10 @@
 #
 # FORMAT (tab-separated), five columns:
 #   configure-flag  ffmpeg-list-option  extended-regex  static-library  static-string
-# Lines starting with # and blank lines are ignored.
+# Lines starting with # and blank lines are ignored. An unused field is "-", never empty: TAB is
+# an IFS *whitespace* character, so bash's `read` collapses runs of it and adjacent empty fields
+# silently shift every later column left (measured: a row with two empty CLI fields parsed its
+# static-library name as the ffmpeg list-option).
 #
 # Columns 2-3 drive check_claimed_capabilities, which RUNS ffmpeg and greps a listing. That
 # covers only the RIDs whose binaries execute on a test runner (Linux, macOS, Windows).
@@ -67,7 +70,12 @@
 --enable-libsoxr	-h full	select SoX Resampler	-	-
 --enable-libzimg	-filters	zscale	avfilter	zscale
 --enable-chromaprint	-muxers	chromaprint	avformat	chromaprint
---enable-libsrt	-protocols	^[[:space:]]*srt$	avformat	srt
+# libsrt has NO usable static marker: the protocol name "srt" also names FFmpeg's BUILT-IN
+# SubRip subtitle muxer/demuxer, whose strings are in the same libavformat. An exact-line
+# match therefore proves nothing about libsrt, and would pass on a build that lost the
+# protocol entirely. The CLI row (^[[:space:]]*srt$ against -protocols) stays, because a
+# protocol listing cannot be satisfied by a subtitle format.
+--enable-libsrt	-protocols	^[[:space:]]*srt$	-	-
 --enable-librist	-protocols	^[[:space:]]*rist$	avformat	rist
 --enable-libxml2	-demuxers	dash	avformat	dash
 --enable-vaapi	-hwaccels	vaapi	-	-
@@ -102,4 +110,4 @@
 --enable-videotoolbox	-encoders	hevc_videotoolbox	avcodec	hevc_videotoolbox
 # No CLI columns: measured on the artifact, ffmpeg lists no per-codec d3d11va entry under
 # -decoders (0 matches) and -hwaccels names only the stack. Static-only row.
---enable-d3d11va			avcodec	hevc_d3d11va
+--enable-d3d11va	-	-	avcodec	hevc_d3d11va

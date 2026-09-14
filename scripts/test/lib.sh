@@ -387,6 +387,18 @@ check_claimed_capabilities() {
   tsv="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/capabilities.tsv"
   [ -f "${tsv}" ] || { fail "capabilities.tsv missing - cannot verify claimed capabilities"; return; }
   [ -n "${CONFIG_STR:-}" ] || { fail "no embedded configure string - cannot verify capabilities"; return; }
+  # This variant ASKS THE BINARY, so it needs a runnable one. Called before FFMPEG/RUNNER are
+  # established it would silently see an empty listing and report every claimed capability as
+  # missing -- ~30 bogus failures that look exactly like a catastrophic build regression. Fail
+  # once, clearly, instead. (All three desktop scripts did call it too early; fixed alongside.)
+  if [ -z "${FFMPEG:-}" ] || [ ! -e "${FFMPEG}" ]; then
+    fail "check_claimed_capabilities called before FFMPEG is set (or the binary is missing) - capability verification did not run"
+    return
+  fi
+  if [ -z "$(_enum -filters)" ]; then
+    fail "ffmpeg produced no -filters listing under [${RUNNER[*]:-native}] - capability verification cannot run"
+    return
+  fi
   # Five fields now: the last two belong to check_claimed_capabilities_static and are unused
   # here, but they must still be READ or `read` folds them into ${re} and no regex matches.
   while IFS=$'\t' read -r flag opt re slib sname; do

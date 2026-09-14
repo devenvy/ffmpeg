@@ -30,7 +30,6 @@ check_config "--enable-whisper" "Whisper ASR filter"
 check_tls
 check_license_boundary
 check_pkgconfig "${DIR}"
-check_claimed_capabilities
 
 # The -dev archive (include/ + the shared libraries) is what downstream consumers
 # actually build against, and until now nothing on desktop ever compiled or linked
@@ -71,6 +70,11 @@ else
   # AArch32), so it must run under qemu-user; if that is unavailable, FAIL rather than skip.
   fail "functional suite: cannot execute ${TARCH} target — ${QEMU:-qemu} not available (refusing to skip)"
 fi
+
+# Runs AFTER the functional suite, not before: this check ASKS THE BINARY what it registered,
+# so it needs FFMPEG and RUNNER established. It used to sit up with the structural checks,
+# where FFMPEG was still unset and every claimed capability read as missing.
+check_claimed_capabilities
 
 # musl artifacts must not depend on a host C++ runtime. A base alpine image ships neither
 # libstdc++.so.6 nor libgcc_s.so.1, so a surviving DT_NEEDED means the artifact cannot start:

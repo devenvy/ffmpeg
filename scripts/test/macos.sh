@@ -41,7 +41,6 @@ for _dylib in "${DIR}"/libav*.dylib "${DIR}"/libsw*.dylib; do
   check_macho_minos "${_dylib}" "${MACOS_MIN_EXPECTED}"
 done
 check_pkgconfig "${DIR}"
-check_claimed_capabilities
 
 # Same reasoning as linux.sh: the -dev archive is otherwise entirely unverified.
 if [ -d "${DIR}/include" ]; then
@@ -68,5 +67,10 @@ else
   # here means a real capability gap (wrong host / arch mismatch), which must fail rather than skip.
   fail "functional suite: cannot execute ${TARCH} target on $(uname -s)/$(uname -m) (refusing to skip)"
 fi
+
+# Runs AFTER the functional suite, not before: this check ASKS THE BINARY what it registered,
+# so it needs FFMPEG and RUNNER established. It used to sit up with the structural checks,
+# where FFMPEG was still unset and every claimed capability read as missing.
+check_claimed_capabilities
 
 finish

@@ -79,7 +79,6 @@ audit_no_vulkan_hard_import() {
   fi
 }
 audit_no_vulkan_hard_import
-check_claimed_capabilities
 
 # MSVC import libraries live in the native tree (packaged into the -dev tarball).
 n_lib=$(ls "${DIR}"/lib/*.lib 2>/dev/null | wc -l)
@@ -168,5 +167,10 @@ else
   # reaching here (not Windows, no Wine) is a real capability gap that must fail, not skip.
   fail "functional suite: cannot execute ${RID} target — not on Windows and no Wine (refusing to skip)"
 fi
+
+# Runs AFTER the functional suite, not before: this check ASKS THE BINARY what it registered,
+# so it needs FFMPEG and RUNNER established. It used to sit up with the structural checks,
+# where FFMPEG was still unset and every claimed capability read as missing.
+check_claimed_capabilities
 
 finish

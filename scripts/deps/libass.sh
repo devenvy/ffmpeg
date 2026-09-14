@@ -31,31 +31,22 @@ esac
 # scalar subtitle rasterisation on one RID.
 case "${RID}" in
   android-x64) ASS_ARGS+=(-Dasm=disabled) ;;
+  # Everywhere else, REQUIRE it rather than accepting meson's `auto`. libass downgrades a missing
+  # or pre-2.10 NASM to a warning and builds scalar subtitle rasterisation -- it still works, just
+  # slower, so nothing downstream notices. With -Dasm=enabled libass raises the error itself
+  # (meson.build: `elif asm_option.enabled() -> error`), with its own accurate diagnostic.
+  #
+  # This replaces a config.h probe that was wrong twice over: libass generates config.h through
+  # two vcs_tag targets, so it does not exist until `meson compile` -- the probe ran right after
+  # `meson setup` and reported "no CONFIG_ASM line" on a build whose own summary said
+  # "ASM optimizations: YES". Letting upstream answer removes both the timing dependency and the
+  # need to track its macro names.
+  #
+  # No-op on the aarch64 RIDs, where libass enables asm unconditionally already.
+  *)           ASS_ARGS+=(-Dasm=enabled) ;;
 esac
 [[ -n "${MESON_CROSS_FILE:-}" ]] && ASS_ARGS+=(--cross-file "${MESON_CROSS_FILE}")
 meson setup build "${ASS_ARGS[@]}"
-# libass's x86 SIMD is decided by meson (-Dasm defaults to auto), and a missing or too-old NASM
-# turns it into a warning and a scalar build -- the library still works, just slower at subtitle
-# rasterisation, so nothing downstream notices. We control NASM's presence through the package
-# lists, so on the x86-64 RIDs where we expect assembly it should be an error if it vanished.
-# android-x64 is the deliberate exception (meson's Nasm cannot emit PIE; disabled above).
-case "${RID}" in
-  linux-x64|linux-musl-x64|win-x64|osx-x64|maccatalyst-x64)
-    if ! grep -qE '^#define[[:space:]]+CONFIG_ASM' build/config.h 2>/dev/null; then
-      echo "ERROR: libass config.h has no CONFIG_ASM line at all on ${RID}." >&2
-      echo "  The probe cannot answer the question, so it fails rather than passing blind." >&2
-      echo "  (libass renamed the macro? update this check -- do not delete it.)" >&2
-      exit 1
-    fi
-    if ! grep -qE '^#define[[:space:]]+CONFIG_ASM[[:space:]]+1' build/config.h; then
-      echo "ERROR: libass built WITHOUT x86 assembly on ${RID} (CONFIG_ASM is not 1)." >&2
-      echo "  meson downgrades this to a warning when NASM is missing or older than 2.10." >&2
-      echo "  nasm: $(command -v nasm || echo 'NOT FOUND') $(nasm -v 2>/dev/null || true)" >&2
-      exit 1
-    fi
-    echo "libass: x86 assembly verified enabled."
-    ;;
-esac
 meson compile -C build -j "$(${NPROC})"
 meson install -C build
 CONFIGURE_FLAGS+=(--enable-libass)

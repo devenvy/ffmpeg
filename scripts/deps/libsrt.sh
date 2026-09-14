@@ -35,7 +35,10 @@ if [[ "${SRT_ENCLIB:-off}" != "off" ]]; then
     echo "ERROR: libsrt built but ${_srt_a} is missing - cannot verify encryption." >&2
     exit 1
   fi
-  if ! strings -a "${_srt_a}" 2>/dev/null | grep -qi haicrypt; then
+  # grep -a, not strings(1): this runs in the BUILD environment, where binutils is not something
+  # the package lists guarantee, and grep is. -a treats the archive as text so the match works on
+  # a binary; POSIX grep and BusyBox grep both support it.
+  if ! grep -aqi haicrypt "${_srt_a}"; then
     echo "ERROR: libsrt was configured with ENABLE_ENCRYPTION=ON and USE_ENCLIB=${SRT_ENCLIB}," >&2
     echo "  but its HaiCrypt layer is not in the archive - srt:// would transport in the clear." >&2
     echo "  Most likely ${SRT_ENCLIB} was not found at configure time." >&2

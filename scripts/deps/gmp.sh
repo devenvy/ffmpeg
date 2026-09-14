@@ -11,7 +11,7 @@ gmp_ver="$(dep_version gmp)"
 echo "Building GMP ${gmp_ver} (static, GnuTLS chain)..."
 cd "${WORK_DIR}" || exit 1
 rm -rf "gmp-${gmp_ver}"
-curl -fsSL --retry 3 --retry-delay 5 --retry-connrefused --connect-timeout 30 \
+curl -fsSL --connect-timeout 30 \
   "https://ftp.gnu.org/gnu/gmp/gmp-${gmp_ver}.tar.xz" -o gmp.tar.xz
 tar -xf gmp.tar.xz
 cd "gmp-${gmp_ver}" || exit 1

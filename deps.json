@@ -224,6 +224,13 @@
       "datasource": "git-refs",
       "reason": "x264 has no release tags; pinned reviewed stable HEAD"
     },
+    "vulkan-shim": {
+      "origin": "https://github.com/BtbN/Vulkan-Shim-Loader.git",
+      "commit": "65b3936528cd92eb4ea3de485d03f858a3850484",
+      "digestBranch": "master",
+      "datasource": "git-refs",
+      "reason": "No release tags; pinned reviewed master HEAD. Static stub that LoadLibrary/dlopens the real Vulkan loader at runtime so Windows artifacts carry no hard vulkan-1.dll import - BtbN/FFmpeg-Builds uses the same shim for the same reason."
+    },
     "vulkan-headers": {
       "origin": "https://github.com/KhronosGroup/Vulkan-Headers.git",
       "tag": "vulkan-sdk-1.4.357.0",

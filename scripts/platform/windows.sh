@@ -63,6 +63,13 @@ case "${RID}" in
     # THREAD_POWER_THROTTLING_* compat shim, and SPIRV-Headers on the include path.
     # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     WHISPER_BACKEND="vulkan"
+    # Link ggml-vulkan against the static shim (deps/vulkan-shim.sh) rather than a
+    # dlltool-synthesised import library. The import library produced a hard vulkan-1.dll
+    # dependency in libavfilter, so ffmpeg.exe would not START on a machine without the
+    # Vulkan runtime -- which is any host with no GPU driver installed: headless servers,
+    # containers, fresh VMs. Same capability either way; only the shim degrades gracefully.
+    # shellcheck disable=SC2034  # consumed by scripts/deps/vulkan-shim.sh
+    BUILD_VULKAN_SHIM=1
     # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     BUILD_TYPE_LABEL="Windows (cross-compiled from Linux)"
     ;;

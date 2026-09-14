@@ -10,7 +10,7 @@ lame_ver="$(dep_version libmp3lame)"
 echo "Building libmp3lame ${lame_ver} (static)..."
 cd "${WORK_DIR}" || exit 1
 rm -rf "lame-${lame_ver}"
-curl -fsSL --retry 3 --retry-delay 5 --retry-connrefused --connect-timeout 30 \
+curl -fsSL --connect-timeout 30 \
   "https://downloads.sourceforge.net/project/lame/lame/${lame_ver}/lame-${lame_ver}.tar.gz" -o lame.tar.gz
 tar -xf lame.tar.gz
 cd "lame-${lame_ver}" || exit 1

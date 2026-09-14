@@ -56,14 +56,23 @@ case "${WHISPER_BACKEND}" in
     esac
     case "${RID}" in
       win-x64)
-        # mingw ships no Windows Vulkan loader import-lib; synthesize one from the headers
-        # via dlltool (the runtime loader is vulkan-1.dll, provided by the GPU driver).
-        grep -rhoE 'VKAPI_CALL[[:space:]]+vk[A-Za-z0-9]+' "${DEPS_DIR}/include/vulkan/"*.h \
-          | awk '{print $2}' | sort -u > "${WORK_DIR}/vulkan-1.syms"
-        { echo "LIBRARY vulkan-1.dll"; echo "EXPORTS"; cat "${WORK_DIR}/vulkan-1.syms"; } > "${WORK_DIR}/vulkan-1.def"
-        "${CROSS_PREFIX}-dlltool" -d "${WORK_DIR}/vulkan-1.def" -D vulkan-1.dll -l "${DEPS_DIR}/lib/libvulkan-1.dll.a"
-        WHISPER_CMAKE+=(-DVulkan_LIBRARY="${DEPS_DIR}/lib/libvulkan-1.dll.a")
-        WHISPER_SYS_LIBS="-l:libvulkan-1.dll.a -lstdc++ -lm"
+        # mingw ships no Windows Vulkan loader import-lib. We used to synthesize one from the
+        # headers with dlltool, which worked but made vulkan-1.dll a HARD import of the
+        # resulting libavfilter -- so ffmpeg.exe would not start at all on a machine without
+        # the Vulkan runtime (any host with no GPU driver: headless server, container, fresh
+        # VM). Confirmed in our own published 9.0.1.6 artifact:
+        #   objdump -p avfilter-12.dll | grep 'DLL Name'  ->  DLL Name: vulkan-1.dll
+        # Link the static shim instead (deps/vulkan-shim.sh); it resolves vulkan-1.dll through
+        # LoadLibraryExA on first use, so the import disappears while the capability stays.
+        # Verified with mingw locally: identical consumer object links to 1 vulkan import via
+        # the dlltool lib and 0 via the shim, with LoadLibraryExA present instead.
+        [ -n "${VULKAN_SHIM_LIB:-}" ] || {
+          echo "ERROR: win-x64 whisper needs the Vulkan shim, but vulkan-shim.sh did not build it." >&2
+          echo "  (BUILD_VULKAN_SHIM must be set for this RID; see scripts/platform/windows.sh)" >&2
+          exit 1
+        }
+        WHISPER_CMAKE+=(-DVulkan_LIBRARY="${VULKAN_SHIM_LIB}")
+        WHISPER_SYS_LIBS="-l:$(basename "${VULKAN_SHIM_LIB}") -lstdc++ -lm"
         ;;
       android-arm64|android-x64)
         # NDK API-28 sysroot libvulkan.so exports the Vulkan 1.1 symbols ggml links directly.

@@ -34,7 +34,11 @@ for url in \
   "https://ffmpeg.org/releases/ffmpeg-${FFMPEG_VERSION}.tar.xz" \
   "https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n${FFMPEG_VERSION}.tar.gz" ; do
   case "${url}" in *.xz) out=ffmpeg.tar.xz ;; *) out=ffmpeg.tar.gz ;; esac
-  if curl -fsSL --retry 5 --retry-delay 5 "${CURL_RETRY_ALL[@]}" --connect-timeout 30 "${url}" -o "${out}"; then
+  # No --retry-delay here: it would replace curl's exponential backoff with a fixed wait
+  # (see the curl wrapper in scripts/lib.sh, which now supplies --retry/--retry-connrefused/
+  # --retry-max-time centrally). Only --retry-all-errors is added locally, because it needs
+  # curl >= 7.71 and is probed for above.
+  if curl -fsSL "${CURL_RETRY_ALL[@]}" --connect-timeout 30 "${url}" -o "${out}"; then
     FF_ARCHIVE="${out}"; break
   fi
   echo "  download failed from ${url} — trying next mirror..." >&2

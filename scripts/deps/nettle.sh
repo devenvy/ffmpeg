@@ -14,7 +14,7 @@ nettle_ver="$(dep_version nettle)"
 echo "Building nettle ${nettle_ver} (static, GnuTLS chain)..."
 cd "${WORK_DIR}" || exit 1
 rm -rf "nettle-${nettle_ver}"
-curl -fsSL --retry 3 --retry-delay 5 --retry-connrefused --connect-timeout 30 \
+curl -fsSL --connect-timeout 30 \
   "https://ftp.gnu.org/gnu/nettle/nettle-${nettle_ver}.tar.gz" -o nettle.tar.gz
 tar -xf nettle.tar.gz
 cd "nettle-${nettle_ver}" || exit 1

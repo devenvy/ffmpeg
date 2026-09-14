@@ -18,7 +18,7 @@ gnutls_ver="$(dep_version gnutls)"
 echo "Building GnuTLS ${gnutls_ver} (static)..."
 cd "${WORK_DIR}" || exit 1
 rm -rf "gnutls-${gnutls_ver}"
-curl -fsSL --retry 3 --retry-delay 5 --retry-connrefused --connect-timeout 30 \
+curl -fsSL --connect-timeout 30 \
   "https://www.gnupg.org/ftp/gcrypt/gnutls/v3.8/gnutls-${gnutls_ver}.tar.xz" -o gnutls.tar.xz
 tar -xf gnutls.tar.xz
 cd "gnutls-${gnutls_ver}" || exit 1

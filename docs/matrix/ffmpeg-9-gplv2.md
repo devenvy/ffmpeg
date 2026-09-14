@@ -22,7 +22,7 @@ _7 of 23 built._
 | OpenH264 — H.264 encode | v2.6.0 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | SVT-AV1 — AV1 encode[^svtav1] | v4.2.0 | ✓ | ✓ | n/a | ✓ | ✓ | ✓ | — | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a | n/a |
 | x264 — H.264 encode (GPL) | b35605ace | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | n/a | ✓ | ✓ |
-| x265 — H.265 encode (GPL) | per-platform ↓ | 4.2 | 3.6 | 4.2 | 4.2 | 3.6 | 4.2 | 4.2 | 4.2 | 3.6 | 3.6 | 4.2 | 3.6 | n/a | 4.2 | 4.2 |
+| x265 — H.265 encode (GPL) | per-platform ↓ | 4.2 | 3.6 | 4.2 | 4.2 | 3.6 | 4.2 | 3.6 | 4.2 | 3.6 | 3.6 | 4.2 | 3.6 | n/a | 3.6 | 4.2 |
 | davs2 — AVS2 decode (GPL) |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
 | Kvazaar — HEVC encoder |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
 | LCEVC decode |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
@@ -168,13 +168,14 @@ _15 of 22 built._
 | Vulkan (FFmpeg filters; whisper GPU only where the backend is Vulkan) |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
 
 ### Other / miscellaneous  
-_3 of 23 built._
+_4 of 24 built._
 
 | Feature | Version | lin-x64 | lin-a64 | lin-hf | musl | musl-a64 | win | win-a64 | osx-x64 | osx-a64 | android | android-x64 | ios | ios-sim | mcat-a64 | mcat-x64 |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | JNI (Android bridge) |  | — | — | — | — | — | — | — | — | — | ✓ | ✓ | — | — | — | — |
 | libxml2 — DASH/IMF parse | v2.15.4 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | MediaCodec (Android) |  | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | ✓ | ✓ | n/a | n/a | n/a | n/a |
+| zlib — deflate (matroska, png, http) | v1.3.2 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | AviSynth — frameserver (GPL) |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
 | FireWire capture |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
 | JACK — audio I/O |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |

@@ -161,7 +161,10 @@ APPLE = MAC | IOS | MACCATALYST
 ANDROID = {"android-arm64","android-x64"}; DESKTOP = LINUX | WIN | MAC
 
 # HAVE_* backends FFmpeg supports but that aren't in any *_LIBRARY_LIST.
-EXTRA = {"mediafoundation": "hw", "schannel": "net", "securetransport": "net"}
+# zlib is enabled on every RID but is not in any of FFmpeg's EXTERNAL_LIBRARY_* lists (it is a
+# system library, not an external one), so the universe built from those lists never included
+# it and the matrix silently had no zlib row -- the only library we link with no row at all.
+EXTRA = {"mediafoundation": "hw", "schannel": "net", "securetransport": "net", "zlib": "other"}
 
 # --- What we build: map each --enable-<token> to its dep's BUILD_* guard -------
 active = set()
@@ -253,7 +256,7 @@ CAT = {
   "whisper":"stt","pocketsphinx":"stt",
   "libbluray":"other","libcaca":"other","libdc1394":"other","libiec61883":"other",
   "libjack":"other","libklvanc":"other","libpulse":"other","libquirc":"other",
-  "libv4l2":"other","libxml2":"other","openal":"other","opengl":"other",
+  "zlib":"other","libv4l2":"other","libxml2":"other","openal":"other","opengl":"other",
   "libcdio":"other","libdvdnav":"other","libdvdread":"other","avisynth":"other",
   "vulkan_static":"other","jni":"other",
 }
@@ -305,6 +308,7 @@ DESC = {
   "libcaca":"libcaca — ASCII-art output","libdc1394":"libdc1394 — IIDC cameras",
   "libiec61883":"FireWire capture","libjack":"JACK — audio I/O","libklvanc":"KLV/VANC",
   "libpulse":"PulseAudio — audio I/O","libquirc":"quirc — QR decode","libv4l2":"Video4Linux2",
+  "zlib":"zlib — deflate (matroska, png, http)",
   "libxml2":"libxml2 — DASH/IMF parse","openal":"OpenAL — audio capture","opengl":"OpenGL — output",
   "libcdio":"libcdio — CD input","libdvdnav":"libdvdnav — DVD nav","libdvdread":"libdvdread — DVD read",
   "avisynth":"AviSynth — frameserver","vulkan_static":"Vulkan (static ICD)","jni":"JNI (Android bridge)",

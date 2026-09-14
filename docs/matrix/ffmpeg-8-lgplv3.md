@@ -172,7 +172,7 @@ _16 of 23 built._
 | VDPAU |  | — | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
 
 ### Other / miscellaneous  
-_4 of 22 built._
+_5 of 23 built._
 
 | Feature | Version | lin-x64 | lin-a64 | lin-hf | musl | musl-a64 | win | win-a64 | osx-x64 | osx-a64 | android | android-x64 | ios | ios-sim | mcat-a64 | mcat-x64 |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
@@ -180,6 +180,7 @@ _4 of 22 built._
 | libxml2 — DASH/IMF parse | v2.15.4 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | MediaCodec (Android) |  | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | ✓ | ✓ | n/a | n/a | n/a | n/a |
 | Vulkan (static ICD) | v1.4.2 | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | ✓ | ✓ | ✓ | ✓ |
+| zlib — deflate (matroska, png, http) | v1.3.2 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | AviSynth — frameserver (GPL) |  | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
 | FireWire capture |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
 | JACK — audio I/O |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |

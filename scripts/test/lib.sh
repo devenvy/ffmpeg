@@ -387,8 +387,18 @@ check_smoke_link() {
 # capabilities have no enumerable component and are only visible through `-h full` (libsoxr
 # registers no filter or codec -- it adds a RESAMPLER ENGINE, so the only honest CLI evidence is
 # the "select SoX Resampler" line). Every value comes from capabilities.tsv, which is in-repo.
+# Memoised: check_claimed_capabilities calls this once PER ROW, and the rows share a handful of
+# options (-encoders, -decoders, -filters, ...). Without caching, every row added to
+# capabilities.tsv costs another ffmpeg process, which makes broadening coverage quietly
+# expensive. With it, the cost is one invocation per distinct option no matter how many rows use
+# it, so the table can grow freely.
 # shellcheck disable=SC2086  # deliberate word splitting; see above
-_enum() { "${RUNNER[@]}" "$FFMPEG" -hide_banner $1 2>/dev/null || true; }
+_enum_raw() { "${RUNNER[@]}" "$FFMPEG" -hide_banner $1 2>/dev/null || true; }
+_enum() {
+  local key; key="_enumcache_$(tr -c '[:alnum:]' '_' <<<"$1")"
+  if [ -z "${!key+x}" ]; then printf -v "${key}" '%s' "$(_enum_raw "$1")"; fi
+  printf '%s' "${!key}"
+}
 # check_claimed_capabilities — assert the binary actually HAS what its configure line CLAIMS.
 #
 # This is the counterpart to check_config. check_config proves we asked; this proves we got it.

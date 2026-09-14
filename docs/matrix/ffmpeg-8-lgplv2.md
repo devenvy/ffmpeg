@@ -172,13 +172,14 @@ _15 of 23 built._
 | Vulkan (FFmpeg filters; whisper GPU only where the backend is Vulkan) |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
 
 ### Other / miscellaneous  
-_3 of 22 built._
+_4 of 23 built._
 
 | Feature | Version | lin-x64 | lin-a64 | lin-hf | musl | musl-a64 | win | win-a64 | osx-x64 | osx-a64 | android | android-x64 | ios | ios-sim | mcat-a64 | mcat-x64 |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | JNI (Android bridge) |  | — | — | — | — | — | — | — | — | — | ✓ | ✓ | — | — | — | — |
 | libxml2 — DASH/IMF parse | v2.15.4 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | MediaCodec (Android) |  | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | ✓ | ✓ | n/a | n/a | n/a | n/a |
+| zlib — deflate (matroska, png, http) | v1.3.2 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | AviSynth — frameserver (GPL) |  | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
 | FireWire capture |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
 | JACK — audio I/O |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |

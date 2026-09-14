@@ -42,7 +42,15 @@ case "${RID}" in
   # "ASM optimizations: YES". Letting upstream answer removes both the timing dependency and the
   # need to track its macro names.
   #
-  # No-op on the aarch64 RIDs, where libass enables asm unconditionally already.
+  # linux-armhf: leave meson's `auto`. libass has NO 32-bit ARM assembly -- meson.build only
+  # takes the nasm path for generic_cpu_family 'x86' (x86 and x86_64) and sets enable_asm for
+  # 'aarch64'; everything else falls through to a warning with asm off. Forcing -Dasm=enabled
+  # there turns that into "Assembly was requested, but cannot be built", which is what it did:
+  # it failed linux-armhf, a RID that had been building correctly all along.
+  linux-armhf) ;;
+  # Everything else is x86_64 or aarch64, where libass does support assembly. A no-op on the
+  # aarch64 RIDs (enable_asm is unconditional there); on x86_64 it is the whole point, turning a
+  # silent scalar fallback into an error.
   *)           ASS_ARGS+=(-Dasm=enabled) ;;
 esac
 [[ -n "${MESON_CROSS_FILE:-}" ]] && ASS_ARGS+=(--cross-file "${MESON_CROSS_FILE}")

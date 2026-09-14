@@ -20,9 +20,11 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "${ROOT_DIR}"
 
-command -v python3 >/dev/null 2>&1 || { echo "matrix-consistency: python3 required" >&2; exit 2; }
+# shellcheck source=scripts/lib.sh  # wrappers + resolve_python; nothing runs on source
+. "${ROOT_DIR}/scripts/lib.sh"
+PYBIN="$(resolve_python)" || exit 2
 
-python3 - <<'PY'
+"${PYBIN}" - <<'PY'
 import io, sys
 try:
     import yaml

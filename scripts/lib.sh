@@ -115,6 +115,27 @@ git() {
   command git "$@"
 }
 
+# -- Helper: resolve a python interpreter that actually RUNS ---------------
+# `command -v python3` answers "is something named python3 on PATH", not "does it work" -- the
+# same intent-vs-reality gap this repo's capability checks exist to close. On Windows, python3 is
+# usually a Microsoft Store alias stub: it resolves, then exits 49 with a "not found, install from
+# the Store" message. A script that trusts `command -v` dies later with that message instead of a
+# usable error. Probe by EXECUTING the interpreter, and prefer python3 over python.
+# Echoes the interpreter name; returns 1 (and says why) when neither works.
+resolve_python() {
+  local _py
+  for _py in python3 python; do
+    if command -v "${_py}" >/dev/null 2>&1 && "${_py}" -c 'import sys' >/dev/null 2>&1; then
+      printf '%s
+' "${_py}"; return 0
+    fi
+  done
+  echo "ERROR: no working python3/python on PATH (a name that resolves but fails to run, such as" >&2
+  echo "  the Windows Store 'python3' alias stub, does not count)." >&2
+  return 1
+}
+
+
 # ── Helper: build a CMake-based static dependency ─────────────────────────
 
 build_cmake_dep() {

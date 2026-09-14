@@ -108,8 +108,11 @@ case "${RID}" in
     # Alpine's -dev packages — otherwise FFmpeg links the system libva.so.2/libvpl.so.2
     # dynamically and the artifact won't start on a stock musl system that lacks them.
     # The static dispatch layers dlopen the GPU driver at runtime, so VAAPI/QSV still
-    # work when a driver is present. (libstdc++/libgcc_s remain — whisper's C++ runtime,
-    # a standard `apk add libstdc++ libgcc` on any musl host.)
+        # work when a driver is present. (The C++ runtime used to remain as a DT_NEEDED on
+        # libstdc++.so.6/libgcc_s.so.1, documented as `apk add libstdc++ libgcc`. It is now
+        # linked STATICALLY instead -- see whisper.sh's -l:libstdc++.a and 07_build_ffmpeg.sh's
+        # .pc rewrite -- so a musl artifact needs no package install at all, and staging
+        # refuses to publish one that still depends on a host C++ runtime.)
     # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     PKGS_APK=(autoconf automake libtool build-base cmake curl diffutils gperf git linux-headers
               m4 meson nasm ninja patchelf perl pkgconf xz yasm xxd

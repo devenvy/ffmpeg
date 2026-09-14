@@ -26,5 +26,7 @@ NOTE: This license covers only the build tooling in this repository (the
 scripts, workflows, and documentation). The FFmpeg binaries produced by these
 scripts are licensed under the GNU LGPL or GPL as selected per build variant,
 and the third-party libraries they link keep their own licenses. Each build
-artifact ships the applicable license texts and a per-component corresponding-
-source manifest in its `legal/` folder.
+artifact ships, in its `legal/` folder, the governing license text for its cell,
+FFmpeg's own LICENSE.md and CREDITS, a `licenses/<dependency>/` directory holding
+each bundled library's own license text, and SOURCE_OFFER.txt, which says where
+the complete corresponding source is published.

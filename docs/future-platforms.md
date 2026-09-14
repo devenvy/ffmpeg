@@ -1,7 +1,8 @@
 # Future platforms (backlog)
 
-Candidate RIDs to add **after** the current work lands (v2 license series, Apple
-dynamic frameworks, MoltenVK-macOS). The platform-hoist refactor makes each of these a
+Candidate RIDs to add on top of what already ships. The prerequisites this file was
+originally written against — the v2 license series, dynamic Apple frameworks, and
+MoltenVK on macOS — have all landed. The platform-hoist refactor makes each of these a
 localized change — a `resolve` line + a `platform/<family>.sh` block — not a per-dep
 edit. See the vocabulary note at the bottom.
 
@@ -35,9 +36,13 @@ FreeBSD (`freebsd-x64`). *(Mac Catalyst shipped — see the RID table in DEVELOP
   cost on the simulator slice.
 
 ## Vocabulary (keep consistent)
-- **RID** = atomic build target `{os}-{arch}[-variant]` — one RID → one build → one
-  artifact; it's `${RID}`, the matrix axis, and the artifact-name middle. Use it for
-  anything specific.
+- **RID** = atomic build target `{os}-{arch}[-variant]` — one RID → one build. It is
+  `${RID}` and the matrix axis, and normally the artifact-name middle too. The exception
+  is the Apple mobile family: `ios-arm64`, `ios-sim-arm64`, `maccatalyst-arm64` and
+  `maccatalyst-x64` are four separate builds merged into a single `ios`-token release
+  asset (`ffmpeg-{version}-ios-{cell}.tar.gz` — the two Catalyst RIDs `lipo`-fuse into
+  one universal slice), so there one RID does not mean one artifact.
+  Use RID for anything specific.
 - **platform (family)** = toolchain bucket (`apple`/`linux`/`windows`/`android`/`wasm`)
   — what `platform/<family>.sh` keys on (`PLATFORM`). Many RIDs per platform.
 - The OS name (tvOS, Web) is prose only — "add tvOS" = "add its RIDs". Avoid "target"

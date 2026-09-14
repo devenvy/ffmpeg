@@ -42,13 +42,23 @@ ffmpeg -i input.mp4 -vn \
 | `use_gpu` | `1` | Use the GPU backend when available (else CPU) |
 | `vad_model` | (none) | Optional VAD model path for speech segmentation |
 
-**Hardware acceleration & fallback.** On the **`v3`** cells the GPU backend is **Vulkan** on
-Linux / Windows / Android and **Metal** on macOS / iOS. The **`v2`** cells carry no Vulkan, so on
-Linux / Windows / Android they transcribe on the **CPU** (macOS / iOS still use Metal). When no
-compatible GPU is present, transcription also runs on the CPU automatically (`tiny`/`base` models
-are roughly real-time on CPU). On every Linux `v3` build — glibc and Alpine
-(`linux-musl-x64`/`linux-musl-arm64`) alike — the Vulkan loader is **bundled** in the tarball, so
-none of them needs it from the system — see
+**Hardware acceleration & fallback.** The GPU backend is chosen per RID, not per platform:
+
+| Backend | RIDs |
+|---|---|
+| **Vulkan** (`v3` cells only) | `linux-x64`, `linux-arm64`, `linux-musl-x64`, `linux-musl-arm64`, `win-x64`, `android-arm64`, `android-x64` |
+| **Metal** (every cell) | `osx-x64`, `osx-arm64`, `ios-arm64`, `ios-sim-arm64`, `maccatalyst-arm64`, `maccatalyst-x64` |
+| **CPU** (every cell) | `linux-armhf`, `win-arm64` |
+
+The **`v2`** cells carry no Vulkan, so the Vulkan RIDs above transcribe on the **CPU** there; the
+Metal and CPU rows are unaffected by the license cell. When no compatible GPU is present,
+transcription also falls back to the CPU automatically (`tiny`/`base` models are roughly
+real-time on CPU).
+
+`linux-x64`, `linux-arm64`, `linux-musl-x64` and `linux-musl-arm64` **bundle** the Vulkan loader
+in the tarball, so they need nothing from the system. `linux-armhf` bundles none — it is CPU
+Whisper in every cell, so the loader would only affect Vulkan *filters*, which reach any system
+loader through FFmpeg's dlopen path. See
 [Linux runtime dependencies](./linux.md#runtime-dependencies).
 
 ---

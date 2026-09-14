@@ -26,7 +26,8 @@ else
     || curl -fsSL "https://raw.githubusercontent.com/FFmpeg/FFmpeg/refs/tags/n${VER}/configure" -o "${CONF_FILE}"
 fi
 
-python3 - "${CONF_FILE}" "${ROOT_DIR}" <<'PY'
+PYBIN="$(resolve_python)"
+"${PYBIN}" - "${CONF_FILE}" "${ROOT_DIR}" <<'PY'
 import sys, re, glob, os
 conf = open(sys.argv[1]).read(); root = sys.argv[2]
 blocks = re.findall(r'(\w*(?:LIBRARY|HWACCEL)\w*_LIST)="\n(.*?)\n"', conf, re.S)

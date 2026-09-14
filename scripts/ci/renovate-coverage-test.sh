@@ -14,16 +14,9 @@
 set -uo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/../.." || exit 1
 
-# Resolve an interpreter that actually RUNS: on Windows `python3` is often a Microsoft
-# Store alias stub that sits on PATH but exits non-zero, so presence alone is not enough.
-# Same probe as gen-matrix.sh.
-PYBIN=""
-for _py in python3 python; do
-  if command -v "${_py}" >/dev/null 2>&1 && "${_py}" -c 'import sys' >/dev/null 2>&1; then
-    PYBIN="${_py}"; break
-  fi
-done
-[ -n "${PYBIN}" ] || { echo "renovate-coverage-test: no working python3/python on PATH." >&2; exit 1; }
+# shellcheck source=scripts/lib.sh  # wrappers + resolve_python; nothing runs on source
+. "$(pwd)/scripts/lib.sh"
+PYBIN="$(resolve_python)" || exit 1
 
 "${PYBIN}" - <<'PY'
 import json, re, sys

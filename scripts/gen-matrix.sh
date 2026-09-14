@@ -41,6 +41,9 @@ mapfile -t VERSIONS < <(jq -r '.ffmpeg[]' deps.json | tr -d '\r')
 # (Git Bash / MSYS2) hand it a Windows path instead; elsewhere this is a passthrough.
 topath() { if command -v cygpath >/dev/null 2>&1; then cygpath -m "$1"; else printf '%s' "$1"; fi; }
 CONF_DIR="$(mktemp -d)"; MANIFEST_FILE="$(mktemp)"; : > "${MANIFEST_FILE}"
+# NDK-shaped stub for the per-RID configuration simulation below: android.sh needs
+# toolchains/llvm/prebuilt/<host> to exist before it will source. Nothing here is executed.
+NDK_STUB="${CONF_DIR}/ndk"; mkdir -p "${NDK_STUB}/toolchains/llvm/prebuilt/linux-x86_64/bin"
 for V in "${VERSIONS[@]}"; do
   CF="${CONF_DIR}/${V}.configure"
   if curl -fsSL \
@@ -72,11 +75,15 @@ for RID in "${RIDS[@]}"; do
     LIC="${CELL%v*}"; VER="${CELL##*v}"          # gplv3 -> LIC=gpl VER=3
     ROOT_DIR="${ROOT_DIR}"; RID="$RID"; LICENSE="$LIC"; BUILD_RID="$RID"
     BUILD_LICENSE="$LIC"; BUILD_LICENSE_VERSION="$VER"
-    # Use the runner's REAL NDK (same resolution as the build: ANDROID_NDK_HOME or the
-    # preinstalled ANDROID_NDK_LATEST_HOME). android.sh looks up the toolchain host dir
-    # (ls "$NDK/toolchains/llvm/prebuilt"), which fails under set -e if the NDK is a bare stub —
-    # so a dummy dir isn't enough. /tmp remains only as a last-resort fallback where no NDK exists.
-    ANDROID_NDK_HOME="${ANDROID_NDK_HOME:-${ANDROID_NDK_LATEST_HOME:-/tmp}}"; ANDROID_ABI=arm64-v8a; API=28; TOOLCHAIN=/dummy
+    # A real NDK is NOT needed: this simulation only reads BUILD_* flags and configure flags
+    # and never invokes a compiler. But android.sh resolves the toolchain host directory with
+    # `ls "$NDK/toolchains/llvm/prebuilt"`, so a bare dummy directory makes that `ls` fail and
+    # takes the WHOLE generator down under set -euo pipefail -- silently, with a bare exit 2 and
+    # no message, because this source is redirected to /dev/null. Pointing at the runner's real
+    # NDK papered over that on CI and left every other host unable to regenerate the docs.
+    # NDK_STUB is NDK-SHAPED instead, so no NDK is required anywhere and the output cannot vary
+    # with the host's toolchain directory name. Same approach as the xcrun stub above.
+    ANDROID_NDK_HOME="${NDK_STUB}"; ANDROID_ABI=arm64-v8a; API=28; TOOLCHAIN=/dummy
     WORK_DIR=/tmp/sim; DEPS_DIR=/tmp/sim/deps; SRC_DIR=/tmp/sim/src
     # These are the environment the sourced config scripts read. export (in this isolated
     # subshell — no leak) both makes that intent explicit and marks them used for shellcheck.
@@ -108,15 +115,8 @@ for RID in "${RIDS[@]}"; do
 done
 
 mkdir -p docs/matrix
-# Resolve an interpreter that actually RUNS: on Windows `python3` is often a Microsoft
-# Store alias stub that sits on PATH but exits non-zero, so presence alone is not enough.
-PYBIN=""
-for _py in python3 python; do
-  if command -v "${_py}" >/dev/null 2>&1 && "${_py}" -c 'import sys' >/dev/null 2>&1; then
-    PYBIN="${_py}"; break
-  fi
-done
-[ -n "${PYBIN}" ] || { echo "ERROR: no working python3/python on PATH." >&2; exit 1; }
+# resolve_python (lib.sh) probes by EXECUTING the interpreter, not by name lookup.
+PYBIN="$(resolve_python)"
 
 "${PYBIN}" - "$(topath "$simfile")" "$(topath "$MANIFEST_FILE")" "$(topath "${ROOT_DIR}/docs")" <<'PY'
 import sys, re, glob, os
@@ -310,7 +310,7 @@ DESC = {
   "vaapi":"VAAPI","vdpau":"VDPAU","libdrm":"libdrm","v4l2_m2m":"V4L2-M2M","amf":"AMF (AMD)",
   "d3d11va":"D3D11VA","d3d12va":"D3D12VA","dxva2":"DXVA2","mediafoundation":"MediaFoundation",
   "videotoolbox":"VideoToolbox","audiotoolbox":"AudioToolbox","mediacodec":"MediaCodec (Android)",
-  "vulkan":"Vulkan (filters + whisper GPU)","libvpl":"QSV (oneVPL)","libmfx":"QSV (MediaSDK, legacy)",
+  "vulkan":"Vulkan (FFmpeg filters; whisper GPU only where the backend is Vulkan)","libvpl":"QSV (oneVPL)","libmfx":"QSV (MediaSDK, legacy)",
   "mmal":"MMAL (Raspberry Pi)","omx":"OpenMAX IL","opencl":"OpenCL",
   "schannel":"SChannel — TLS/https (OS-native)","securetransport":"SecureTransport — TLS/https (OS-native)",
 }
@@ -359,13 +359,16 @@ FN_TEXT = {
          "(Apache-2.0, requires --enable-version3) on Linux/Android. The App-Store-safe v2 builds "
          "instead use GnuTLS on gpl-2 (its GMP/nettle deps are fine under GPLv2) and DROP TLS "
          "ENTIRELY on lgpl-2 (GMP/nettle are never LGPLv2.1 and no other backend is either). "
-         "Windows uses SChannel and Apple uses SecureTransport (OS-native) in every series. All "
-         "enable the `https`/`tls` protocols EXCEPT lgpl-2 on Linux/Android, which has no TLS.",
+         "Windows uses SChannel and macOS/iOS use SecureTransport (OS-native) in every series. "
+         "Mac Catalyst is the Apple exception: SecureTransport is unavailable on macabi, so "
+         "Catalyst follows the Linux/Android ladder instead. All enable the `https`/`tls` "
+         "protocols EXCEPT lgpl-2 on Linux, Android and Catalyst, which have no TLS.",
   "d3d12": "Not built: FFmpeg's `d3d12va` needs `ID3D12VideoDecoder` from `d3d12video.h`, which the "
            "mingw-w64 cross-toolchain doesn't ship (it has `d3d12.h` only). Windows hw decode is "
            "covered by D3D11VA + DXVA2.",
-  "svtav1": "Needs 64-bit and a toolchain it cross-compiles under, so it is n/a on armhf and mobile. "
-            "AV1 encode is still available via libaom.",
+  "svtav1": "Needs 64-bit and a toolchain it cross-compiles under, so it is n/a on armhf, "
+            "win-arm64, Mac Catalyst and mobile. AV1 encode is still available via libaom "
+            "everywhere libaom itself is built — which excludes the lean ios-sim-arm64 slice.",
   "webp": "Image-only codec; not built on mobile (its CMake build ships no pkg-config file).",
   "fontconfig": "Off on Windows/Android/iOS (native DirectWrite/CoreText, or an explicit "
                 "`fontfile=`); libass still renders via those providers.",
@@ -440,8 +443,9 @@ def render(version, conf, cid):
     L.append(legend + "\n")
     L.append("_The **Version** column is the exact upstream ref this build pins for that library — read "
              "from the ledger (`deps.json`), resolved for this FFmpeg major (an `overrides.<major>` hold "
-             "wins over the default). It is the ref `clone_dep` checks out, so it is what actually "
-             "compiles. Blank = an FFmpeg-internal or OS-native feature with no pinned dependency, or a "
+             "wins over the default). It is the ref the build actually consumes — `clone_dep` "
+             "checks it out for git-sourced deps, and `dep_version` substitutes it into the "
+             "download URL for tarball-sourced ones — so it is what actually compiles. Blank = an FFmpeg-internal or OS-native feature with no pinned dependency, or a "
              "row not built in this cell. A dep held back only for this line shows its held ref here and "
              "so differs from the sibling major's file; if a dep ever needed a different version per "
              "platform, the version would move into the per-platform cells instead._\n")
@@ -450,9 +454,16 @@ def render(version, conf, cid):
              "on the iOS device slice but dropped there shows n/a._\n")
     L.append(f"_This is the **{LABEL}** cell — one of four ({{gplv3, gplv2, lgplv3, lgplv2}}); the "
              f"siblings are linked from the [matrix index](README.md). Cells differ in x264/x265 "
-             f"(gpl) vs kvazaar (lgpl), and in the Apache-2.0 dependencies: **v3** links OpenSSL TLS "
-             f"+ Vulkan, while **v2** uses GnuTLS (gpl) or NO TLS (lgpl) and drops Vulkan (Whisper → "
-             f"CPU). Every cell ships DYNAMIC libraries — iOS as a dynamic-framework `.xcframework`._\n")
+             f"(gpl) vs kvazaar (lgpl) — except the lean `ios-sim-arm64` slice, which carries "
+             f"none of the three — and in the Apache-2.0 dependencies. **v3** adds Vulkan, and "
+             f"adds OpenSSL on the platforms that need a bundled TLS backend (Linux, Android, Mac "
+             f"Catalyst); **v2** uses GnuTLS (gpl) or NO TLS (lgpl) on those same platforms and "
+             f"drops Vulkan everywhere. Windows (SChannel) and macOS/iOS (SecureTransport) have "
+             f"TLS in all four cells. Dropping Vulkan sends Whisper to the CPU only where the "
+             f"Vulkan backend was in use: Apple targets use Metal in every cell, and `linux-armhf` "
+             f"and `win-arm64` are CPU in every cell. The per-RID columns below are "
+             f"authoritative; this paragraph is the summary. Every cell ships DYNAMIC libraries "
+             f"— iOS as a dynamic-framework `.xcframework`._\n")
     hdr = "| Feature | Version | " + " | ".join(SHORT[r] for r in RIDS) + " |"
     sep = "|" + "---|"*(len(RIDS)+2)
     for key, title in TITLES:
@@ -506,16 +517,22 @@ idx.append("# Build coverage matrix\n")
 idx.append("_Auto-generated by `scripts/gen-matrix.sh` — do not edit by hand._\n")
 idx.append("Every library FFmpeg supports × every platform, **✓** where this repo builds it. Sliced "
            "per **maintained FFmpeg major** and per **license variant** — the gpl and lgpl builds "
-           "differ (gpl has x264/x265; lgpl has kvazaar). Markers: **✓** built · **—** not built "
+           "differ (gpl has x264/x265; lgpl has kvazaar — except the lean `ios-sim-arm64` slice, "
+           "which carries neither pair). Markers: **✓** built · **—** not built "
            "(a choice) · **✗** (lgpl) can't include for license reasons · **n/a** not applicable on "
            "the platform. Each cell file also carries a **Version** column — the exact upstream ref "
            "each built library is pinned to in the ledger (`deps.json`), resolved for that FFmpeg "
            "major — so a dep bump changes these files, not just an FFmpeg change.\n")
 idx.append("**Four cells per FFmpeg major** — `gplv3` · `gplv2` · `lgplv3` · `lgplv2`. Family: gpl "
-           "has x264/x265, lgpl has kvazaar (no x264/x265). Version: **v3** links the Apache-2.0 deps "
-           "(OpenSSL TLS + Vulkan); **v2** (App-Store-safe) uses GnuTLS (gpl) or **no TLS** (lgpl) and "
-           "drops Vulkan (Whisper → CPU). Every cell ships **dynamic** libraries, iOS as a "
-           "dynamic-framework `.xcframework`. Open two cells side by side to see exactly what differs.\n")
+           "has x264/x265, lgpl has kvazaar (no x264/x265); the lean `ios-sim-arm64` slice carries "
+           "none of the three. Version: **v3** links the Apache-2.0 deps — Vulkan on every RID "
+           "that has it, plus OpenSSL TLS on the platforms needing a bundled backend (Linux, "
+           "Android, Mac Catalyst); **v2** (App-Store-safe) uses GnuTLS (gpl) or **no TLS** (lgpl) "
+           "on those platforms and drops Vulkan everywhere. Windows (SChannel) and macOS/iOS "
+           "(SecureTransport) keep TLS in all four cells. Whisper falls back to CPU only where it "
+           "used Vulkan — Apple is Metal in every cell, `linux-armhf` and `win-arm64` are CPU "
+           "in every cell. Every cell ships **dynamic** libraries, iOS as a dynamic-framework "
+           "`.xcframework`. Open two cells side by side to see exactly what differs.\n")
 idx.append("## Matrices\n")
 for mj, _version, _, _ in rendered:
     # Major only — the exact point version lives in each per-major file's header, so

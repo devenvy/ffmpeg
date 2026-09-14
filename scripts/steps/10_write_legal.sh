@@ -61,9 +61,22 @@ if [[ "${LICENSE_VER}" == "3" ]]; then
   (OpenSSL 3.x TLS and/or Vulkan headers), whose license is compatible with version 3 of the
   (L)GPL but NOT with version 2.1/2. Its effective license is therefore VERSION 3."
 else
+  # The TLS sentence is RID-dependent: Windows (SChannel) and macOS/iOS (SecureTransport) use an
+  # OS-native backend with no bundled dependency, so the v2 split does not touch their TLS at all.
+  # Mac Catalyst is the Apple exception -- SecureTransport is unavailable on macabi -- so it
+  # follows the Linux/Android ladder. Saying "GnuTLS or nothing" unconditionally put a false
+  # statement into the legal notice of every Windows and macOS/iOS v2 artifact.
+  case "${RID}" in
+    win-*)
+      WHY_TLS="TLS is the OS-native SChannel backend, which is unaffected by the version split." ;;
+    osx-*|ios-*)
+      WHY_TLS="TLS is the OS-native SecureTransport backend, which is unaffected by the version split." ;;
+    *)
+      WHY_TLS="TLS is GnuTLS (gpl-2) or omitted entirely (lgpl-2, for which no LGPLv2.1-compatible
+  TLS backend exists)." ;;
+  esac
   WHY_VERSION="This is a VERSION 2 build (App-Store-safe): it does NOT use --enable-version3
-  and links no Apache-2.0 dependency. TLS is GnuTLS (gpl-2) or omitted entirely (lgpl-2, for
-  which no LGPLv2.1-compatible TLS backend exists), and Vulkan is disabled."
+  and links no Apache-2.0 dependency. ${WHY_TLS} Vulkan is disabled."
 fi
 cat > "${LEGAL_DIR}/LICENSE-NOTICE.txt" <<EOF
 FFmpeg ${FFMPEG_VERSION} — ${RID}

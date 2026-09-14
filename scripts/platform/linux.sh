@@ -12,7 +12,7 @@ case "${RID}" in
     # and the only thing that dragged in an X11 dependency.
     PKGS=(autoconf automake build-essential cmake curl gperf git libtool meson nasm ninja-build
           patchelf pkg-config xz-utils yasm
-          glslc glslang-tools spirv-headers spirv-tools)
+          glslc glslang-tools spirv-headers spirv-tools xxd)
     CONFIGURE_FLAGS+=(
       --enable-cuda --enable-cuvid --enable-nvenc --enable-nvdec --enable-ffnvcodec
       --enable-vaapi --enable-libdrm --enable-libvpl
@@ -49,7 +49,7 @@ case "${RID}" in
     # (libvpl) on ARM.
     PKGS=(autoconf automake build-essential cmake curl gperf git libtool meson nasm ninja-build
           patchelf pkg-config xz-utils
-          glslc glslang-tools spirv-headers spirv-tools)
+          glslc glslang-tools spirv-headers spirv-tools xxd)
     CONFIGURE_FLAGS+=(
       --enable-cuda --enable-cuvid --enable-nvenc --enable-nvdec --enable-ffnvcodec
       --enable-vaapi --enable-libdrm
@@ -118,14 +118,26 @@ case "${RID}" in
     # pull it in; the glibc/manylinux images already ship it, so only the Alpine list needs it.
     # xxd: libvmaf embeds its built-in VMAF models via `xxd -i`. Alpine's base ships only the
     # busybox `xxd` applet, which lacks the `-i` (C-array) flag, so the model-gen step fails;
-    # the `xxd` package installs the real vim xxd (with `-i`). glibc/manylinux has no xxd at
-    # all, where libvmaf falls back to a non-xxd path — only Alpine has the broken stub.
+    # the `xxd` package installs the real vim xxd (with `-i`).
+    #
+    # CORRECTION: this used to claim glibc/manylinux "falls back to a non-xxd path". There is no
+    # such fallback. libvmaf's meson marks xxd `required: false` and emits the model sources only
+    # inside `if xxd.found()`, so a host without it builds a library with NO built-in models --
+    # the FFmpeg filter registers and then fails on its default version=vmaf_v0.6.1. manylinux
+    # had no xxd, so that is exactly what those artifacts shipped. vim-common is now in the
+    # manylinux dnf list and libvmaf.sh asserts xxd before building.
     CONFIGURE_FLAGS+=(
       --enable-cuda --enable-cuvid --enable-nvenc --enable-nvdec --enable-ffnvcodec
       --enable-vaapi --enable-libdrm --enable-libvpl
     )
     # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     HWACCEL_FEATURES="CUDA NVENC NVDEC VAAPI libdrm QSV"
+    # Pair with -l:libstdc++.a in deps/whisper.sh: that removes the libstdc++ dependency, and
+    # -static-libgcc removes the remaining libgcc_s.so.1 one, so the musl artifact needs no C++
+    # runtime from the host at all. Alpine base images ship neither, and bundling them would
+    # mean redistributing GPLv3 libraries; statically linked they are "Target Code" under the
+    # GCC Runtime Library Exception, which carries no such obligation.
+    EXTRA_LDFLAGS="${EXTRA_LDFLAGS:-} -static-libgcc"
     # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     BUILD_NVIDIA=1
     # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
@@ -171,6 +183,12 @@ case "${RID}" in
     )
     # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     HWACCEL_FEATURES="CUDA NVENC NVDEC VAAPI libdrm V4L2-M2M"
+    # Pair with -l:libstdc++.a in deps/whisper.sh: that removes the libstdc++ dependency, and
+    # -static-libgcc removes the remaining libgcc_s.so.1 one, so the musl artifact needs no C++
+    # runtime from the host at all. Alpine base images ship neither, and bundling them would
+    # mean redistributing GPLv3 libraries; statically linked they are "Target Code" under the
+    # GCC Runtime Library Exception, which carries no such obligation.
+    EXTRA_LDFLAGS="${EXTRA_LDFLAGS:-} -static-libgcc"
     # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     BUILD_NVIDIA=1
     # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script

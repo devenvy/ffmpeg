@@ -31,6 +31,19 @@ VMAF_ARGS=(--prefix="${DEPS_DIR}" --libdir=lib --default-library=static
            --buildtype=release
            -Denable_tests=false -Denable_docs=false
            -Dbuilt_in_models=true -Denable_float=true)
+
+# -Dbuilt_in_models=true is a REQUEST, not a guarantee: libvmaf's meson treats xxd as
+# `required: false` and emits the model sources only inside `if xxd.found()`, with no failure
+# branch. Without xxd the library builds cleanly, the FFmpeg filter still registers, and every
+# model lookup returns -EINVAL -- so the default `version=vmaf_v0.6.1` silently cannot load.
+# That shipped on the manylinux RIDs, which had no xxd. Assert the tool is actually there so a
+# missing model set fails the build instead of the user's first vmaf invocation.
+if ! command -v xxd >/dev/null 2>&1; then
+  echo "ERROR: xxd not found; libvmaf would build with NO built-in models." >&2
+  echo "  The filter would register and then fail on its default version=vmaf_v0.6.1." >&2
+  echo "  Install it (vim-common on RPM hosts, xxd on Alpine, vim on Debian/Ubuntu)." >&2
+  exit 1
+fi
 [[ -n "${MESON_CROSS_FILE:-}" ]] && VMAF_ARGS+=(--cross-file "${MESON_CROSS_FILE}")
 meson setup build "${VMAF_ARGS[@]}"
 meson compile -C build -j "$(${NPROC})"

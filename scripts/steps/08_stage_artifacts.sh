@@ -309,6 +309,42 @@ case "${RID}" in
     echo "Mobile build — no additional rpath/install_name fixup needed."
     ;;
   *)
+    # musl has no host C++ runtime to fall back on, so the artifact must not need one. Asserted
+    # below; glibc targets are unaffected, since libstdc++/libgcc_s are present on any glibc
+    # system able to run the binary at all.
+    case "${RID}" in
+      linux-musl-*)
+        # musl artifacts must not depend on a host C++ runtime: a base Alpine image ships
+        # neither libstdc++.so.6 nor libgcc_s.so.1, so a surviving DT_NEEDED means the artifact
+        # cannot start at all. deps/whisper.sh links -l:libstdc++.a and platform/linux.sh adds
+        # -static-libgcc so there is nothing to depend on, and whisper.sh fails the build up
+        # front if libstdc++.a is unavailable -- so the static link is guaranteed, not hoped for.
+        #
+        # Deliberately NOT bundling the runtimes as a fallback. Shipping them would work, but it
+        # is redistributing GPLv3 libraries: the GCC Runtime Library Exception covers our linked
+        # output, not the runtime shipped as a library, so it would pull a GPLv3 section 6
+        # corresponding-source obligation into every musl artifact -- including the lgplv2 cell,
+        # whose whole value is a clean licence position. Static linking makes the result "Target
+        # Code" under the Exception, which carries no such obligation. BtbN ships the same shape.
+        #
+        # If the invariant ever breaks, scripts/test/linux.sh fails on the DT_NEEDED rather than
+        # silently publishing something that will not start; fixing the link is the right answer
+        # there, not quietly taking on a licence burden.
+        for _so in "${OUT_DIR}"/*.so*; do
+          [ -e "${_so}" ] || continue
+          [ -L "${_so}" ] && continue
+          if patchelf --print-needed "${_so}" 2>/dev/null | grep -qE "^(libstdc\+\+\.so|libgcc_s\.so)"; then
+            echo "ERROR: ${_so##*/} depends on a host C++ runtime:" >&2
+            patchelf --print-needed "${_so}" | grep -E "^(libstdc\+\+\.so|libgcc_s\.so)" | sed "s/^/  /" >&2
+            echo "  A base Alpine image ships neither, so this artifact would not start." >&2
+            echo "  Expected the C++ runtime to be linked statically (-l:libstdc++.a," >&2
+            echo "  -static-libgcc); see scripts/deps/whisper.sh and scripts/platform/linux.sh." >&2
+            exit 1
+          fi
+        done
+        echo "musl artifact has no host C++ runtime dependency (statically linked)."
+        ;;
+    esac
     # Linux (glibc/musl): use patchelf to set $ORIGIN rpath
     echo "Fixing ELF rpath for flat layout..."
     patchelf --set-rpath '$ORIGIN' "${OUT_DIR}/ffmpeg"

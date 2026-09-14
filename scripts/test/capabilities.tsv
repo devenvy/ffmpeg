@@ -1,0 +1,60 @@
+# Claimed-vs-present capability table.
+#
+# WHY THIS EXISTS. Every other check in this repo verifies INTENT: check_config greps the
+# configure line embedded in the binary, and gen-matrix.sh reads the BUILD_* flags. Both answer
+# "did we ask for it", never "did we get it". FFmpeg and the dependency build systems routinely
+# decline a request in silence:
+#
+#   - Vulkan filters need spirv_compiler (n9) / spirv_library (n8). A too-old glslc, or a missing
+#     --enable-libshaderc, disables them with no error. Every 8.1.2 artifact shipped with zero
+#     Vulkan filters, and four RIDs did on 9.0.1, through a fully green matrix.
+#   - libvmaf's meson marks xxd `required: false` and emits its built-in models only if found, so
+#     the filter registers and then cannot load its own default model.
+#
+# Each row asserts that a flag in the artifact's OWN configure string corresponds to something
+# actually registered in the binary. Expectations come from the artifact, so this needs no
+# per-RID upkeep: enable a library anywhere and it is checked there.
+#
+# FORMAT (tab-separated):  configure-flag <TAB> ffmpeg-list-option <TAB> extended-regex
+# Lines starting with # and blank lines are ignored.
+#
+# Only for RIDs whose binaries we can execute (Linux, macOS, and the Windows test runners).
+# Mobile/cross slices ship no CLI, and are covered by symbol checks instead.
+# scale_vulkan specifically, NOT a loose /_vulkan/ match. A couple of Vulkan filters
+# (avgblur_vulkan, bwdif_vulkan) need no SPIR-V compiler and survive even when the shader
+# toolchain is missing, so a loose match passes a build that lost the other 16. Measured:
+# published 8.1.2 linux-x64 has 2 vulkan filters, 9.0.1 has 18. scale_vulkan is in the
+# SPIR-V-dependent set, so it is the honest canary.
+--enable-vulkan	-filters	scale_vulkan
+--enable-libplacebo	-filters	libplacebo
+--enable-libass	-filters	[[:space:]](subtitles|ass)[[:space:]]
+--enable-libfreetype	-filters	drawtext
+--enable-whisper	-filters	whisper
+--enable-libvmaf	-filters	libvmaf
+--enable-libx264	-encoders	libx264
+--enable-libx265	-encoders	libx265
+--enable-libkvazaar	-encoders	libkvazaar
+--enable-libvpx	-encoders	libvpx
+--enable-libaom	-encoders	libaom
+--enable-libsvtav1	-encoders	libsvtav1
+--enable-libopus	-encoders	libopus
+--enable-libmp3lame	-encoders	libmp3lame
+--enable-libvorbis	-encoders	libvorbis
+--enable-libopenh264	-encoders	libopenh264
+--enable-libwebp	-encoders	libwebp
+--enable-libjxl	-decoders	libjxl
+--enable-libopenjpeg	-encoders	libopenjpeg
+--enable-libspeex	-decoders	libspeex
+--enable-libgsm	-decoders	libgsm
+--enable-libsoxr	-filters	aresample
+--enable-libzimg	-filters	zscale
+--enable-chromaprint	-muxers	chromaprint
+--enable-libsrt	-protocols	^[[:space:]]*srt$
+--enable-librist	-protocols	^[[:space:]]*rist$
+--enable-libxml2	-demuxers	dash
+--enable-vaapi	-hwaccels	vaapi
+--enable-nvdec	-hwaccels	cuda
+--enable-videotoolbox	-hwaccels	videotoolbox
+--enable-mediacodec	-hwaccels	mediacodec
+--enable-d3d11va	-hwaccels	d3d11va
+--enable-dxva2	-hwaccels	dxva2

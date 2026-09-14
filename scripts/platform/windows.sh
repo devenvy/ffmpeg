@@ -12,7 +12,7 @@ case "${RID}" in
     # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     PKGS=(autoconf automake build-essential gperf libtool
           cmake git mingw-w64 mingw-w64-tools llvm meson nasm ninja-build pkg-config curl xz-utils yasm
-          glslc glslang-tools)
+          glslc glslang-tools xxd)
     CROSS_PREFIX="x86_64-w64-mingw32"
     export CC="${CROSS_PREFIX}-gcc-win32"
     export CXX="${CROSS_PREFIX}-g++-win32"
@@ -84,7 +84,7 @@ case "${RID}" in
     # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     PKGS=(autoconf automake build-essential gperf libtool
           cmake git llvm meson ninja-build pkg-config curl xz-utils
-          glslc glslang-tools)
+          glslc glslang-tools xxd)
     CROSS_PREFIX="aarch64-w64-mingw32"
     export CC="${CROSS_PREFIX}-clang"
     export CXX="${CROSS_PREFIX}-clang++"

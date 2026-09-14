@@ -133,6 +133,27 @@ ta' "$pc"
   done
 fi
 
+# ── Patch pkg-config for the musl static C++ runtime ─────────────────────
+# Same problem as Windows above, different symptom. Dependency .pc files declare -lstdc++ in
+# Libs/Libs.private -- openh264, libass and others are C++ -- so FFmpeg's link resolves the
+# SHARED libstdc++ no matter what whisper's own link line says. Setting -l:libstdc++.a in
+# WHISPER_SYS_LIBS was NOT enough: it only covers whisper's contribution, and staging then
+# refuses the artifact because a base Alpine image has no libstdc++.so.6:
+#   ERROR: libavcodec.so.62.28.102 depends on a host C++ runtime: libstdc++.so.6
+# Rewrite the runtime in every .pc, exactly the way win-arm64 does for libc++ above. Not the
+# -Bstatic wrap used for mingw-w64: that leaves the shared/static choice to link order, and
+# here we want the archive named outright.
+if [[ "${RID}" == linux-musl-* ]]; then
+  echo "Patching pkg-config files for static libstdc++ (musl)..."
+  for pc in "${DEPS_DIR}"/lib/pkgconfig/*.pc; do
+    [ -f "$pc" ] || continue
+    # Loop (:a/ta) because a plain /g skips the second of two adjacent matches sharing a space.
+    sed -i -E ':a
+s/(^|[[:space:]])-lstdc\+\+([[:space:]]|$)/\1-l:libstdc++.a\2/
+ta' "$pc"
+  done
+fi
+
 # ── Configure & Build ─────────────────────────────────────────────────────
 
 cd "${SRC_DIR}" || exit 1

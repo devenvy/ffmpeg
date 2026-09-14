@@ -79,6 +79,7 @@ audit_no_vulkan_hard_import() {
   fi
 }
 audit_no_vulkan_hard_import
+check_claimed_capabilities
 
 # MSVC import libraries live in the native tree (packaged into the -dev tarball).
 n_lib=$(ls "${DIR}"/lib/*.lib 2>/dev/null | wc -l)

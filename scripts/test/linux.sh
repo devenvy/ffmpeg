@@ -30,6 +30,7 @@ check_config "--enable-whisper" "Whisper ASR filter"
 check_tls
 check_license_boundary
 check_pkgconfig "${DIR}"
+check_claimed_capabilities
 
 # The -dev archive (include/ + the shared libraries) is what downstream consumers
 # actually build against, and until now nothing on desktop ever compiled or linked
@@ -70,5 +71,35 @@ else
   # AArch32), so it must run under qemu-user; if that is unavailable, FAIL rather than skip.
   fail "functional suite: cannot execute ${TARCH} target — ${QEMU:-qemu} not available (refusing to skip)"
 fi
+
+# musl artifacts must not depend on a host C++ runtime. A base alpine image ships neither
+# libstdc++.so.6 nor libgcc_s.so.1, so a surviving DT_NEEDED means the artifact cannot start:
+#   Error loading shared library libstdc++.so.6: No such file or directory
+# The runtime is linked statically (-l:libstdc++.a + -static-libgcc), which both makes the
+# artifact self-contained and keeps it free of any GPLv3 redistribution obligation -- statically
+# linked runtime is covered by the GCC Runtime Library Exception. Reading DT_NEEDED is the whole
+# test: if nothing needs the runtime, nothing can fail to find it. That is host-independent, so
+# it works identically in the x64 Alpine job container and the arm64 docker-run path.
+case "${RID}" in
+  linux-musl-*)
+    if ! command -v patchelf >/dev/null 2>&1; then
+      fail "patchelf unavailable - cannot verify the musl C++ runtime invariant"
+    else
+      needs=""
+      for so in "${DIR}"/*.so*; do
+        [ -e "${so}" ] || continue
+        [ -L "${so}" ] && continue
+        if patchelf --print-needed "${so}" 2>/dev/null | grep -qE '^(libstdc\+\+\.so|libgcc_s\.so)'; then
+          needs="${needs} $(basename "${so}")"
+        fi
+      done
+      if [ -z "${needs}" ]; then
+        pass "no host C++ runtime dependency (statically linked)"
+      else
+        fail "depends on a host C++ runtime:${needs} - will not start on a bare alpine image"
+      fi
+    fi
+    ;;
+esac
 
 finish

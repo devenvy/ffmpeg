@@ -41,6 +41,7 @@ for _dylib in "${DIR}"/libav*.dylib "${DIR}"/libsw*.dylib; do
   check_macho_minos "${_dylib}" "${MACOS_MIN_EXPECTED}"
 done
 check_pkgconfig "${DIR}"
+check_claimed_capabilities
 
 # Same reasoning as linux.sh: the -dev archive is otherwise entirely unverified.
 if [ -d "${DIR}/include" ]; then

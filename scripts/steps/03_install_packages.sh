@@ -39,8 +39,15 @@ case "${RID}" in
       # base is pulled unmodified from quay.io/pypa). Sourced script, so the toolset
       # env below persists into the later build steps.
       source /opt/rh/gcc-toolset-14/enable
+      # vim-common supplies xxd. libvmaf's meson treats xxd as `required: false` and generates
+      # its built-in model sources only inside `if xxd.found()`, with no failure branch -- so
+      # without it VMAF_BUILT_IN_MODELS is never defined, the model table holds only its
+      # sentinel, and every lookup returns -EINVAL. The libvmaf FILTER still registers, so
+      # nothing looks wrong, but FFmpeg's default version=vmaf_v0.6.1 cannot load and the filter
+      # is unusable. libvmaf.sh passes -Dbuilt_in_models=true and its header promises exactly
+      # that, so this was a silent broken promise on the manylinux RIDs.
       DNF_PKGS="nasm ninja-build cmake git pkgconfig autoconf automake libtool \
-                perl gperf xz curl make diffutils gcc-c++ jq"
+                perl gperf xz curl make diffutils gcc-c++ jq vim-common"
       dnf -y install --setopt=install_weak_deps=False ${DNF_PKGS} >/dev/null 2>&1 \
         || dnf -y install ${DNF_PKGS}
       # meson: the system python is 3.6 (pip caps at meson 0.61) and dnf's meson is
@@ -62,23 +69,20 @@ case "${RID}" in
       install -m755 /tmp/bin/patchelf /usr/local/bin/patchelf
       # glslc (Vulkan shader compiler) from shaderc — AlmaLinux 8 has no package, and
       # FFmpeg's Vulkan filters + whisper's GPU shaders need it at build time.
-      if ! command -v glslc >/dev/null 2>&1; then
-        # Build glslc from the SAME shaderc tag the ledger pins (deps.json .defaults.shaderc,
-        # which Renovate tracks) via dep_version — so this build-tool copy can't drift from the
-        # shaderc dep and gets version bumps automatically. An unpinned clone tracked shaderc
-        # master, and git-sync-deps pulled glslang/SPIRV-Tools HEAD — non-deterministic: a
-        # glslang change made spirv-opt emit LocalSizeId execution mode, which whisper's
-        # ggml-vulkan shaders (compiled --target-env=vulkan1.2) reject ("LocalSizeId mode is not
-        # allowed by the current environment"), breaking the build whenever master moved.
-        SHADERC_TAG="$(dep_version shaderc)"
-        git clone --depth 1 --branch "${SHADERC_TAG}" https://github.com/google/shaderc /tmp/shaderc
-        ( cd /tmp/shaderc && ./utils/git-sync-deps )
-        cmake -S /tmp/shaderc -B /tmp/shaderc/build -G Ninja \
-          -DCMAKE_BUILD_TYPE=Release -DSHADERC_SKIP_TESTS=ON -DSHADERC_SKIP_EXAMPLES=ON \
-          -DCMAKE_INSTALL_PREFIX=/usr/local
-        cmake --build /tmp/shaderc/build --target glslc_exe -j"$(nproc)"
-        install -m755 /tmp/shaderc/build/glslc/glslc /usr/local/bin/glslc
-      fi
+      # "Is glslc present" is the WRONG question -- it has to be new enough. FFmpeg 8.1+ and 9.x
+      # probe the shader compiler with:
+      #     glslc --target-env=vulkan1.4 --target-spv=spv1.6 -std=460
+      # and Ubuntu noble ships shaderc 2023.8, which predates Vulkan 1.4 and rejects it outright:
+      #     glslc: error: invalid value 'vulkan1.4' in '--target-env=vulkan1.4'
+      # configure then disables spirv_compiler and silently drops EVERY Vulkan filter --
+      # scale_vulkan, gblur_vulkan, xfade_vulkan and the rest. Nothing fails; the filters simply
+      # are not in the build. Confirmed in the published 9.0.1.6 and 8.1.2.6 win-x64 artifacts:
+      #     strings avfilter-*.dll | grep -c scale_vulkan   ->  0
+      # while libavcodec/vulkan_*.o WERE compiled, so it looked like Vulkan was working.
+      #
+      # The old `command -v glslc` guard was therefore actively harmful: the distro package that
+      # satisfied it is precisely the one that cannot do the job, and its presence made us SKIP
+      # building the pinned shaderc glslc that can. Probe capability, not presence.
     else
       # Building on a normal glibc host (e.g. local Ubuntu) — use apt like the others.
       ${SUDO} apt-get update
@@ -122,6 +126,72 @@ case "${RID}" in
     fi
     ;;
 esac
+
+  # glslc is needed by EVERY RID that enables Vulkan, not just the manylinux ones. It lived
+  # inside the linux-x64/arm64 manylinux branch, so armhf (debian), Windows and Android (both
+  # cross-built on the Ubuntu runner) never reached it -- and those hosts DO have a distro
+  # glslc, just one too old for FFmpeg's --target-env=vulkan1.4 probe. Result: those four RIDs
+  # shipped with every Vulkan filter silently missing, while the manylinux and Alpine RIDs
+  # (which build or package a new enough glslc) had them. Measured in the published 9.0.1.6
+  # artifacts: linux-x64 9, linux-arm64 11, musl 9/11 -- armhf, win-x64, win-arm64 and
+  # android-arm64 all 0. Hoisted here so the check is per-capability, not per-platform.
+  if [[ "${BUILD_VULKAN:-0}" == "1" ]]; then
+  _glslc_supports_target_env() {
+    command -v glslc >/dev/null 2>&1 || return 1
+    local d rc=0
+    d="$(mktemp -d)"
+    printf '#version 460\nlayout (local_size_x = 1) in;\nvoid main() {}\n' > "${d}/probe.comp"
+    glslc --target-env=vulkan1.4 --target-spv=spv1.6 -std=460 -fshader-stage=compute \
+          "${d}/probe.comp" -o "${d}/probe.spv" >/dev/null 2>&1 || rc=1
+    rm -rf "${d}"
+    return "${rc}"
+  }
+  if ! _glslc_supports_target_env; then
+    echo "glslc missing or too old for --target-env=vulkan1.4; building the pinned shaderc." >&2
+    # Build glslc from the SAME shaderc tag the ledger pins (deps.json .defaults.shaderc,
+    # which Renovate tracks) via dep_version — so this build-tool copy can't drift from the
+    # shaderc dep and gets version bumps automatically. An unpinned clone tracked shaderc
+    # master, and git-sync-deps pulled glslang/SPIRV-Tools HEAD — non-deterministic: a
+    # glslang change made spirv-opt emit LocalSizeId execution mode, which whisper's
+    # ggml-vulkan shaders (compiled --target-env=vulkan1.2) reject ("LocalSizeId mode is not
+    # allowed by the current environment"), breaking the build whenever master moved.
+    SHADERC_TAG="$(dep_version shaderc)"
+    git clone --depth 1 --branch "${SHADERC_TAG}" https://github.com/google/shaderc /tmp/shaderc
+    # git-sync-deps is a PYTHON child process, so the retrying git() wrapper in
+    # scripts/lib.sh cannot reach it -- shell functions are not exported to child
+    # processes. It clones glslang/SPIRV-Tools/SPIRV-Headers over the network, so it has
+    # the same exposure to a DNS or TLS blip as any other clone and had no protection at
+    # all. Retry the whole invocation with the same jittered exponential backoff.
+    _sync_delay=4
+    for _sync_try in 1 2 3 4 5 6; do
+      ( cd /tmp/shaderc && ./utils/git-sync-deps ) && break
+      if [ "${_sync_try}" -eq 6 ]; then
+        echo "ERROR: shaderc git-sync-deps failed after ${_sync_try} attempts" >&2
+        exit 1
+      fi
+      _sync_wait=$(( _sync_delay + (RANDOM % 5) ))
+      echo "  git-sync-deps failed (attempt ${_sync_try}/6) - retrying in ${_sync_wait}s..." >&2
+      sleep "${_sync_wait}"
+      _sync_delay=$(( _sync_delay * 2 ))
+    done
+    cmake -S /tmp/shaderc -B /tmp/shaderc/build -G Ninja \
+      -DCMAKE_BUILD_TYPE=Release -DSHADERC_SKIP_TESTS=ON -DSHADERC_SKIP_EXAMPLES=ON \
+      -DCMAKE_INSTALL_PREFIX=/usr/local
+    cmake --build /tmp/shaderc/build --target glslc_exe -j"$(nproc)"
+    ${SUDO} install -m755 /tmp/shaderc/build/glslc/glslc /usr/local/bin/glslc
+    hash -r   # drop the shell's cached path to the old /usr/bin/glslc
+    # Building it is not the same as USING it: /usr/local/bin must win over the distro copy.
+    # If it does not, configure still probes the old glslc and still silently drops every
+    # Vulkan filter -- the exact failure this replaces.
+    if ! _glslc_supports_target_env; then
+      echo "ERROR: built the pinned glslc but the capability probe still fails." >&2
+      echo "  which glslc: $(command -v glslc)" >&2
+      echo "  version:     $(glslc --version 2>&1 | head -1)" >&2
+      exit 1
+    fi
+    echo "glslc supports --target-env=vulkan1.4: $(glslc --version 2>&1 | head -1)"
+  fi
+  fi
 else
   echo "Skipping dependency installation (SKIP_DEPS=true)."
 fi

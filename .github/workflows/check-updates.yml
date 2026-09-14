@@ -20,6 +20,34 @@ jobs:
       GH_TOKEN: ${{ secrets.UPDATE_PR_TOKEN }}
       UPSTREAM: https://git.ffmpeg.org/ffmpeg.git
     steps:
+      # actions/checkout has no retry input; its internal helper makes 3 attempts with a RANDOM
+      # 10-20s sleep between them, so roughly 20-40s of cover. A DNS or TLS blip longer than that
+      # kills the job before any of our code runs:
+      #   fatal: unable to access 'https://github.com/...': Could not resolve host: github.com
+      # The action cannot be wrapped: a local composite action needs the repo ALREADY checked out,
+      # and retry actions only wrap `run:` steps, not `uses:` steps. So wait for the host to be
+      # reachable BEFORE checkout, with the same exponential-with-jitter backoff the build scripts
+      # use (4, 8, 16, 32, 64s + jitter), and do NOT sleep after the final attempt -- nothing probes
+      # again afterwards. Worst case is ~2 minutes of sleep plus the probe timeouts.
+      # This never fails the job. If the host is still unreachable it warns and lets checkout run, so
+      # the real error is reported by the action rather than masked here.
+      - name: Wait for github.com to be reachable
+        shell: bash
+        run: |
+          command -v curl >/dev/null 2>&1 || { echo "curl unavailable - skipping reachability wait"; exit 0; }
+          delay=4
+          for i in 1 2 3 4 5 6; do
+            if curl -sSf -o /dev/null --max-time 10 "${GITHUB_SERVER_URL:-https://github.com}"; then
+              if [ "$i" -gt 1 ]; then echo "github.com reachable after attempt ${i}"; fi
+              exit 0
+            fi
+            if [ "$i" -eq 6 ]; then break; fi
+            s=$(( delay + (RANDOM % 5) ))
+            echo "github.com not reachable (attempt ${i}/6) - retrying in ${s}s" >&2
+            sleep "$s"
+            delay=$(( delay * 2 ))
+          done
+          echo "::warning::github.com still unreachable after 6 attempts; letting checkout try anyway"
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
@@ -32,6 +60,23 @@ jobs:
       # the mechanical point/lib bumps that Renovate merges.
       - name: Add a new FFmpeg major line if one appeared
         run: |
+          # Retry the network git operations. These run in workflow `run:` steps, so the
+          # retrying git() wrapper in scripts/lib.sh does not apply -- and a push that fails on a
+          # transient blip is not cosmetic here: a release would be tagged locally but never
+          # published, or an update PR branch would be committed and never pushed.
+          git_net() {
+            local n=1 delay=4 wait
+            while :; do
+              git "$@" && return 0
+              if [ "$n" -ge 5 ]; then
+                echo "::error::git $1 failed after $n attempts"; return 1
+              fi
+              wait=$(( delay + (RANDOM % 5) ))
+              echo "git $1 failed (attempt $n/5) - retrying in ${wait}s" >&2
+              sleep "$wait"
+              delay=$(( delay * 2 )); n=$(( n + 1 ))
+            done
+          }
           set -euo pipefail
           git config user.name "ffmpeg-update-bot"
           git config user.email "ffmpeg-update-bot@users.noreply.github.com"
@@ -41,7 +86,7 @@ jobs:
           mapfile -t TRACKED < <(jq -r '.ffmpeg[]' deps.json)
 
           # All upstream release tags (n<ver>), point releases only (no -rcN).
-          mapfile -t ALLTAGS < <(git ls-remote --tags "${UPSTREAM}" 'refs/tags/n*' \
+          mapfile -t ALLTAGS < <(git_net ls-remote --tags "${UPSTREAM}" 'refs/tags/n*' \
             | grep -v '\^{}' | sed 's|.*refs/tags/n||' | grep -vi '-' | sort -V)
 
           # Append the library-coverage gap for a version to a PR body, so a bump
@@ -57,7 +102,7 @@ jobs:
 
           open_pr() { # $1 = branch, $2 = commit/PR title, $3 = PR body
             local branch="$1" title="$2" body="$3"
-            if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
+            if git_net ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
               echo "  branch $branch already exists — skipping"
               return
             fi
@@ -73,7 +118,7 @@ jobs:
               echo "  WARN: matrix regeneration failed — PR will not include it" >&2
             fi
             git commit -m "$title"
-            git push -u origin "$branch"
+            git_net push -u origin "$branch"
             gh pr create --title "$title" --body "$body" --base "${GITHUB_REF_NAME:-main}" --head "$branch"
             git checkout -f "${GITHUB_REF_NAME:-main}"
           }

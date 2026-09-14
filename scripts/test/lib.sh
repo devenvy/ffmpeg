@@ -164,8 +164,13 @@ check_symbol() {
   # (e.g. _avcodec_version), ELF does not. A pattern beats `grep -w`, whose word
   # boundary treats the leading '_' as part of the token and misses it.
   local re="(^|[^A-Za-z0-9_])_?${s}([^A-Za-z0-9_]|\$)"
+  # --defined-only on BOTH passes. The fallback used to drop it, so a plain `nm` listing --
+  # which includes UNDEFINED symbols -- would satisfy the match. That turns "this library
+  # provides X" into "this library mentions X", and a capability that was never built but is
+  # merely referenced would pass. The second pass exists only because some objects need the
+  # non-dynamic table (-D misses static archives), not to relax what counts as present.
   syms="$(${NM} -D --defined-only "$f" 2>/dev/null)"
-  grep -qE "$re" <<<"$syms" || syms="$(${NM} "$f" 2>/dev/null)"
+  grep -qE "$re" <<<"$syms" || syms="$(${NM} --defined-only "$f" 2>/dev/null)"
   if grep -qE "$re" <<<"$syms"; then
     pass "symbol: $(basename "$f") exports $s"
   else
@@ -364,6 +369,45 @@ check_smoke_link() {
 # Uses the parameterized RUNNER + FFMPEG (so it works native / wine / qemu). CLI-only; the
 # mobile library builds do the same via av_*_iterate in smoke.c.
 _enum() { "${RUNNER[@]}" "$FFMPEG" -hide_banner "$1" 2>/dev/null || true; }
+# check_claimed_capabilities — assert the binary actually HAS what its configure line CLAIMS.
+#
+# This is the counterpart to check_config. check_config proves we asked; this proves we got it.
+# The distinction is not academic: FFmpeg 8.1.2 shipped with every Vulkan filter missing on all
+# 15 RIDs, and 9.0.1 on four of them, because configure silently disabled spirv_compiler when
+# the host glslc was too old. --enable-vulkan was present in the configure line the whole time,
+# so every check we had reported success.
+#
+# Expectations are read from the ARTIFACT's own configure string against scripts/test/
+# capabilities.tsv, so there is no per-RID list to maintain and no way for the table to drift
+# out of sync with what a given cell enabled.
+check_claimed_capabilities() {
+  # Locate the table relative to THIS file, not the caller's ${HERE}: lib.sh is sourced from
+  # several scripts and should not depend on a variable each of them happens to set.
+  local tsv flag opt re listing n claimed=0 missing=0
+  tsv="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/capabilities.tsv"
+  [ -f "${tsv}" ] || { fail "capabilities.tsv missing - cannot verify claimed capabilities"; return; }
+  [ -n "${CONFIG_STR:-}" ] || { fail "no embedded configure string - cannot verify capabilities"; return; }
+  while IFS=$'\t' read -r flag opt re; do
+    case "${flag}" in '#'*|"") continue ;; esac
+    [ -n "${opt}" ] && [ -n "${re}" ] || continue
+    case " ${CONFIG_STR} " in *" ${flag} "*) ;; *) continue ;; esac
+    claimed=$(( claimed + 1 ))
+    listing="$(_enum "${opt}")"
+    n="$(grep -cE "${re}" <<<"${listing}" || true)"
+    if [ "${n}" -gt 0 ]; then
+      pass "capability: ${flag} -> ${n} entr$([ "${n}" -eq 1 ] && echo y || echo ies) in ${opt}"
+    else
+      missing=$(( missing + 1 ))
+      fail "capability: ${flag} is in the configure line but NOTHING matching /${re}/ is registered in ${opt} - silently dropped at build time"
+    fi
+  done < "${tsv}"
+  if [ "${claimed}" -eq 0 ]; then
+    fail "capability table matched no flags in this build's configure line - the table or the parse is broken"
+  else
+    info "capability check: ${claimed} claimed, ${missing} silently missing"
+  fi
+}
+
 check_registry() {
   local list w
   # kind:flag  →  the list to query + the must-be-present built-ins
@@ -489,7 +533,14 @@ probe_hwaccel() {
   out="$("${RUNNER[@]}" "$FFMPEG" -hide_banner -v error "$@" -f null - 2>&1)"; rc=$?
   if [ "$rc" -eq 0 ]; then
     pass "hwaccel ${label}: ran on a real device"
-  elif grep -qiE 'Unknown (encoder|decoder)|not compiled|Cannot find a matching|is not supported|Unrecognized' <<<"$out"; then
+  # 'No such filter' MUST be a hard failure, not a tolerated "no device here". It means the
+  # filter is not in the binary at all -- the build silently dropped it -- which is a defect
+  # in the artifact, not a property of the CI host. Without it, an FFmpeg 8.1.2 build whose
+  # Vulkan filters were all disabled reported 'path exercised' and passed: the DEV_ERR
+  # pattern below matches the bare 'No such', so a missing filter looked like a missing GPU.
+  # That is precisely how every 8.1.2 cell shipped with zero Vulkan filters through a green
+  # matrix. Ordered before the 'exercised' branch so it wins.
+  elif grep -qiE 'No such filter|Unknown filter|Unknown (encoder|decoder)|not compiled|Cannot find a matching|is not supported|Unrecognized' <<<"$out"; then
     fail "hwaccel ${label}: NOT built/registered — $(tr '\n' ' ' <<<"$out" | cut -c1-140)"
   elif grep -qiE "$exercised" <<<"$out"; then
     pass "hwaccel ${label}: path exercised (driver loaded + device enumeration ran; no device on CI)"

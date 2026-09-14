@@ -21,6 +21,12 @@
 set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${ROOT_DIR}"
+# Source the shared helpers for the retrying curl wrapper. These scripts fetch FFmpeg's
+# configure over the network, and without it a DNS or TLS blip fails them outright: curl's own
+# --retry does not cover connection-level errors (6 resolve, 7 connect, 35 TLS), which is what
+# actually goes wrong on a CI runner. lib.sh defines wrappers only; nothing runs on source.
+# shellcheck source=scripts/lib.sh
+. "${ROOT_DIR}/scripts/lib.sh"
 
 RIDS=(linux-x64 linux-arm64 linux-armhf linux-musl-x64 linux-musl-arm64 win-x64 win-arm64 osx-x64 osx-arm64 android-arm64 android-x64 ios-arm64 ios-sim-arm64 maccatalyst-arm64 maccatalyst-x64)
 
@@ -37,7 +43,7 @@ topath() { if command -v cygpath >/dev/null 2>&1; then cygpath -m "$1"; else pri
 CONF_DIR="$(mktemp -d)"; MANIFEST_FILE="$(mktemp)"; : > "${MANIFEST_FILE}"
 for V in "${VERSIONS[@]}"; do
   CF="${CONF_DIR}/${V}.configure"
-  if curl -fsSL --retry 3 --retry-connrefused \
+  if curl -fsSL \
        "https://raw.githubusercontent.com/FFmpeg/FFmpeg/n${V}/configure" -o "${CF}" 2>/dev/null; then
     printf '%s\t%s\n' "${V}" "$(topath "${CF}")" >> "${MANIFEST_FILE}"
   else

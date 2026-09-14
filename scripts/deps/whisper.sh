@@ -26,10 +26,40 @@ WHISPER_CMAKE=(
   -DGGML_BUILD_TESTS=OFF
   -DGGML_BUILD_EXAMPLES=OFF
 )
+# musl links the C++ runtime STATICALLY rather than depending on it. A base Alpine image ships
+# no libstdc++.so.6/libgcc_s.so.1, so a dynamic link makes the artifact unable to start at all:
+#   Error loading shared library libstdc++.so.6: No such file or directory
+# Bundling the runtimes would fix that, but it means REDISTRIBUTING GPLv3 libraries -- the GCC
+# Runtime Library Exception covers our linked output, not shipping the runtime itself, so it
+# would pull a GPLv3 section 6 corresponding-source obligation into every musl artifact,
+# including the lgplv2 cell. Static linking avoids the obligation instead of complying with it:
+# the result is "Target Code" under the Exception, which is exactly what the Exception exists to
+# permit. It also matches what BtbN ships -- their libavcodec has no libstdc++ dependency.
+#
+# -l:libstdc++.a is the same archive-name trick this repo already uses for win-arm64's
+# -l:libc++.a: a bare -lstdc++ resolves to the shared library, and -static-libstdc++ is a driver
+# flag the C link does not honour here. Verified on a shared library with C++ exceptions: the
+# result has only libc and the loader in DT_NEEDED, and still runs.
+case "${RID}" in
+  linux-musl-*)
+    CXX_STATIC_LIB="-l:libstdc++.a"
+    # libstdc++.a comes from Alpine's libstdc++-dev, pulled in transitively by build-base -> g++.
+    # That chain is not ours to control, and if it ever stops holding the failure would surface
+    # as an obscure "cannot find -l:libstdc++.a" deep inside FFmpeg's configure link tests, with
+    # whisper silently reported as "not found". Check it up front and say what to install.
+    if ! "${CC:-gcc}" -print-file-name=libstdc++.a 2>/dev/null | grep -q '/'; then
+      echo "ERROR: libstdc++.a not found on this musl toolchain." >&2
+      echo "  ${RID} links the C++ runtime statically so the artifact needs none at runtime." >&2
+      echo "  Install it with: apk add libstdc++-dev   (normally transitive via build-base -> g++)" >&2
+      exit 1
+    fi
+    ;;
+  *)            CXX_STATIC_LIB="-lstdc++" ;;
+esac
 case "${WHISPER_BACKEND}" in
   vulkan)
     WHISPER_CMAKE+=(-DGGML_VULKAN=ON -DGGML_CPU=ON)
-    WHISPER_SYS_LIBS="-lvulkan -lstdc++ -lm -lpthread"
+    WHISPER_SYS_LIBS="-lvulkan ${CXX_STATIC_LIB} -lm -lpthread"
     # glibc-native linux-x64/arm64 get Vulkan + SPIRV headers from system packages
     # (libvulkan-dev, spirv-headers). For the mingw/NDK cross targets (can't use host
     # /usr/include — glibc pollution) and for Alpine/musl (header-package names are less
@@ -113,7 +143,7 @@ case "${WHISPER_BACKEND}" in
             # not exist under mingw, whose threading is built in.
             android-*) WHISPER_SYS_LIBS="-lc++ -lm" ;;
             win-arm64) WHISPER_SYS_LIBS="${CXX_RT_LIB-} -lm" ;;
-            *)         WHISPER_SYS_LIBS="-lstdc++ -lm -lpthread" ;;
+            *)         WHISPER_SYS_LIBS="${CXX_STATIC_LIB} -lm -lpthread" ;;
           esac ;;
 esac
 

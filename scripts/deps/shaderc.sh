@@ -40,4 +40,26 @@ rm -f "${DEPS_DIR}"/lib/libshaderc_shared.*   # .so/.dylib/.dll across platforms
 # must run. We only need libshaderc for libplacebo, so remove it. (-rf: on macOS/iOS
 # glslc installs as a glslc.app bundle directory, not a plain file.)
 rm -rf "${DEPS_DIR}"/bin/glslc*
+
+# FFmpeg 8.x needs --enable-libshaderc for its Vulkan FILTERS; 9.x does not.
+# The two lines obtain SPIR-V compilation differently and the difference is silent:
+#   n8.1.2: scale_vulkan, xfade_vulkan, blend_vulkan, chromaber_vulkan, transpose_vulkan,
+#           vflip_vulkan, color_vulkan, blackdetect_vulkan all carry *_filter_deps="vulkan
+#           spirv_library", and spirv_library comes ONLY from --enable-libshaderc or
+#           --enable-libglslang (configure:7368). We passed neither, and with
+#           --disable-autodetect nothing turned it on, so EVERY 8.1.2 cell shipped with zero
+#           Vulkan filters -- measured in the published 8.1.2.6 artifacts, including the RIDs
+#           where 9.0.1 has them.
+#   n9.0.1: the same filters depend on spirv_compiler instead, which configure derives by
+#           probing a glslc BINARY; libshaderc was removed as an option entirely, so passing
+#           it there would be an unknown-option error.
+# Hence the version gate. We already build and install shaderc.pc (pointed at the static
+# libshaderc_combined above), which is exactly what require_pkg_config wants.
+case "${FFMPEG_VERSION}" in
+  8.*)
+    # shellcheck disable=SC2034  # appended here; consumed by steps/07_build_ffmpeg.sh
+    CONFIGURE_FLAGS+=(--enable-libshaderc)
+    echo "FFmpeg 8.x: enabling libshaderc so the Vulkan filters get spirv_library."
+    ;;
+esac
 echo "shaderc built (static libshaderc_combined + bundled glslang/SPIRV-Tools)."

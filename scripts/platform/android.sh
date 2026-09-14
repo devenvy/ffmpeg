@@ -57,7 +57,7 @@ case "${RID}" in
     # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     PKGS=(autoconf automake build-essential cmake curl gperf git libtool meson nasm ninja-build
           patchelf pkg-config xz-utils yasm
-          glslc glslang-tools)
+          glslc glslang-tools xxd)
     # Android 15+ devices may use 16 KB memory pages, and a library whose LOAD segments are
     # aligned to 4 KB cannot be loaded on them. Google requires 16 KB alignment for Play
     # Store submissions targeting Android 15+ (enforced since Nov 2025). Our libav*.so were

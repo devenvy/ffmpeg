@@ -32,6 +32,33 @@ esac
 [[ "${PLATFORM:-}" == "windows" ]] && RIST_ARGS+=(-Dhave_mingw_pthreads=true)
 [[ -n "${MESON_CROSS_FILE:-}" ]] && RIST_ARGS+=(--cross-file "${MESON_CROSS_FILE}")
 meson setup build "${RIST_ARGS[@]}"
+# -Duse_mbedtls=true is a REQUEST. librist resolves the backend with meson's dependency()
+# machinery, and a miss leaves the option on while the crypto code is compiled out -- rist://
+# still works, unencrypted. FFmpeg's -secret/-encryption options prove nothing: they are
+# FFmpeg's own AVOptions and exist regardless. Ask MESON what it actually resolved, via the
+# stable meson-info introspection files, rather than re-deriving it from source layout.
+if [[ "${RIST_CRYPTO:-none}" != "none" ]]; then
+  _rist_info="build/meson-info/intro-dependencies.json"
+  if [[ ! -f "${_rist_info}" ]]; then
+    echo "ERROR: ${_rist_info} missing - cannot verify librist picked up ${RIST_CRYPTO}." >&2
+    echo "  (meson introspection layout changed? the probe needs updating, not skipping.)" >&2
+    exit 1
+  fi
+  # Schema-tolerant: meson has shipped intro-dependencies.json as a bare array and (in some
+  # versions) wrapped in an object; a not-found dependency can also be RECORDED with
+  # found:false, so presence of the name alone is not enough. Tested against all three shapes.
+  # Single-quoted throughout: $n is a JQ variable (supplied by --arg), not a shell one.
+  _q='(if type=="array" then . else (.dependencies // []) end)'
+  _q=${_q}' | any(.[]; (.name|ascii_downcase|contains($n)) and (.found != false))'
+  if ! jq -e --arg n "${RIST_CRYPTO}" "${_q}" "${_rist_info}" >/dev/null 2>&1; then
+    echo "ERROR: librist was configured with ${RIST_CRYPTO} encryption, but meson resolved no" >&2
+    echo "  such dependency - rist:// would transport in the clear." >&2
+    echo "  Dependencies meson did find:" >&2
+    jq -r '.[].name' "${_rist_info}" 2>/dev/null | sed 's/^/    /' >&2
+    exit 1
+  fi
+  echo "librist: ${RIST_CRYPTO} resolved by meson - encryption verified."
+fi
 meson compile -C build -j "$(${NPROC})"
 meson install -C build
 CONFIGURE_FLAGS+=(--enable-librist)

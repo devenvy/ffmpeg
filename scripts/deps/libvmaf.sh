@@ -45,6 +45,27 @@ if ! command -v xxd >/dev/null 2>&1; then
   echo "  Ubuntu 22.04+ (it was split out of vim-common there); vim-common on older Debian." >&2
   exit 1
 fi
+# VMAF hard-fails below NASM 2.13.02 but only WARNS below 2.14, silently dropping its AVX-512
+# kernels -- the same required:false shape as the xxd problem above, one level down. The package
+# lists do not pin a NASM version, so assert the floor on the x86-64 RIDs that actually use it.
+case "${RID}" in
+  linux-x64|linux-musl-x64|win-x64|osx-x64|maccatalyst-x64|android-x64)
+    _nasm_v="$(nasm -v 2>/dev/null | sed -nE 's/^NASM version ([0-9]+\.[0-9]+(\.[0-9]+)?).*/\1/p')"
+    if [[ -z "${_nasm_v}" ]]; then
+      echo "ERROR: nasm not found or its version is unparseable on ${RID}; libvmaf needs >= 2.14" >&2
+      echo "  for its AVX-512 kernels (it only warns below that and builds without them)." >&2
+      exit 1
+    fi
+    if [[ "$(printf '%s
+2.14
+' "${_nasm_v}" | sort -V | head -1)" != "2.14" ]]; then
+      echo "ERROR: nasm ${_nasm_v} is older than 2.14 on ${RID}; libvmaf would silently build" >&2
+      echo "  without AVX-512 (it warns rather than failing). Install a newer nasm." >&2
+      exit 1
+    fi
+    echo "libvmaf: nasm ${_nasm_v} (>= 2.14) - AVX-512 kernels will be built."
+    ;;
+esac
 [[ -n "${MESON_CROSS_FILE:-}" ]] && VMAF_ARGS+=(--cross-file "${MESON_CROSS_FILE}")
 meson setup build "${VMAF_ARGS[@]}"
 meson compile -C build -j "$(${NPROC})"

@@ -23,6 +23,27 @@ esac
 [[ "${PLATFORM:-}" == "android" && "${SRT_ENCLIB:-off}" == "mbedtls" ]] && SRT_ARGS+=(-DCMAKE_FIND_ROOT_PATH="${DEPS_DIR}")
 build_cmake_dep srt "${SRT_ARGS[@]}"
 
+# -DENABLE_ENCRYPTION=ON is a REQUEST. If find_package(MbedTLS)/GnuTLS resolves to nothing usable
+# the crypto layer can end up out of the archive while the build still succeeds and the srt://
+# protocol still works -- unencrypted. FFmpeg's -passphrase/-pbkeylen options are NO evidence
+# either way: they live in FFmpeg's own libsrt wrapper and are present regardless. The honest
+# marker is libsrt's HaiCrypt layer, which is compiled ONLY with ENABLE_ENCRYPTION=ON (verified
+# present in the published linux-x64 artifact, which does have encryption).
+if [[ "${SRT_ENCLIB:-off}" != "off" ]]; then
+  _srt_a="${DEPS_DIR}/lib/libsrt.a"
+  if [[ ! -f "${_srt_a}" ]]; then
+    echo "ERROR: libsrt built but ${_srt_a} is missing - cannot verify encryption." >&2
+    exit 1
+  fi
+  if ! strings -a "${_srt_a}" 2>/dev/null | grep -qi haicrypt; then
+    echo "ERROR: libsrt was configured with ENABLE_ENCRYPTION=ON and USE_ENCLIB=${SRT_ENCLIB}," >&2
+    echo "  but its HaiCrypt layer is not in the archive - srt:// would transport in the clear." >&2
+    echo "  Most likely ${SRT_ENCLIB} was not found at configure time." >&2
+    exit 1
+  fi
+  echo "libsrt: encryption verified present (HaiCrypt, enclib=${SRT_ENCLIB})."
+fi
+
 # libsrt is C++; add the C++ runtime for FFmpeg's static-pkg-config link (libstdc++ on
 # GNU/mingw, libc++ on Apple/NDK) — mirrors chromaprint. srt.pc's Libs.private also lists it,
 # but adding it here keeps the ordering right for FFmpeg's configure link tests.

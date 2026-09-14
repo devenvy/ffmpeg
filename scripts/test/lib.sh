@@ -309,8 +309,25 @@ build_has_tls() {
 }
 
 # License-appropriate encoder expectations, driven by the embedded config string.
+# _assert_encoder_absent <artifact-dir> <encoder-name> <label>
+# Reads libavcodec directly, so it works on every RID including the cross-built slices with no
+# CLI. The encoder's name string exists in libavcodec only when that encoder was compiled in;
+# the configure string lives in libavUTIL, so it cannot produce a false positive here.
+_assert_encoder_absent() {
+  local d="$1" name="$2" label="$3" lib
+  [ -n "${d}" ] || { info "license boundary: no artifact dir passed - registry check skipped"; return; }
+  [ -n "${STRINGS:-}" ] || { fail "license boundary: no strings(1) - cannot verify ${label} is absent"; return; }
+  lib="$(_find_lib "${d}" avcodec)"
+  [ -n "${lib}" ] || { fail "license boundary: libavcodec not found under ${d}"; return; }
+  if "${STRINGS}" -a -n 2 "${lib}" | grep -qx -- "${name}"; then
+    fail "LICENSE VIOLATION: ${label} is compiled into libavcodec of an LGPL build"
+  else
+    pass "license boundary: ${label} absent from the artifact's registry, not just its config"
+  fi
+}
+
 check_license_boundary() {
-  local lean="${1:-}"   # a lean slice (e.g. ios-sim) intentionally omits x264/x265
+  local lean="${2:-}"   # a lean slice (e.g. ios-sim) intentionally omits x264/x265
   case " ${CONFIG_STR} " in
     *" --enable-gpl "*)
       info "GPL build (per embedded config)"
@@ -324,7 +341,14 @@ check_license_boundary() {
       info "LGPL build (per embedded config)"
       check_config_absent "--enable-gpl" "GPL"
       check_config_absent "--enable-libx264" "x264 (GPL)"
-      check_config_absent "--enable-libx265" "x265 (GPL)" ;;
+      check_config_absent "--enable-libx265" "x265 (GPL)"
+      # ...and prove it against the ARTIFACT, not just its configure line. Everything above reads
+      # the embedded string, which records what we ASKED for. A stale DEPS_DIR carrying a previous
+      # GPL cell's libx264.a would produce an LGPL-configured build with a GPL encoder inside it,
+      # and every check above would still pass. This is the one check where being wrong is a
+      # licensing problem, not a capability one.
+      _assert_encoder_absent "${1:-}" libx264 "x264 (GPL)"
+      _assert_encoder_absent "${1:-}" libx265 "x265 (GPL)" ;;
     *) fail "license boundary: could not read gpl/lgpl from config string — artifact unreadable" ;;
   esac
 }
@@ -500,6 +524,30 @@ check_claimed_capabilities() {
 # Usage: check_claimed_capabilities_static <libavutil> <libavcodec> <libavfilter> <libavformat>
 # Explicit paths rather than a directory: the Android (lib/<abi>/libX.so) and Apple
 # (X.xcframework/<slice>/X.framework/X) layouts share no shape.
+# Resolve the four libav* libraries inside a staged artifact dir, whatever the platform names
+# them (libavutil.so.61 / libavutil.61.dylib / avutil-61.dll / frameworks), and run the static
+# check. Desktop RIDs run the CLI variant, which can only see rows that HAVE a CLI form -- so a
+# static-only row (hevc_d3d11va, which ffmpeg lists nowhere) was unreachable on the exact
+# platform it describes. Running both closes that: the CLI variant answers what ffmpeg reports,
+# this one answers what is compiled in, and every row is covered on every RID.
+# _find_lib <artifact-dir> <avcodec|avutil|...>  -> path, or empty.
+# Covers every layout this repo stages: versioned .so, macOS .dylib, Windows .dll (flat or bin/),
+# Android lib/<abi>/, and the Apple per-library .framework bundles.
+_find_lib() {
+  local d="$1" f="$2"
+  ls -1 "${d}/lib${f}.so."* "${d}/lib${f}."*.dylib "${d}/${f}-"*.dll         "${d}/lib/lib${f}.so."* "${d}/lib/"*/"lib${f}.so" "${d}/bin/${f}-"*.dll         "${d}/frameworks/lib${f}.framework/lib${f}" "${d}/lib${f}.framework/lib${f}"         2>/dev/null | head -1
+}
+
+check_claimed_capabilities_in_dir() {   # <artifact-dir>
+  local d="$1" f p=()
+  for f in avutil avcodec avfilter avformat; do p+=("$(_find_lib "${d}" "${f}")"); done
+  if [ -z "${p[0]}" ]; then
+    fail "capability (static): no libavutil found under ${d} - cannot verify compiled-in components"
+    return
+  fi
+  check_claimed_capabilities_static "${p[0]}" "${p[1]}" "${p[2]}" "${p[3]}"
+}
+
 check_claimed_capabilities_static() {
   local avutil="$1" avcodec="$2" avfilter="$3" avformat="$4"
   local tsv flag opt re slib sname cfg path n claimed=0 missing=0 inconclusive=0 d

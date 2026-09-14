@@ -30,7 +30,7 @@ case " ${CONFIG_STR} " in
 esac
 check_config "--enable-whisper" "Whisper ASR filter"
 check_tls
-check_license_boundary
+check_license_boundary "${DIR}"
 # The deployment target is portability metadata, not a build detail: without an explicit
 # floor the binary inherits the CI runner OS, and the published osx-arm64 artifact shipped
 # requiring macOS 26. Assert the floor the platform block promises.
@@ -72,5 +72,8 @@ fi
 # so it needs FFMPEG and RUNNER established. It used to sit up with the structural checks,
 # where FFMPEG was still unset and every claimed capability read as missing.
 check_claimed_capabilities
+# ...and the static variant on the same artifact, so rows with no CLI form are covered here
+# too (ffmpeg lists no per-codec d3d11va entry, so hevc_d3d11va is static-only).
+check_claimed_capabilities_in_dir "${DIR}"
 
 finish

@@ -125,7 +125,7 @@ check_tls
 # ios-sim is the lean slice (04_select_license drops x264/x265 on the simulator);
 # the device slice keeps full GPL parity.
 LEAN=""; [ "$RID" = "ios-sim-arm64" ] && LEAN=lean
-check_license_boundary "$LEAN"
+check_license_boundary "${DIR}" "$LEAN"
 
 # Claimed-vs-present, read out of the frameworks themselves -- see the Android note. The lean
 # ios-sim slice needs no special case: expectations come from THIS slice's own configure string,

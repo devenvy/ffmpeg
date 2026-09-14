@@ -151,7 +151,7 @@ check_config "--enable-whisper" "Whisper ASR filter"
 check_config "--enable-mediafoundation" "MediaFoundation"
 check_config "--enable-d3d11va" "D3D11VA"
 check_tls
-check_license_boundary
+check_license_boundary "${DIR}"
 check_pkgconfig "${DIR}"
 
 FFMPEG="$(ls "${DIR}"/ffmpeg.exe 2>/dev/null)"; FFPROBE="$(ls "${DIR}"/ffprobe.exe 2>/dev/null)"; export FFMPEG FFPROBE  # consumed by run_functional (sourced lib.sh)
@@ -172,5 +172,8 @@ fi
 # so it needs FFMPEG and RUNNER established. It used to sit up with the structural checks,
 # where FFMPEG was still unset and every claimed capability read as missing.
 check_claimed_capabilities
+# ...and the static variant on the same artifact, so rows with no CLI form are covered here
+# too (ffmpeg lists no per-codec d3d11va entry, so hevc_d3d11va is static-only).
+check_claimed_capabilities_in_dir "${DIR}"
 
 finish

@@ -21,7 +21,12 @@ RIST_ARGS=(--prefix="${DEPS_DIR}" --libdir=lib --default-library=static --buildt
            -Dbuilt_tools=false -Dtest=false
            -Dbuiltin_cjson=true -Dbuiltin_lz4=true -Dbuiltin_mbedtls=false)
 case "${RIST_CRYPTO:-none}" in
-  # cmake_prefix_path is what actually makes our pinned mbedTLS findable. librist resolves it with
+  # cmake_prefix_path makes our pinned mbedTLS findable ON A NATIVE BUILD. It does nothing for a
+  # cross build -- measured: meson's cmake dependency lookup cannot see our prefix cross via
+  # -Dcmake_prefix_path, CMAKE_PREFIX_PATH, or [properties] cmake_prefix_path, though all three
+  # work natively. Cross builds are covered instead by the -I/-L search paths 05_write_toolchain.sh
+  # now writes into every cross file, which let librist's cc.find_library fallback succeed. Both
+  # halves are needed; the guard after the build proves whichever one applied. librist resolves it with
   #     dependency('MbedTLS', method: 'cmake', modules: ['MbedTLS::mbedcrypto'])
   # -- a CMake package lookup, NOT pkg-config (a comment in mbedtls.sh said pkg-config; that is
   # wrong for this consumer). Nothing else points meson's CMake search at DEPS_DIR: the cross

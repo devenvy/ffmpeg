@@ -75,7 +75,7 @@ case " ${CONFIG_STR} " in
   *)                       check_config_absent "--enable-vulkan" "Vulkan (v2: dropped)" ;;
 esac
 check_tls
-check_license_boundary
+check_license_boundary "${DIR}"
 
 # Claimed-vs-present, read out of the libraries themselves. Everything above this line checks
 # INTENT -- check_config greps the configure string embedded in the artifact, which answers "did

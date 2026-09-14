@@ -28,7 +28,7 @@ check_core_symbols "${DIR}" so
 load_config_string "${DIR}/libavcodec.so" "${DIR}/libavutil.so"
 check_config "--enable-whisper" "Whisper ASR filter"
 check_tls
-check_license_boundary
+check_license_boundary "${DIR}"
 check_pkgconfig "${DIR}"
 
 # The -dev archive (include/ + the shared libraries) is what downstream consumers
@@ -75,6 +75,9 @@ fi
 # so it needs FFMPEG and RUNNER established. It used to sit up with the structural checks,
 # where FFMPEG was still unset and every claimed capability read as missing.
 check_claimed_capabilities
+# ...and the static variant on the same artifact, so rows with no CLI form are covered here
+# too (ffmpeg lists no per-codec d3d11va entry, so hevc_d3d11va is static-only).
+check_claimed_capabilities_in_dir "${DIR}"
 
 # musl artifacts must not depend on a host C++ runtime. A base alpine image ships neither
 # libstdc++.so.6 nor libgcc_s.so.1, so a surviving DT_NEEDED means the artifact cannot start:

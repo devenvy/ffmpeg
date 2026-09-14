@@ -339,6 +339,25 @@ case "${RID}" in
             echo "  A base Alpine image ships neither, so this artifact would not start." >&2
             echo "  Expected the C++ runtime to be linked statically (-l:libstdc++.a," >&2
             echo "  -static-libgcc); see scripts/deps/whisper.sh and scripts/platform/linux.sh." >&2
+            # Diagnose in place. Reaching this guard twice cost two CI rounds of inferring the cause
+            # from outside the container, so collect the evidence that actually separates the
+            # possibilities: did -static-libgcc reach the link, does this toolchain even HAVE a static
+            # unwinder, and which symbols are being taken from the shared one.
+            echo "  --- diagnosis ---" >&2
+            grep -E "^(LDFLAGS|EXTRALIBS)=" "${SRC_DIR}/ffbuild/config.mak" 2>/dev/null | cut -c1-200 | sed "s/^/    /" >&2 || true
+            for _l in libgcc_eh.a libgcc.a; do
+              printf "    %-14s %s\n" "${_l}" "$("${CC:-gcc}" -print-file-name="${_l}" 2>/dev/null)" >&2
+            done
+            _gccs="$("${CC:-gcc}" -print-file-name=libgcc_s.so.1 2>/dev/null)"
+            if command -v nm >/dev/null 2>&1 && [ -e "${_gccs}" ]; then
+              echo "    symbols taken from the shared libgcc:" >&2
+              _u="$(mktemp)"; _d="$(mktemp)"
+              nm -D --undefined-only "${_so}"  2>/dev/null | awk '{print $NF}' | sort -u > "${_u}"
+              nm -D --defined-only   "${_gccs}" 2>/dev/null | awk '{print $NF}' | sort -u > "${_d}"
+              comm -12 "${_u}" "${_d}" | head -20 | sed "s/^/      /" >&2
+              rm -f "${_u}" "${_d}"
+            fi
+            echo "  --- end diagnosis ---" >&2
             exit 1
           fi
         done

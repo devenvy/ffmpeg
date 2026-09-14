@@ -141,6 +141,16 @@ case "${RID}" in
     # runtime from the host at all. Alpine base images ship neither, and bundling them would
     # mean redistributing GPLv3 libraries; statically linked they are "Target Code" under the
     # GCC Runtime Library Exception, which carries no such obligation.
+    # CXX_RT_LIB is the C++ runtime every C++ DEPENDENCY appends to EXTRA_LIBS through
+    # ${CXX_RT_LIB--lstdc++} (chromaprint, libjxl, libplacebo, libsrt, libvmaf). It was set
+    # only for win-arm64, so on musl all five fell back to the DYNAMIC -lstdc++ and FFmpeg
+    # linked with EXTRALIBS="-lm -lstdc++ -lstdc++ -lstdc++ -lstdc++", pulling in the shared
+    # C++ runtime and libgcc_s.so.1 with it -- on the one artifact whose whole point is to
+    # run on a bare Alpine image. whisper.sh had been made static separately under its own
+    # CXX_STATIC_LIB, which is exactly why this survived: one of the six was fixed, and the
+    # differing name hid that the other five still had the dynamic default.
+    # shellcheck disable=SC2034  # set here; consumed by the C++ dependency scripts
+    CXX_RT_LIB="-l:libstdc++.a"
     EXTRA_LDFLAGS="${EXTRA_LDFLAGS:-} -static-libgcc"
     # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     BUILD_NVIDIA=1
@@ -192,6 +202,16 @@ case "${RID}" in
     # runtime from the host at all. Alpine base images ship neither, and bundling them would
     # mean redistributing GPLv3 libraries; statically linked they are "Target Code" under the
     # GCC Runtime Library Exception, which carries no such obligation.
+    # CXX_RT_LIB is the C++ runtime every C++ DEPENDENCY appends to EXTRA_LIBS through
+    # ${CXX_RT_LIB--lstdc++} (chromaprint, libjxl, libplacebo, libsrt, libvmaf). It was set
+    # only for win-arm64, so on musl all five fell back to the DYNAMIC -lstdc++ and FFmpeg
+    # linked with EXTRALIBS="-lm -lstdc++ -lstdc++ -lstdc++ -lstdc++", pulling in the shared
+    # C++ runtime and libgcc_s.so.1 with it -- on the one artifact whose whole point is to
+    # run on a bare Alpine image. whisper.sh had been made static separately under its own
+    # CXX_STATIC_LIB, which is exactly why this survived: one of the six was fixed, and the
+    # differing name hid that the other five still had the dynamic default.
+    # shellcheck disable=SC2034  # set here; consumed by the C++ dependency scripts
+    CXX_RT_LIB="-l:libstdc++.a"
     EXTRA_LDFLAGS="${EXTRA_LDFLAGS:-} -static-libgcc"
     # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     BUILD_NVIDIA=1

@@ -191,6 +191,26 @@ CONFIGURE_CMD=(
   ${EXTRA_LIBS:+--extra-libs="${EXTRA_LIBS}"}
 )
 
+# musl artifacts must not link the SHARED C++ runtime. Alpine ships neither libstdc++.so.6 nor
+# libgcc_s.so.1, so a bare `-lstdc++` anywhere in EXTRA_LIBS puts both into DT_NEEDED and the
+# artifact cannot start. 08_stage_artifacts catches that after the fact; catching it HERE names
+# the cause (a dependency that fell back to the dynamic default) instead of the symptom.
+#
+# This is the check that would have caught the real thing: five C++ deps read
+# ${CXX_RT_LIB--lstdc++} and CXX_RT_LIB was set for win-arm64 only, so musl silently linked
+# EXTRALIBS="-lm -lstdc++ -lstdc++ -lstdc++ -lstdc++".
+if [[ "${RID}" == linux-musl-* ]]; then
+  if grep -qE '(^| )-lstdc\+\+( |$)' <<<" ${EXTRA_LIBS:-} "; then
+    echo "ERROR: ${RID} would link the SHARED C++ runtime (-lstdc++ in EXTRA_LIBS)." >&2
+    echo "  Alpine ships no libstdc++.so.6 or libgcc_s.so.1, so the artifact would not start." >&2
+    echo "  EXTRA_LIBS: ${EXTRA_LIBS}" >&2
+    echo "  Every C++ dep must use \${CXX_RT_LIB--lstdc++}, and platform/linux.sh must set" >&2
+    echo "  CXX_RT_LIB=-l:libstdc++.a for the musl RIDs." >&2
+    exit 1
+  fi
+  echo "musl: EXTRA_LIBS carries no dynamic C++ runtime."
+fi
+
 echo "Configuring FFmpeg..."
 # On failure configure just prints "<lib> not found" and points at ffbuild/config.log,
 # which never leaves the runner. Without the log a failed probe is indistinguishable

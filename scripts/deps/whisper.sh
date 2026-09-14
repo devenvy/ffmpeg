@@ -45,7 +45,10 @@ WHISPER_CMAKE=(
 # result has only libc and the loader in DT_NEEDED, and still runs.
 case "${RID}" in
   linux-musl-*)
-    CXX_STATIC_LIB="-l:libstdc++.a"
+    # Derived from CXX_RT_LIB -- the variable the other five C++ deps read -- so the two cannot
+    # drift apart again. They already did once: this one was made static while chromaprint, libjxl,
+    # libplacebo, libsrt and libvmaf kept the dynamic default, and the different name hid it.
+    CXX_STATIC_LIB="${CXX_RT_LIB--l:libstdc++.a}"
     # libstdc++.a comes from Alpine's libstdc++-dev, pulled in transitively by build-base -> g++.
     # That chain is not ours to control, and if it ever stops holding the failure would surface
     # as an obscure "cannot find -l:libstdc++.a" deep inside FFmpeg's configure link tests, with

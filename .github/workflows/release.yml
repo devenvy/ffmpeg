@@ -223,10 +223,17 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag "${TAG}"
           git_net push origin "${TAG}"
+          # Created as a DRAFT and published by the `finalize` job once every asset AND the SHA256SUMS
+          # manifest are in place. Previously it went public immediately with the assets uploading
+          # afterwards, so any upload failure left a PUBLIC release -- possibly flagged `latest` --
+          # missing artifacts or its checksums, which consumers would then fetch. A draft is invisible
+          # until complete, and if a later job fails it simply stays a draft for a human to inspect.
+          # --latest moves to finalize as well: it is meaningless on a draft.
           gh release create "${TAG}" \
             --title "FFmpeg ${VERSION} (build ${TAG##*.})" \
             --generate-notes \
-            --latest="${MARK_LATEST}"
+            --draft
+          echo "${MARK_LATEST}" > mark-latest.txt
 
   publish:
     needs: [prepare, build, test, test-mobile, release]
@@ -608,3 +615,49 @@ jobs:
         run: |
           echo "### SHA256SUMS generation FAILED for \`${{ matrix.build.tag }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "The release is published but has no checksum manifest. Re-run this job, or generate it locally with \`bash scripts/ci/gen-manifest.sh <tag> <repo>\` and upload it." >> "$GITHUB_STEP_SUMMARY"
+
+  # The release is created as a DRAFT by `release` and becomes visible only here -- after every
+  # asset (publish, publish-ios) and the SHA256SUMS manifest are attached. Before this job existed
+  # the release went public first and the assets followed, so any upload failure left a PUBLIC
+  # release, possibly badged `latest`, missing artifacts or checksums that consumers would fetch.
+  #
+  # If any earlier job fails, this one never runs and the release stays a draft: invisible,
+  # complete-or-nothing, and there for a human to inspect or delete.
+  #
+  # MARK_LATEST is recomputed from deps.json rather than passed through: `release` is a matrix job,
+  # so its outputs would be last-wins across lines, and deps.json is the same source of truth in
+  # both places.
+  finalize:
+    needs: [prepare, manifest]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false   # publish every line that made it; one line's failure must not hide another
+      matrix:
+        build: ${{ fromJson(needs.prepare.outputs.builds) }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Publish the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${{ matrix.build.version }}"
+          TAG="${{ matrix.build.tag }}"
+          # Only the HIGHEST tracked line gets GitHub's "Latest" badge -- a maintenance release on
+          # an older line must not steal it from the newest major. Same rule the draft was created
+          # under; --latest is only meaningful once the release is no longer a draft.
+          HIGHEST="$(jq -r '.ffmpeg[]' deps.json | sort -V | tail -1)"
+          if [[ "${VERSION}" == "${HIGHEST}" ]]; then MARK_LATEST=true; else MARK_LATEST=false; fi
+          echo "Publishing ${TAG} (latest=${MARK_LATEST})"
+          delay=4
+          for try in 1 2 3 4 5 6; do
+            gh release edit "${TAG}" --draft=false --latest="${MARK_LATEST}"               --repo "${{ github.repository }}" && exit 0
+            if [ "${try}" -eq 6 ]; then
+              echo "ERROR: could not publish ${TAG} after 6 attempts - it remains a draft" >&2
+              exit 1
+            fi
+            wait=$(( delay + (RANDOM % 5) ))
+            echo "  publish failed (attempt ${try}/6) - retrying in ${wait}s..." >&2
+            sleep "${wait}"; delay=$(( delay * 2 ))
+          done

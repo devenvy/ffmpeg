@@ -198,6 +198,30 @@ for b in cpu metal vulkan blas; do
   [ -f "${DEPS_DIR}/lib/libggml-${b}.a" ] && WHISPER_GGML="${WHISPER_GGML} -lggml-${b}"
 done
 WHISPER_GGML="${WHISPER_GGML} -lggml-base"
+
+# Assembling from "whatever got installed" is right for the OPTIONAL backends (ggml auto-enables
+# BLAS on Apple, for instance) but it silently tolerates the REQUESTED one going missing. If
+# ggml's cmake cannot find Vulkan/Metal it falls back to CPU without failing, so libggml-vulkan.a
+# simply would not exist, the loop above would skip it, and whisper would register and transcribe
+# -- on the CPU. Every test would pass: the filter is there, inference works, and nothing states
+# which backend ran. That is the GPU equivalent of the Vulkan-filter defect this branch exists
+# for, so require the archive that WHISPER_BACKEND asked for.
+case "${WHISPER_BACKEND}" in
+  cpu) _ggml_want="" ;;                       # CPU is libggml-cpu.a, already required below
+  *)   _ggml_want="libggml-${WHISPER_BACKEND}.a" ;;
+esac
+if [[ -n "${_ggml_want}" && ! -f "${DEPS_DIR}/lib/${_ggml_want}" ]]; then
+  echo "ERROR: whisper requested the ${WHISPER_BACKEND} ggml backend on ${RID}, but" >&2
+  echo "  ${DEPS_DIR}/lib/${_ggml_want} was not installed - ggml fell back to CPU silently." >&2
+  echo "  Installed ggml archives:" >&2
+  ls -1 "${DEPS_DIR}/lib/"libggml*.a 2>/dev/null | sed 's|.*/|    |' >&2
+  exit 1
+fi
+if [[ ! -f "${DEPS_DIR}/lib/libggml-cpu.a" ]]; then
+  echo "ERROR: libggml-cpu.a missing - whisper has no CPU fallback path on ${RID}." >&2
+  exit 1
+fi
+echo "whisper: ggml backend verified present (${WHISPER_BACKEND})."
 WHISPER_PRIV="${WHISPER_GGML} ${WHISPER_SYS_LIBS}"
 
 # whisper.cpp installs no pkg-config file; hand-author one (as done for x265/vpl).

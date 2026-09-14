@@ -51,6 +51,12 @@ finish() {
 # --- tool resolution (prefer llvm-* which are always foreign-arch capable) ----
 NM="$(command -v llvm-nm || command -v nm || true)"
 READELF="$(command -v llvm-readelf || command -v readelf || true)"
+# STRINGS follows NM/READELF: prefer the LLVM tool, which reads ELF, Mach-O and PE regardless of
+# host. check_claimed_capabilities_static reads cross-built libraries, so the host's own binutils
+# may not understand the target format -- today android-* tests land on ubuntu and ios/catalyst on
+# macOS, so plain strings would do, but that is a property of the runner matrix, not of the check.
+# android.sh already puts the NDK's llvm-* on PATH ahead of this for the same reason.
+STRINGS="$(command -v llvm-strings || command -v strings || true)"
 
 # --- structural helpers -------------------------------------------------------
 
@@ -472,8 +478,8 @@ check_claimed_capabilities_static() {
   local avutil="$1" avcodec="$2" avfilter="$3" avformat="$4"
   local tsv flag opt re slib sname cfg path n claimed=0 missing=0 inconclusive=0 d
 
-  command -v strings >/dev/null 2>&1 || {
-    fail "strings(1) unavailable - cannot verify capabilities on a non-executable slice"
+  [ -n "${STRINGS:-}" ] || {
+    fail "no strings(1)/llvm-strings - cannot verify capabilities on a non-executable slice"
     return
   }
   tsv="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/capabilities.tsv"
@@ -482,7 +488,7 @@ check_claimed_capabilities_static() {
 
   d="$(mktemp -d)"
   # The configure line lives in libavutil (av_configuration): the one string carrying --enable-.
-  cfg="$(strings -a "${avutil}" | grep -m1 -- '--enable-' || true)"
+  cfg="$("${STRINGS}" -a "${avutil}" | grep -m1 -- '--enable-' || true)"
   if [ -z "${cfg}" ]; then
     fail "no embedded configure string in ${avutil##*/} - cannot verify claimed capabilities"
     rm -rf "${d}"; return
@@ -490,7 +496,7 @@ check_claimed_capabilities_static() {
 
   # One strings(1) pass per library, reused across every row.
   for path in "avcodec=${avcodec}" "avfilter=${avfilter}" "avformat=${avformat}"; do
-    if [ -f "${path#*=}" ]; then strings -a -n 2 "${path#*=}" > "${d}/${path%%=*}"
+    if [ -f "${path#*=}" ]; then "${STRINGS}" -a -n 2 "${path#*=}" > "${d}/${path%%=*}"
     else : > "${d}/${path%%=*}"; fi
   done
 

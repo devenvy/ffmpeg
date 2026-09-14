@@ -7,6 +7,12 @@ RID="${1:?usage: win.sh <rid> <artifact-native-dir>}"
 DIR="${2:?usage: win.sh <rid> <artifact-native-dir>}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # llvm-readobj reads PE export tables (nm cannot) and ships with the preinstalled LLVM on the
+# GitHub Windows runners. The three audits below use _tool_missing, so its absence FAILS in CI
+# and only degrades to a skip on a developer machine. They previously downgraded to info/skip
+# unconditionally -- meaning the runtime-DLL, Vulkan-hard-import and import-library-architecture
+# audits would all have gone quietly green if the runner image ever stopped shipping it. Those
+# are exactly the checks that caught the undeployable Windows artifact, so silence is the one
+# outcome they must not have.
 # Windows runner; put it on PATH so check_pe_export can verify DLL exports. No-op elsewhere.
 [ -d "/c/Program Files/LLVM/bin" ] && export PATH="/c/Program Files/LLVM/bin:${PATH}"
 . "${HERE}/lib.sh"
@@ -37,7 +43,7 @@ check_arch "${DIR}/ffmpeg.exe" "$ARCH_RE"
 # Assert it structurally instead, so the failure names the offending DLL.
 audit_runtime_dll_imports() {
   local f imp bad=""
-  command -v llvm-readobj >/dev/null 2>&1 || { info "llvm-readobj unavailable — skipping DLL-import audit"; return; }
+  command -v llvm-readobj >/dev/null 2>&1 || { _tool_missing "llvm-readobj unavailable - cannot audit DLL imports"; return; }
   for f in "${DIR}"/*.dll "${DIR}"/*.exe; do
     [ -f "$f" ] || continue
     while read -r imp; do
@@ -63,7 +69,7 @@ audit_runtime_dll_imports
 # past every other check we had.
 audit_no_vulkan_hard_import() {
   local f bad=""
-  command -v llvm-readobj >/dev/null 2>&1 || { skip "llvm-readobj unavailable - cannot audit Vulkan imports"; return; }
+  command -v llvm-readobj >/dev/null 2>&1 || { _tool_missing "llvm-readobj unavailable - cannot audit Vulkan imports"; return; }
   for f in "${DIR}"/*.dll "${DIR}"/*.exe; do
     [ -f "$f" ] || continue
     if llvm-readobj --coff-imports "$f" 2>/dev/null \
@@ -95,7 +101,7 @@ audit_import_lib_arch() {
     win-arm64) want="IMAGE_FILE_MACHINE_ARM64" ;;
     *) return ;;
   esac
-  command -v llvm-readobj >/dev/null 2>&1 || { info "llvm-readobj unavailable — skipping import-lib arch audit"; return; }
+  command -v llvm-readobj >/dev/null 2>&1 || { _tool_missing "llvm-readobj unavailable - cannot audit import-library arch"; return; }
   for f in "${DIR}"/lib/*.lib; do
     [ -f "$f" ] || continue
     m="$(llvm-readobj --file-headers "$f" 2>/dev/null | grep -m1 -oE 'IMAGE_FILE_MACHINE_[A-Z0-9]+')"

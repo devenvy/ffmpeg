@@ -155,9 +155,13 @@ case "${RID}" in
     BUILD_LIBSVTAV1=0
     # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     BUILD_FONTCONFIG=0  # as win-x64: libass uses DirectWrite, drawtext uses fontfile=.
-    # Whisper starts on CPU here. The ggml-vulkan path on Windows needs a dlltool-synthesised
-    # vulkan-1 import library (see deps/whisper.sh), which is written for the x86 mingw
-    # toolchain; wiring it for llvm-mingw/aarch64 is follow-up work, not a launch blocker.
+    # Whisper runs on the CPU here, unlike win-x64. The reason this comment used to give -- that
+    # ggml-vulkan needs a dlltool-synthesised vulkan-1 import library written for x86 mingw -- is
+    # no longer true: that approach was REMOVED because it produced a hard vulkan-1.dll import
+    # that made the Windows v3 artifacts fail to start, and win-x64 now links the MIT
+    # Vulkan-Shim-Loader instead (deps/vulkan-shim.sh). What actually keeps Vulkan off here is
+    # simply that BUILD_VULKAN_SHIM is set for win-x64 only; whether to extend it is an open
+    # question, tracked in issue #28 rather than asserted as a blocker here.
     # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     WHISPER_BACKEND="cpu"
     # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script

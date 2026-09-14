@@ -433,12 +433,27 @@ check_claimed_capabilities() {
 # and would pass anything. Calibrated against real published artifacts -- present components
 # score >= 1 (a universal Mach-O scores 2, once per arch slice), absent ones score exactly 0.
 #
+# TWO false-negative classes had to be handled, both found by measuring against artifacts whose
+# CLI output disagreed with this check:
+#
+#   1. strings(1) defaults to a 4-character minimum, so a 3-character name like "srt" never
+#      appears at all. Hence -n 2 below.
+#   2. The linker tail-merges a string that is a SUFFIX of another one: libavformat on linux-x64
+#      stores only "librist", so the protocol name "rist" has no standalone entry -- while the
+#      same library on linux-arm64 does have one. `ffmpeg -protocols` lists rist on both. Same
+#      shape as "flip_vulkan" inside "hflip_vulkan".
+#
+# Class 2 is indistinguishable from a genuine absence by reading strings alone, so when the exact
+# name is missing BUT some string ends with it, the result is reported INCONCLUSIVE and does not
+# fail. That keeps the check sound: it only fails when the name is absent and nothing could have
+# absorbed it -- which is the case for scale_vulkan on the artifacts that really lack it.
+#
 # Usage: check_claimed_capabilities_static <libavutil> <libavcodec> <libavfilter> <libavformat>
 # Explicit paths rather than a directory: the Android (lib/<abi>/libX.so) and Apple
 # (X.xcframework/<slice>/X.framework/X) layouts share no shape.
 check_claimed_capabilities_static() {
   local avutil="$1" avcodec="$2" avfilter="$3" avformat="$4"
-  local tsv flag opt re slib sname cfg path n claimed=0 missing=0 d
+  local tsv flag opt re slib sname cfg path n claimed=0 missing=0 inconclusive=0 d
 
   command -v strings >/dev/null 2>&1 || {
     fail "strings(1) unavailable - cannot verify capabilities on a non-executable slice"
@@ -458,7 +473,7 @@ check_claimed_capabilities_static() {
 
   # One strings(1) pass per library, reused across every row.
   for path in "avcodec=${avcodec}" "avfilter=${avfilter}" "avformat=${avformat}"; do
-    if [ -f "${path#*=}" ]; then strings -a "${path#*=}" > "${d}/${path%%=*}"
+    if [ -f "${path#*=}" ]; then strings -a -n 2 "${path#*=}" > "${d}/${path%%=*}"
     else : > "${d}/${path%%=*}"; fi
   done
 
@@ -471,6 +486,11 @@ check_claimed_capabilities_static() {
     n="$(grep -cx -- "${sname}" "${d}/${slib}" || true)"
     if [ "${n}" -gt 0 ]; then
       pass "capability: ${flag} -> '${sname}' registered in lib${slib}"
+    elif grep -qE -- "^.+${sname}\$" "${d}/${slib}"; then
+      # Tail-merge candidate: a longer string ends with this name, so the linker may have folded
+      # the standalone copy away. Cannot distinguish that from absence here -- do not fail.
+      inconclusive=$(( inconclusive + 1 ))
+      info "capability: ${flag} -> '${sname}' inconclusive in lib${slib} (absorbed by a longer string; not asserted)"
     else
       missing=$(( missing + 1 ))
       fail "capability: ${flag} is in the configure line but '${sname}' is NOT registered in lib${slib} - silently dropped at build time"
@@ -481,7 +501,7 @@ check_claimed_capabilities_static() {
   if [ "${claimed}" -eq 0 ]; then
     fail "capability table matched no flags in this slice's configure line - the table or the parse is broken"
   else
-    info "capability check (static): ${claimed} claimed, ${missing} silently missing"
+    info "capability check (static): ${claimed} claimed, ${missing} silently missing, ${inconclusive} inconclusive"
   fi
 }
 

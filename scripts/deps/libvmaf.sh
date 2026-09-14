@@ -41,7 +41,8 @@ VMAF_ARGS=(--prefix="${DEPS_DIR}" --libdir=lib --default-library=static
 if ! command -v xxd >/dev/null 2>&1; then
   echo "ERROR: xxd not found; libvmaf would build with NO built-in models." >&2
   echo "  The filter would register and then fail on its default version=vmaf_v0.6.1." >&2
-  echo "  Install it (vim-common on RPM hosts, xxd on Alpine, vim on Debian/Ubuntu)." >&2
+  echo "  Package providing xxd: vim-common on RPM hosts; xxd on Alpine and on Debian 11+ /" >&2
+  echo "  Ubuntu 22.04+ (it was split out of vim-common there); vim-common on older Debian." >&2
   exit 1
 fi
 [[ -n "${MESON_CROSS_FILE:-}" ]] && VMAF_ARGS+=(--cross-file "${MESON_CROSS_FILE}")

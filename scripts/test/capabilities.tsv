@@ -61,7 +61,7 @@
 --enable-libsoxr	-filters	aresample	avfilter	aresample
 --enable-libzimg	-filters	zscale	avfilter	zscale
 --enable-chromaprint	-muxers	chromaprint	avformat	chromaprint
---enable-libsrt	-protocols	^[[:space:]]*srt$	-	-
+--enable-libsrt	-protocols	^[[:space:]]*srt$	avformat	srt
 --enable-librist	-protocols	^[[:space:]]*rist$	avformat	rist
 --enable-libxml2	-demuxers	dash	avformat	dash
 --enable-vaapi	-hwaccels	vaapi	-	-
@@ -70,3 +70,26 @@
 --enable-mediacodec	-hwaccels	mediacodec	avcodec	mediacodec
 --enable-d3d11va	-hwaccels	d3d11va	-	-
 --enable-dxva2	-hwaccels	dxva2	-	-
+# --- Sub-capabilities -------------------------------------------------------------------
+# A top-level stack can be enabled while individual codecs inside it are silently dropped:
+# FFmpeg probes NV_ENC_PIC_PARAMS_AV1, CUVIDAV1PICPARAMS and the VAAPI HEVC/AV1 structs
+# SEPARATELY from the stack itself, so an older header set yields a build with --enable-nvenc
+# and no AV1 NVENC. The rows above would not notice: they only assert the stack. Each row here
+# was MEASURED present in the published 9.0.1.7 artifacts of every RID that claims its flag
+# (linux-x64, linux-arm64, win-x64, android-arm64, osx-arm64, ios-arm64), so they are
+# regression guards, not aspirations.
+#
+# Deliberately NOT asserted: scale_vt. It needs VTPixelTransferSessionCreate, which the iOS SDK
+# does not expose -- measured present on osx-arm64 and absent on ios-arm64, both claiming
+# --enable-videotoolbox. That is a real platform difference, not a silent loss, and this table
+# has no per-RID scoping by design (expectations come from the artifact's own configure line).
+--enable-nvenc	-encoders	hevc_nvenc	avcodec	hevc_nvenc
+--enable-nvenc	-encoders	av1_nvenc	avcodec	av1_nvenc
+--enable-cuvid	-decoders	av1_cuvid	avcodec	av1_cuvid
+--enable-vaapi	-encoders	hevc_vaapi	avcodec	hevc_vaapi
+--enable-vaapi	-filters	transpose_vaapi	avfilter	transpose_vaapi
+--enable-libvpl	-encoders	hevc_qsv	avcodec	hevc_qsv
+--enable-libvpl	-encoders	av1_qsv	avcodec	av1_qsv
+--enable-mediacodec	-decoders	hevc_mediacodec	avcodec	hevc_mediacodec
+--enable-videotoolbox	-encoders	hevc_videotoolbox	avcodec	hevc_videotoolbox
+--enable-d3d11va	-decoders	hevc	avcodec	hevc_d3d11va

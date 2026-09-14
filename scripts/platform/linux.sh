@@ -77,7 +77,8 @@ case "${RID}" in
     # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     PKGS=(autoconf automake build-essential cmake curl gperf git libtool meson nasm ninja-build
           patchelf pkg-config xz-utils
-          crossbuild-essential-armhf)
+          crossbuild-essential-armhf
+              xxd)
     CONFIGURE_FLAGS+=(
       --arch=arm --cpu=armv7-a+vfpv3
       --cross-prefix=arm-linux-gnueabihf-

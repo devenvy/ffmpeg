@@ -35,6 +35,18 @@
 #
 # Keep the two sides consistent: a row's static-string should name the same component its
 # regex matches, so neither check can quietly drift from the other.
+#
+# KNOWN LIMITS of the static side, stated rather than papered over:
+#   - It proves a NAME is present in the library, not that the component is reachable through a
+#     registry. A literal could in principle come from option text or diagnostics rather than a
+#     registration entry.
+#   - It cannot tell an encoder from a decoder: both directions share one name, so a row naming
+#     libvpx is satisfied by either. The CLI side DOES distinguish (it queries -encoders or
+#     -decoders), so on the RIDs that can run ffmpeg the direction is still checked.
+#   - A name that is a suffix of another string is reported inconclusive rather than missing.
+# All three are why the CLI variant remains the stronger check and the static one exists only
+# for slices that ship no runnable binary. Closing them properly means verifying against a
+# runtime registry; tracked in the behavioural-verification issue, not faked here.
 # scale_vulkan specifically, NOT a loose /_vulkan/ match. A couple of Vulkan filters
 # (avgblur_vulkan, bwdif_vulkan) need no SPIR-V compiler and survive even when the shader
 # toolchain is missing, so a loose match passes a build that lost the other 16. Measured:

@@ -31,6 +31,41 @@ VMAF_ARGS=(--prefix="${DEPS_DIR}" --libdir=lib --default-library=static
            --buildtype=release
            -Denable_tests=false -Denable_docs=false
            -Dbuilt_in_models=true -Denable_float=true)
+
+# -Dbuilt_in_models=true is a REQUEST, not a guarantee: libvmaf's meson treats xxd as
+# `required: false` and emits the model sources only inside `if xxd.found()`, with no failure
+# branch. Without xxd the library builds cleanly, the FFmpeg filter still registers, and every
+# model lookup returns -EINVAL -- so the default `version=vmaf_v0.6.1` silently cannot load.
+# That shipped on the manylinux RIDs, which had no xxd. Assert the tool is actually there so a
+# missing model set fails the build instead of the user's first vmaf invocation.
+if ! command -v xxd >/dev/null 2>&1; then
+  echo "ERROR: xxd not found; libvmaf would build with NO built-in models." >&2
+  echo "  The filter would register and then fail on its default version=vmaf_v0.6.1." >&2
+  echo "  Package providing xxd: vim-common on RPM hosts; xxd on Alpine and on Debian 11+ /" >&2
+  echo "  Ubuntu 22.04+ (it was split out of vim-common there); vim-common on older Debian." >&2
+  exit 1
+fi
+# VMAF hard-fails below NASM 2.13.02 but only WARNS below 2.14, silently dropping its AVX-512
+# kernels -- the same required:false shape as the xxd problem above, one level down. The package
+# lists do not pin a NASM version, so assert the floor on the x86-64 RIDs that actually use it.
+case "${RID}" in
+  linux-x64|linux-musl-x64|win-x64|osx-x64|maccatalyst-x64|android-x64)
+    _nasm_v="$(nasm -v 2>/dev/null | sed -nE 's/^NASM version ([0-9]+\.[0-9]+(\.[0-9]+)?).*/\1/p')"
+    if [[ -z "${_nasm_v}" ]]; then
+      echo "ERROR: nasm not found or its version is unparseable on ${RID}; libvmaf needs >= 2.14" >&2
+      echo "  for its AVX-512 kernels (it only warns below that and builds without them)." >&2
+      exit 1
+    fi
+    if [[ "$(printf '%s
+2.14
+' "${_nasm_v}" | sort -V | head -1)" != "2.14" ]]; then
+      echo "ERROR: nasm ${_nasm_v} is older than 2.14 on ${RID}; libvmaf would silently build" >&2
+      echo "  without AVX-512 (it warns rather than failing). Install a newer nasm." >&2
+      exit 1
+    fi
+    echo "libvmaf: nasm ${_nasm_v} (>= 2.14) - AVX-512 kernels will be built."
+    ;;
+esac
 [[ -n "${MESON_CROSS_FILE:-}" ]] && VMAF_ARGS+=(--cross-file "${MESON_CROSS_FILE}")
 meson setup build "${VMAF_ARGS[@]}"
 meson compile -C build -j "$(${NPROC})"

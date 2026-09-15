@@ -80,13 +80,48 @@ jobs:
     steps:
       - name: Bootstrap Alpine container
         if: matrix.container
-        # file: arch check. binutils: nm for symbol checks. libstdc++/libgcc: whisper's
-        # C++ runtime, which the (shared) libav* link — a standard runtime dep present on
-        # any real musl host (`apk add libstdc++ libgcc`), not something we can avoid.
+        # file: arch check. binutils: nm/strings for symbol and capability checks.
+        # patchelf: the musl C++ runtime invariant below is verified with it, and without it
+        # that check fails loudly rather than being skipped.
+        # libstdc++/libgcc are installed for the TEST HOST only, and deliberately NOT because
+        # the artifact needs them: the artifact links the C++ runtime statically and must run on
+        # a bare Alpine image with nothing installed -- scripts/test/linux.sh asserts exactly
+        # that. They are here so the container can build and run the smoke program. (This
+        # comment previously said they were "a standard runtime dep ... not something we can
+        # avoid", which was true of the artifacts as published and is the very thing this
+        # branch fixed.)
         # curl: fetch the (now mandatory) whisper model — Alpine has no curl by default, and
         # its absence previously made the model download silently fail (whisper skipped).
-        run: apk add --no-cache bash git file binutils libstdc++ libgcc curl build-base
+        run: apk add --no-cache bash git file binutils libstdc++ libgcc curl build-base patchelf
 
+      # actions/checkout has no retry input; its internal helper makes 3 attempts with a RANDOM
+      # 10-20s sleep between them, so roughly 20-40s of cover. A DNS or TLS blip longer than that
+      # kills the job before any of our code runs:
+      #   fatal: unable to access 'https://github.com/...': Could not resolve host: github.com
+      # The action cannot be wrapped: a local composite action needs the repo ALREADY checked out,
+      # and retry actions only wrap `run:` steps, not `uses:` steps. So wait for the host to be
+      # reachable BEFORE checkout, with the same exponential-with-jitter backoff the build scripts
+      # use (4, 8, 16, 32, 64s + jitter), and do NOT sleep after the final attempt -- nothing probes
+      # again afterwards. Worst case is ~2 minutes of sleep plus the probe timeouts.
+      # This never fails the job. If the host is still unreachable it warns and lets checkout run, so
+      # the real error is reported by the action rather than masked here.
+      - name: Wait for github.com to be reachable
+        shell: bash
+        run: |
+          command -v curl >/dev/null 2>&1 || { echo "curl unavailable - skipping reachability wait"; exit 0; }
+          delay=4
+          for i in 1 2 3 4 5 6; do
+            if curl -sSf -o /dev/null --max-time 10 "${GITHUB_SERVER_URL:-https://github.com}"; then
+              if [ "$i" -gt 1 ]; then echo "github.com reachable after attempt ${i}"; fi
+              exit 0
+            fi
+            if [ "$i" -eq 6 ]; then break; fi
+            s=$(( delay + (RANDOM % 5) ))
+            echo "github.com not reachable (attempt ${i}/6) - retrying in ${s}s" >&2
+            sleep "$s"
+            delay=$(( delay * 2 ))
+          done
+          echo "::warning::github.com still unreachable after 6 attempts; letting checkout try anyway"
       - uses: actions/checkout@v7
         with:
           # github.sha, NOT github.ref: for a push run github.ref is refs/heads/main, so each
@@ -186,13 +221,35 @@ jobs:
             # `container:` on the job (which breaks actions/checkout — see
             # linux-musl-x64, which stays on `container:` because its x64
             # runner *is* supported).
+            # `docker run` pulls the image implicitly, and that pull is a NETWORK operation with no
+            # retry of any kind -- a registry blip takes the whole build down for a reason that is not
+            # our code, which is the failure class the curl/git wrappers exist to remove. Observed on
+            # this branch: "docker: Error response from daemon: received unexpected HTTP status:
+            # 502 Bad Gateway" pulling quay.io/pypa/manylinux_2_28_x86_64.
+            #
+            # Pull explicitly first, with the same exponential+jitter backoff scripts/lib.sh uses, so
+            # `docker run` below finds the image locally. Retrying the PULL rather than the `docker run`
+            # matters: re-running the run would repeat the entire build.
+            _img="alpine:latest"
+            _delay=4
+            for _try in 1 2 3 4 5 6; do
+              docker pull "${_img}" && break
+              if [ "${_try}" -eq 6 ]; then
+                echo "ERROR: docker pull ${_img} failed after 6 attempts" >&2; exit 1
+              fi
+              _wait=$(( _delay + (RANDOM % 5) ))
+              echo "  docker pull failed (attempt ${_try}/6) - retrying in ${_wait}s..." >&2
+              sleep "${_wait}"
+              _delay=$(( _delay * 2 ))
+            done
             docker run --rm -v "${PWD}:/work" -w /work \
               -e BUILD_RID -e WHISPER_MODEL \
-              alpine:latest \
-              sh -c 'apk add --no-cache bash git file binutils libstdc++ libgcc curl build-base && chmod +x scripts/test.sh scripts/test/*.sh && bash scripts/test.sh "${BUILD_RID}" "artifacts/${BUILD_RID}/native"'
+              "${_img}" \
+              sh -c 'apk add --no-cache bash git file binutils libstdc++ libgcc curl build-base patchelf && chmod +x scripts/test.sh scripts/test/*.sh && bash scripts/test.sh "${BUILD_RID}" "artifacts/${BUILD_RID}/native"'
           else
             bash scripts/test.sh "${BUILD_RID}" "artifacts/${BUILD_RID}/native"
           fi
+
 
   # Gate job — single required status check for branch protection.
   all-tests:

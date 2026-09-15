@@ -12,7 +12,7 @@ case "${RID}" in
     # and the only thing that dragged in an X11 dependency.
     PKGS=(autoconf automake build-essential cmake curl gperf git libtool meson nasm ninja-build
           patchelf pkg-config xz-utils yasm
-          glslc glslang-tools spirv-headers spirv-tools)
+          glslc glslang-tools spirv-headers spirv-tools xxd)
     CONFIGURE_FLAGS+=(
       --enable-cuda --enable-cuvid --enable-nvenc --enable-nvdec --enable-ffnvcodec
       --enable-vaapi --enable-libdrm --enable-libvpl
@@ -49,7 +49,7 @@ case "${RID}" in
     # (libvpl) on ARM.
     PKGS=(autoconf automake build-essential cmake curl gperf git libtool meson nasm ninja-build
           patchelf pkg-config xz-utils
-          glslc glslang-tools spirv-headers spirv-tools)
+          glslc glslang-tools spirv-headers spirv-tools xxd)
     CONFIGURE_FLAGS+=(
       --enable-cuda --enable-cuvid --enable-nvenc --enable-nvdec --enable-ffnvcodec
       --enable-vaapi --enable-libdrm
@@ -77,7 +77,8 @@ case "${RID}" in
     # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     PKGS=(autoconf automake build-essential cmake curl gperf git libtool meson nasm ninja-build
           patchelf pkg-config xz-utils
-          crossbuild-essential-armhf)
+          crossbuild-essential-armhf
+              xxd)
     CONFIGURE_FLAGS+=(
       --arch=arm --cpu=armv7-a+vfpv3
       --cross-prefix=arm-linux-gnueabihf-
@@ -108,8 +109,11 @@ case "${RID}" in
     # Alpine's -dev packages — otherwise FFmpeg links the system libva.so.2/libvpl.so.2
     # dynamically and the artifact won't start on a stock musl system that lacks them.
     # The static dispatch layers dlopen the GPU driver at runtime, so VAAPI/QSV still
-    # work when a driver is present. (libstdc++/libgcc_s remain — whisper's C++ runtime,
-    # a standard `apk add libstdc++ libgcc` on any musl host.)
+        # work when a driver is present. (The C++ runtime used to remain as a DT_NEEDED on
+        # libstdc++.so.6/libgcc_s.so.1, documented as `apk add libstdc++ libgcc`. It is now
+        # linked STATICALLY instead -- see whisper.sh's -l:libstdc++.a and 07_build_ffmpeg.sh's
+        # .pc rewrite -- so a musl artifact needs no package install at all, and staging
+        # refuses to publish one that still depends on a host C++ runtime.)
     # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     PKGS_APK=(autoconf automake libtool build-base cmake curl diffutils gperf git linux-headers
               m4 meson nasm ninja patchelf perl pkgconf xz yasm xxd
@@ -118,14 +122,36 @@ case "${RID}" in
     # pull it in; the glibc/manylinux images already ship it, so only the Alpine list needs it.
     # xxd: libvmaf embeds its built-in VMAF models via `xxd -i`. Alpine's base ships only the
     # busybox `xxd` applet, which lacks the `-i` (C-array) flag, so the model-gen step fails;
-    # the `xxd` package installs the real vim xxd (with `-i`). glibc/manylinux has no xxd at
-    # all, where libvmaf falls back to a non-xxd path — only Alpine has the broken stub.
+    # the `xxd` package installs the real vim xxd (with `-i`).
+    #
+    # CORRECTION: this used to claim glibc/manylinux "falls back to a non-xxd path". There is no
+    # such fallback. libvmaf's meson marks xxd `required: false` and emits the model sources only
+    # inside `if xxd.found()`, so a host without it builds a library with NO built-in models --
+    # the FFmpeg filter registers and then fails on its default version=vmaf_v0.6.1. manylinux
+    # had no xxd, so that is exactly what those artifacts shipped. vim-common is now in the
+    # manylinux dnf list and libvmaf.sh asserts xxd before building.
     CONFIGURE_FLAGS+=(
       --enable-cuda --enable-cuvid --enable-nvenc --enable-nvdec --enable-ffnvcodec
       --enable-vaapi --enable-libdrm --enable-libvpl
     )
     # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     HWACCEL_FEATURES="CUDA NVENC NVDEC VAAPI libdrm QSV"
+    # Pair with -l:libstdc++.a in deps/whisper.sh: that removes the libstdc++ dependency, and
+    # -static-libgcc removes the remaining libgcc_s.so.1 one, so the musl artifact needs no C++
+    # runtime from the host at all. Alpine base images ship neither, and bundling them would
+    # mean redistributing GPLv3 libraries; statically linked they are "Target Code" under the
+    # GCC Runtime Library Exception, which carries no such obligation.
+    # CXX_RT_LIB is the C++ runtime every C++ DEPENDENCY appends to EXTRA_LIBS through
+    # ${CXX_RT_LIB--lstdc++} (chromaprint, libjxl, libplacebo, libsrt, libvmaf). It was set
+    # only for win-arm64, so on musl all five fell back to the DYNAMIC -lstdc++ and FFmpeg
+    # linked with EXTRALIBS="-lm -lstdc++ -lstdc++ -lstdc++ -lstdc++", pulling in the shared
+    # C++ runtime and libgcc_s.so.1 with it -- on the one artifact whose whole point is to
+    # run on a bare Alpine image. whisper.sh had been made static separately under its own
+    # CXX_STATIC_LIB, which is exactly why this survived: one of the six was fixed, and the
+    # differing name hid that the other five still had the dynamic default.
+    # shellcheck disable=SC2034  # set here; consumed by the C++ dependency scripts
+    CXX_RT_LIB="-l:libstdc++.a"
+    EXTRA_LDFLAGS="${EXTRA_LDFLAGS:-} -static-libgcc"
     # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     BUILD_NVIDIA=1
     # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
@@ -171,6 +197,22 @@ case "${RID}" in
     )
     # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     HWACCEL_FEATURES="CUDA NVENC NVDEC VAAPI libdrm V4L2-M2M"
+    # Pair with -l:libstdc++.a in deps/whisper.sh: that removes the libstdc++ dependency, and
+    # -static-libgcc removes the remaining libgcc_s.so.1 one, so the musl artifact needs no C++
+    # runtime from the host at all. Alpine base images ship neither, and bundling them would
+    # mean redistributing GPLv3 libraries; statically linked they are "Target Code" under the
+    # GCC Runtime Library Exception, which carries no such obligation.
+    # CXX_RT_LIB is the C++ runtime every C++ DEPENDENCY appends to EXTRA_LIBS through
+    # ${CXX_RT_LIB--lstdc++} (chromaprint, libjxl, libplacebo, libsrt, libvmaf). It was set
+    # only for win-arm64, so on musl all five fell back to the DYNAMIC -lstdc++ and FFmpeg
+    # linked with EXTRALIBS="-lm -lstdc++ -lstdc++ -lstdc++ -lstdc++", pulling in the shared
+    # C++ runtime and libgcc_s.so.1 with it -- on the one artifact whose whole point is to
+    # run on a bare Alpine image. whisper.sh had been made static separately under its own
+    # CXX_STATIC_LIB, which is exactly why this survived: one of the six was fixed, and the
+    # differing name hid that the other five still had the dynamic default.
+    # shellcheck disable=SC2034  # set here; consumed by the C++ dependency scripts
+    CXX_RT_LIB="-l:libstdc++.a"
+    EXTRA_LDFLAGS="${EXTRA_LDFLAGS:-} -static-libgcc"
     # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     BUILD_NVIDIA=1
     # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script

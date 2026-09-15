@@ -12,6 +12,7 @@ if [[ "${BUILD_FONTCONFIG}" == "1" ]]; then
   clone_dep libexpat "${WORK_DIR}/libexpat"
   cd libexpat/expat || exit 1
   cmake -B build \
+    -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX="${DEPS_DIR}" \
     -DCMAKE_INSTALL_LIBDIR=lib \
     -DCMAKE_PREFIX_PATH="${DEPS_DIR}" \

@@ -5,11 +5,18 @@ bundled Whisper speech-to-text filter and the development (headers/import-lib) p
 
 ## Install
 
-Download a tarball from the [latest release](../../../releases/latest) and extract. Each platform
+Download a tarball from the [latest release](../../../../releases/latest) and extract. Each platform
 ships **four license cells** — the variant name is `{rid}-{gplv3,gplv2,lgplv3,lgplv2}` (e.g.
-`linux-x64-lgplv3`). Family: `gpl` bundles x264/x265; `lgpl` doesn't. Version: `v3` links
-Apache-2.0 deps (OpenSSL TLS + Vulkan); `v2` (GPLv2 / LGPLv2.1) is the App-Store-safe series with
-no Vulkan, and its `lgplv2` cell has no TLS at all (see [Runtime dependencies](#runtime-dependencies)).
+`linux-x64-lgplv3`). The four Apple mobile RIDs are the exception: `ios-arm64`, `ios-sim-arm64`,
+`maccatalyst-arm64` and `maccatalyst-x64` ship as a single `ffmpeg-{VERSION}-ios-{cell}.tar.gz`
+asset rather than one tarball per RID. The two Catalyst RIDs are `lipo`-fused into one universal
+slice, so each xcframework in it holds three slices: device, simulator, and Catalyst.
+
+Family: `gpl` bundles x264/x265; `lgpl` doesn't. Version: `v3` links the Apache-2.0 dependencies
+— that means Vulkan everywhere it applies, and OpenSSL TLS on the platforms that need a bundled
+backend (Linux, Android, Mac Catalyst); Windows and macOS/iOS use the OS-native backend in every
+cell. `v2` (GPLv2 / LGPLv2.1) is the App-Store-safe series with no Vulkan, and its `lgplv2` cell
+has no TLS on those same three platforms (see [Runtime dependencies](#runtime-dependencies)).
 The per-platform pages below each use one cell in their examples; substitute the one you need.
 
 ## Verifying a download
@@ -46,16 +53,21 @@ without fetching the manifest.
   Store, so LGPLv2.1 is the App-Store-safe series. (No Vulkan; on Android, no TLS — see below.)
 - **Need software H.264/H.265 (x264/x265) encoding**, and the GPL is acceptable (internal tooling,
   GPL-compatible project) → a **`gpl`** cell.
-- **Want TLS (`https`/`tls`) or GPU Whisper on Linux/Android/Windows** → a **`v3`** cell (`v2`
-  drops Vulkan, and `lgplv2` drops TLS entirely).
+- **Want GPU (Vulkan) Whisper** → a **`v3`** cell, and one of `linux-x64`, `linux-arm64`,
+  `linux-musl-x64`, `linux-musl-arm64`, `win-x64`, `android-arm64` or `android-x64`. `v2` drops
+  Vulkan on every RID, and `linux-armhf` / `win-arm64` are CPU-only Whisper in every cell.
+  macOS/iOS/Catalyst use Metal regardless of cell.
+- **Want TLS (`https`/`tls`)** → note that only the `lgplv2` cell lacks it, and only on Linux,
+  Android and Mac Catalyst. `gplv2` has GnuTLS, and Windows/macOS/iOS have their native backend
+  in all four cells — so `v3` is not required for TLS.
 - **No preference otherwise** → **`lgplv3`** is the general-purpose default (dynamic-linking
-  permission, TLS, GPU Whisper, no GPL obligation).
+  permission, TLS, no GPL obligation, and GPU Whisper on the RIDs listed above).
 
 ### Runtime dependencies
 
-Two things travel with the cell you pick — TLS and Vulkan — and one platform family (Alpine/musl)
-needs system packages. The cross-platform rules are here; the platform pages carry the OS-specific
-steps.
+Two things travel with the cell you pick — TLS and Vulkan. No platform needs a package install
+to make the artifacts run, including Alpine/musl. The cross-platform rules are here; the platform
+pages carry the OS-specific steps.
 
 **TLS and the license cell.** Which cell you pick changes what's inside the binary. On
 Linux/Android, `v3` cells carry **OpenSSL**, the `gplv2` cell carries **GnuTLS**, and the
@@ -65,14 +77,19 @@ LGPLv2.1-compatible. Windows (**SChannel**) and macOS/iOS (**SecureTransport**) 
 backend in every cell, so their TLS is unaffected by the split. **Mac Catalyst is the exception
 among Apple targets**: SecureTransport is unavailable there (the SDK marks it no longer supported
 and FFmpeg's backend fails to compile), so Catalyst follows the Linux/Android ladder above and its
-`lgplv2` slice has no TLS either — see [iOS / Mac Catalyst](./ios.md#no-tls-in-the-lgplv2-catalyst-slice). The `v2` cells also omit
-**Vulkan**, so GPU Whisper on Linux/Android/Windows requires a `v3` cell (macOS/iOS use Metal
-either way).
+`lgplv2` slice has no TLS either — see [iOS / Mac Catalyst](./ios.md#no-tls-in-the-lgplv2-catalyst-slice).
 
-**System packages.** The glibc Linux builds are self-contained (nothing to install); the Alpine
-(`linux-musl-x64`, `linux-musl-arm64`) builds need a few `apk` packages. Both live on the
-[Linux page](./linux.md#runtime-dependencies).
-Windows and macOS need no extra install.
+**Vulkan and the license cell.** The `v2` cells omit **Vulkan** everywhere, so Vulkan Whisper
+needs a `v3` cell — but a `v3` cell is not sufficient on its own. The Vulkan Whisper backend is
+built only for `linux-x64`, `linux-arm64`, `linux-musl-x64`, `linux-musl-arm64`, `win-x64`,
+`android-arm64` and `android-x64`; `linux-armhf` and `win-arm64` run Whisper on the CPU in every
+cell, and macOS/iOS/Catalyst use Metal either way.
+
+**System packages.** None are required. The glibc Linux builds are self-contained, and the
+Alpine (`linux-musl-x64`, `linux-musl-arm64`) builds link the C++ runtime statically, so they run
+on a stock `alpine` image with no `apk add`. The only external pieces anywhere are optional GPU
+drivers for hardware acceleration. Details on the
+[Linux page](./linux.md#runtime-dependencies). Windows and macOS need no extra install.
 
 ## Pages
 

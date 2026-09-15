@@ -31,6 +31,27 @@ esac
 # scalar subtitle rasterisation on one RID.
 case "${RID}" in
   android-x64) ASS_ARGS+=(-Dasm=disabled) ;;
+  # Everywhere else, REQUIRE it rather than accepting meson's `auto`. libass downgrades a missing
+  # or pre-2.10 NASM to a warning and builds scalar subtitle rasterisation -- it still works, just
+  # slower, so nothing downstream notices. With -Dasm=enabled libass raises the error itself
+  # (meson.build: `elif asm_option.enabled() -> error`), with its own accurate diagnostic.
+  #
+  # This replaces a config.h probe that was wrong twice over: libass generates config.h through
+  # two vcs_tag targets, so it does not exist until `meson compile` -- the probe ran right after
+  # `meson setup` and reported "no CONFIG_ASM line" on a build whose own summary said
+  # "ASM optimizations: YES". Letting upstream answer removes both the timing dependency and the
+  # need to track its macro names.
+  #
+  # linux-armhf: leave meson's `auto`. libass has NO 32-bit ARM assembly -- meson.build only
+  # takes the nasm path for generic_cpu_family 'x86' (x86 and x86_64) and sets enable_asm for
+  # 'aarch64'; everything else falls through to a warning with asm off. Forcing -Dasm=enabled
+  # there turns that into "Assembly was requested, but cannot be built", which is what it did:
+  # it failed linux-armhf, a RID that had been building correctly all along.
+  linux-armhf) ;;
+  # Everything else is x86_64 or aarch64, where libass does support assembly. A no-op on the
+  # aarch64 RIDs (enable_asm is unconditional there); on x86_64 it is the whole point, turning a
+  # silent scalar fallback into an error.
+  *)           ASS_ARGS+=(-Dasm=enabled) ;;
 esac
 [[ -n "${MESON_CROSS_FILE:-}" ]] && ASS_ARGS+=(--cross-file "${MESON_CROSS_FILE}")
 meson setup build "${ASS_ARGS[@]}"

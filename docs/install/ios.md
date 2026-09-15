@@ -18,8 +18,11 @@ to satisfy LGPLv2.1 §6, which requires the end user be able to relink the app a
 library; a dynamic framework satisfies that inherently. Add the frameworks to your Xcode target
 (or a CocoaPods `vendored_frameworks`); Xcode selects the right slice and strips the simulator
 slice from the shipped app automatically. Hardware decode uses **VideoToolbox**. The simulator
-slice is decode-focused (no software encoders) — that path is for development; ship and test
-encode/WebRTC-VP8/9 on a device.
+slice is lean — it drops **x264, x265, kvazaar, libvpx, libaom, Opus, libass** (and freetype /
+fontconfig / libplacebo with them), because those configures inject iOS-device-only flags that do
+not cross-compile for the arm64 simulator. It is **not** encoder-free: OpenH264 (H.264 encode),
+LAME, Vorbis, OpenCORE AMR, OpenJPEG and libjxl are all present, and built-in decoders plus
+VideoToolbox cover playback. Ship and test H.265, AV1, VP8/VP9 and Opus work on a device.
 
 ## Mac Catalyst
 
@@ -65,7 +68,9 @@ every cell.
 
 MoltenVK links against `Metal`, `IOSurface`, `Foundation`, `QuartzCore`, `CoreGraphics` and
 `UIKit` (its surface code imports `UIKit/UIView.h`, and MoltenVK disables Clang module
-autolinking, so nothing pulls it in implicitly). Because the `libav*` frameworks are dynamic,
+autolinking, so nothing pulls it in implicitly). **On Mac Catalyst add `-framework IOKit`**:
+MoltenVK compiles as its macOS variant on macabi, which brings in the IOKit-based physical-device
+enumeration that the iOS variant does not have. Because the `libav*` frameworks are dynamic,
 those are recorded as `libavutil`'s own dependencies and the linker resolves them for you. If
 your build system links the frameworks in a mode that does not inherit transitive dependencies,
 add them explicitly:

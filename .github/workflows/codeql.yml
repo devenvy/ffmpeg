@@ -39,6 +39,34 @@ jobs:
           - language: actions
             build-mode: none
     steps:
+      # actions/checkout has no retry input; its internal helper makes 3 attempts with a RANDOM
+      # 10-20s sleep between them, so roughly 20-40s of cover. A DNS or TLS blip longer than that
+      # kills the job before any of our code runs:
+      #   fatal: unable to access 'https://github.com/...': Could not resolve host: github.com
+      # The action cannot be wrapped: a local composite action needs the repo ALREADY checked out,
+      # and retry actions only wrap `run:` steps, not `uses:` steps. So wait for the host to be
+      # reachable BEFORE checkout, with the same exponential-with-jitter backoff the build scripts
+      # use (4, 8, 16, 32, 64s + jitter), and do NOT sleep after the final attempt -- nothing probes
+      # again afterwards. Worst case is ~2 minutes of sleep plus the probe timeouts.
+      # This never fails the job. If the host is still unreachable it warns and lets checkout run, so
+      # the real error is reported by the action rather than masked here.
+      - name: Wait for github.com to be reachable
+        shell: bash
+        run: |
+          command -v curl >/dev/null 2>&1 || { echo "curl unavailable - skipping reachability wait"; exit 0; }
+          delay=4
+          for i in 1 2 3 4 5 6; do
+            if curl -sSf -o /dev/null --max-time 10 "${GITHUB_SERVER_URL:-https://github.com}"; then
+              if [ "$i" -gt 1 ]; then echo "github.com reachable after attempt ${i}"; fi
+              exit 0
+            fi
+            if [ "$i" -eq 6 ]; then break; fi
+            s=$(( delay + (RANDOM % 5) ))
+            echo "github.com not reachable (attempt ${i}/6) - retrying in ${s}s" >&2
+            sleep "$s"
+            delay=$(( delay * 2 ))
+          done
+          echo "::warning::github.com still unreachable after 6 attempts; letting checkout try anyway"
       - uses: actions/checkout@v7
       - uses: github/codeql-action/init@v4
         with:

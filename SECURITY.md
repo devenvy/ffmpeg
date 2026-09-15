@@ -4,10 +4,12 @@
 
 This repository is a **build system** for stock upstream FFmpeg and its supporting
 libraries (x264, x265, kvazaar, dav1d, SVT-AV1, OpenSSL, GnuTLS, and others — the TLS
-backend varies by license cell). It does **not**
-vendor, fork, patch, or ship modified copies of that upstream source — each library is
-fetched from its official upstream at a pinned release tag and built **unmodified** at
-CI time, into a git-ignored, ephemeral `.build/` tree. The only source original to this
+backend varies by license cell). It does **not** vendor or fork that upstream source — each
+library is fetched from its official upstream at a pinned release tag and built at CI time,
+into a git-ignored, ephemeral `.build/` tree. A small number of targeted build-time patches
+are applied in the open, in `scripts/`, to make a source compile for a target it does not yet
+support (for example skipping FFmpeg's videotoolbox symbols that the Mac Catalyst SDK marks
+unavailable); none add functionality, and each is visible in the script that applies it. The only source original to this
 repository is the build tooling (shell scripts and GitHub Actions workflows) plus a
 small compile/runtime smoke test (`scripts/test/smoke.c`).
 

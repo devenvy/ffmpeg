@@ -10,8 +10,20 @@ set -euo pipefail
 # Sourced by build.sh (shares its environment); not a standalone script.
 ############################################
 
-# ── Static verification gate ──────────────────────────────────────────────
-echo "Running static verification checks..."
+# ── Configure-time verification gate ──────────────────────────────────────
+# SCOPE, stated precisely because the distinction is the point of this repo's test layer:
+# everything here reads config_components.h and config.h from the SOURCE tree. That proves what
+# FFmpeg's configure DECIDED -- an intermediate result -- not that the component survived into
+# the staged artifact. The two can differ: FFmpeg shipped --enable-vulkan with CONFIG_*_VULKAN
+# set and zero Vulkan filters in the binary on 9 of 15 RIDs.
+#
+# Registration in the ARTIFACT is verified separately, in scripts/test/ via capabilities.tsv --
+# which reads the artifact's own configure string and asserts each claimed flag against what the
+# binary actually registers, on every RID including the cross-built slices. This gate stays
+# because it fails EARLY and cheaply, before staging, with a precise macro name; it is a first
+# filter, not the finish line. Do not add "it is in config_components.h" as evidence that
+# something works -- add a capabilities.tsv row instead.
+echo "Running configure-time verification checks..."
 VERIFY_FAIL=0
 COMPONENTS="${SRC_DIR}/config_components.h"
 

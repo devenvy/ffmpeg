@@ -17,15 +17,9 @@ set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "${HERE}" || exit 1
 
-# On Windows `python3` is often a Microsoft Store alias stub that sits on PATH but exits
-# non-zero, so presence alone is not enough — probe for one that actually runs.
-PYBIN=""
-for _py in python3 python; do
-  if command -v "${_py}" >/dev/null 2>&1 && "${_py}" -c 'import sys' >/dev/null 2>&1; then
-    PYBIN="${_py}"; break
-  fi
-done
-[ -n "${PYBIN}" ] || { echo "ERROR: no working python3/python on PATH." >&2; exit 1; }
+# shellcheck source=scripts/lib.sh  # wrappers + resolve_python; nothing runs on source
+. "${HERE}/scripts/lib.sh"
+PYBIN="$(resolve_python)" || exit 1
 
 "${PYBIN}" - <<'PY'
 import glob, json, os, re, sys

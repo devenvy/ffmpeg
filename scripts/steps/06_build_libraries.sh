@@ -69,7 +69,7 @@ D="${ROOT_DIR}/scripts/deps"
 . "${D}/vulkan-loader.sh"   # (glibc Linux / macOS) libc-only loader to bundle — needs headers above
 . "${D}/moltenvk.sh"        # MoltenVK Vulkan-over-Metal driver (v3 Apple: dylib+loader on macOS, static archive on iOS)
 . "${D}/vulkan-shim.sh"     # (Windows) static stub so Vulkan is resolved at runtime, not hard-imported
-. "${D}/spirv-headers.sh"   # SPIRV-Headers for whisper's ggml-vulkan backend (mingw/NDK/musl/linux)
+. "${D}/spirv-headers.sh"   # SPIRV-Headers — ggml-vulkan AND FFmpeg's own Vulkan code; every BUILD_VULKAN RID
 . "${D}/whisper.sh"         # whisper.cpp — af_whisper ASR (links the Vulkan loader above)
 . "${D}/shaderc.sh"         # SPIR-V compiler (static lib) — libplacebo build dependency (v3 Vulkan cells)
 . "${D}/libplacebo.sh"      # GPU HDR tone-map/scaling via Vulkan — FFmpeg libplacebo filter

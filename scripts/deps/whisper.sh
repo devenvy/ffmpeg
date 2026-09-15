@@ -13,6 +13,9 @@ clone_dep whisper "${WORK_DIR}/whisper.cpp"
 cd whisper.cpp || exit 1
 
 WHISPER_CMAKE=(
+  # Explicit Release, like build_cmake_dep gives the helper-built deps: without a build
+  # type a single-configuration generator leaves whisper/ggml with NO optimisation flags.
+  -DCMAKE_BUILD_TYPE=Release
   -DCMAKE_INSTALL_PREFIX="${DEPS_DIR}"
   -DCMAKE_INSTALL_LIBDIR=lib
   -DCMAKE_PREFIX_PATH="${DEPS_DIR}"
@@ -26,10 +29,43 @@ WHISPER_CMAKE=(
   -DGGML_BUILD_TESTS=OFF
   -DGGML_BUILD_EXAMPLES=OFF
 )
+# musl links the C++ runtime STATICALLY rather than depending on it. A base Alpine image ships
+# no libstdc++.so.6/libgcc_s.so.1, so a dynamic link makes the artifact unable to start at all:
+#   Error loading shared library libstdc++.so.6: No such file or directory
+# Bundling the runtimes would fix that, but it means REDISTRIBUTING GPLv3 libraries -- the GCC
+# Runtime Library Exception covers our linked output, not shipping the runtime itself, so it
+# would pull a GPLv3 section 6 corresponding-source obligation into every musl artifact,
+# including the lgplv2 cell. Static linking avoids the obligation instead of complying with it:
+# the result is "Target Code" under the Exception, which is exactly what the Exception exists to
+# permit. It also matches what BtbN ships -- their libavcodec has no libstdc++ dependency.
+#
+# -l:libstdc++.a is the same archive-name trick this repo already uses for win-arm64's
+# -l:libc++.a: a bare -lstdc++ resolves to the shared library, and -static-libstdc++ is a driver
+# flag the C link does not honour here. Verified on a shared library with C++ exceptions: the
+# result has only libc and the loader in DT_NEEDED, and still runs.
+case "${RID}" in
+  linux-musl-*)
+    # Derived from CXX_RT_LIB -- the variable the other five C++ deps read -- so the two cannot
+    # drift apart again. They already did once: this one was made static while chromaprint, libjxl,
+    # libplacebo, libsrt and libvmaf kept the dynamic default, and the different name hid it.
+    CXX_STATIC_LIB="${CXX_RT_LIB--l:libstdc++.a}"
+    # libstdc++.a comes from Alpine's libstdc++-dev, pulled in transitively by build-base -> g++.
+    # That chain is not ours to control, and if it ever stops holding the failure would surface
+    # as an obscure "cannot find -l:libstdc++.a" deep inside FFmpeg's configure link tests, with
+    # whisper silently reported as "not found". Check it up front and say what to install.
+    if ! "${CC:-gcc}" -print-file-name=libstdc++.a 2>/dev/null | grep -q '/'; then
+      echo "ERROR: libstdc++.a not found on this musl toolchain." >&2
+      echo "  ${RID} links the C++ runtime statically so the artifact needs none at runtime." >&2
+      echo "  Install it with: apk add libstdc++-dev   (normally transitive via build-base -> g++)" >&2
+      exit 1
+    fi
+    ;;
+  *)            CXX_STATIC_LIB="-lstdc++" ;;
+esac
 case "${WHISPER_BACKEND}" in
   vulkan)
     WHISPER_CMAKE+=(-DGGML_VULKAN=ON -DGGML_CPU=ON)
-    WHISPER_SYS_LIBS="-lvulkan -lstdc++ -lm -lpthread"
+    WHISPER_SYS_LIBS="-lvulkan ${CXX_STATIC_LIB} -lm -lpthread"
     # glibc-native linux-x64/arm64 get Vulkan + SPIRV headers from system packages
     # (libvulkan-dev, spirv-headers). For the mingw/NDK cross targets (can't use host
     # /usr/include — glibc pollution) and for Alpine/musl (header-package names are less
@@ -113,7 +149,7 @@ case "${WHISPER_BACKEND}" in
             # not exist under mingw, whose threading is built in.
             android-*) WHISPER_SYS_LIBS="-lc++ -lm" ;;
             win-arm64) WHISPER_SYS_LIBS="${CXX_RT_LIB-} -lm" ;;
-            *)         WHISPER_SYS_LIBS="-lstdc++ -lm -lpthread" ;;
+            *)         WHISPER_SYS_LIBS="${CXX_STATIC_LIB} -lm -lpthread" ;;
           esac ;;
 esac
 
@@ -165,6 +201,30 @@ for b in cpu metal vulkan blas; do
   [ -f "${DEPS_DIR}/lib/libggml-${b}.a" ] && WHISPER_GGML="${WHISPER_GGML} -lggml-${b}"
 done
 WHISPER_GGML="${WHISPER_GGML} -lggml-base"
+
+# Assembling from "whatever got installed" is right for the OPTIONAL backends (ggml auto-enables
+# BLAS on Apple, for instance) but it silently tolerates the REQUESTED one going missing. If
+# ggml's cmake cannot find Vulkan/Metal it falls back to CPU without failing, so libggml-vulkan.a
+# simply would not exist, the loop above would skip it, and whisper would register and transcribe
+# -- on the CPU. Every test would pass: the filter is there, inference works, and nothing states
+# which backend ran. That is the GPU equivalent of the Vulkan-filter defect this branch exists
+# for, so require the archive that WHISPER_BACKEND asked for.
+case "${WHISPER_BACKEND}" in
+  cpu) _ggml_want="" ;;                       # CPU is libggml-cpu.a, already required below
+  *)   _ggml_want="libggml-${WHISPER_BACKEND}.a" ;;
+esac
+if [[ -n "${_ggml_want}" && ! -f "${DEPS_DIR}/lib/${_ggml_want}" ]]; then
+  echo "ERROR: whisper requested the ${WHISPER_BACKEND} ggml backend on ${RID}, but" >&2
+  echo "  ${DEPS_DIR}/lib/${_ggml_want} was not installed - ggml fell back to CPU silently." >&2
+  echo "  Installed ggml archives:" >&2
+  ls -1 "${DEPS_DIR}/lib/"libggml*.a 2>/dev/null | sed 's|.*/|    |' >&2
+  exit 1
+fi
+if [[ ! -f "${DEPS_DIR}/lib/libggml-cpu.a" ]]; then
+  echo "ERROR: libggml-cpu.a missing - whisper has no CPU fallback path on ${RID}." >&2
+  exit 1
+fi
+echo "whisper: ggml backend verified present (${WHISPER_BACKEND})."
 WHISPER_PRIV="${WHISPER_GGML} ${WHISPER_SYS_LIBS}"
 
 # whisper.cpp installs no pkg-config file; hand-author one (as done for x265/vpl).

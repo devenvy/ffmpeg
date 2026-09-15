@@ -30,7 +30,16 @@ case "${RID}" in
     _tcroot="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt"
     # The NDK ships exactly one host prebuilt dir — linux-x86_64 / linux-aarch64 / darwin-x86_64
     # etc. Pick whichever is present so this works on any build/test host (x86 Linux, arm Linux, mac).
-    _tchost="$(ls "${_tcroot}" 2>/dev/null | head -1)"
+    # `|| true`, then an explicit check: under `set -euo pipefail` a failing `ls` here took the
+    # whole build down with a bare exit 2 and NO message at all, because callers source this
+    # file with stderr redirected. Name the problem instead of dying in silence.
+    _tchost="$(ls "${_tcroot}" 2>/dev/null | head -1 || true)"
+    [[ -n "${_tchost}" ]] || {
+      echo "ERROR: no host toolchain under ${_tcroot}" >&2
+      echo "  ANDROID_NDK_HOME=${ANDROID_NDK_HOME} does not look like an NDK (expected a" >&2
+      echo "  toolchains/llvm/prebuilt/<host> dir, e.g. linux-x86_64 or darwin-x86_64)." >&2
+      exit 1
+    }
     TOOLCHAIN="${_tcroot}/${_tchost}"
     # Per-arch NDK triple / ABI / FFmpeg arch. Everything else in this block — NDK
     # discovery, API level, MediaCodec, Vulkan, the whisper backend — is arch-independent.
@@ -57,7 +66,7 @@ case "${RID}" in
     # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     PKGS=(autoconf automake build-essential cmake curl gperf git libtool meson nasm ninja-build
           patchelf pkg-config xz-utils yasm
-          glslc glslang-tools)
+          glslc glslang-tools xxd)
     # Android 15+ devices may use 16 KB memory pages, and a library whose LOAD segments are
     # aligned to 4 KB cannot be loaded on them. Google requires 16 KB alignment for Play
     # Store submissions targeting Android 15+ (enforced since Nov 2025). Our libav*.so were

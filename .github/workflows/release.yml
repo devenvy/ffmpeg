@@ -34,6 +34,34 @@ jobs:
       versions: ${{ steps.plan.outputs.versions }}  # JSON: [version]
       any: ${{ steps.plan.outputs.any }}
     steps:
+      # actions/checkout has no retry input; its internal helper makes 3 attempts with a RANDOM
+      # 10-20s sleep between them, so roughly 20-40s of cover. A DNS or TLS blip longer than that
+      # kills the job before any of our code runs:
+      #   fatal: unable to access 'https://github.com/...': Could not resolve host: github.com
+      # The action cannot be wrapped: a local composite action needs the repo ALREADY checked out,
+      # and retry actions only wrap `run:` steps, not `uses:` steps. So wait for the host to be
+      # reachable BEFORE checkout, with the same exponential-with-jitter backoff the build scripts
+      # use (4, 8, 16, 32, 64s + jitter), and do NOT sleep after the final attempt -- nothing probes
+      # again afterwards. Worst case is ~2 minutes of sleep plus the probe timeouts.
+      # This never fails the job. If the host is still unreachable it warns and lets checkout run, so
+      # the real error is reported by the action rather than masked here.
+      - name: Wait for github.com to be reachable
+        shell: bash
+        run: |
+          command -v curl >/dev/null 2>&1 || { echo "curl unavailable - skipping reachability wait"; exit 0; }
+          delay=4
+          for i in 1 2 3 4 5 6; do
+            if curl -sSf -o /dev/null --max-time 10 "${GITHUB_SERVER_URL:-https://github.com}"; then
+              if [ "$i" -gt 1 ]; then echo "github.com reachable after attempt ${i}"; fi
+              exit 0
+            fi
+            if [ "$i" -eq 6 ]; then break; fi
+            s=$(( delay + (RANDOM % 5) ))
+            echo "github.com not reachable (attempt ${i}/6) - retrying in ${s}s" >&2
+            sleep "$s"
+            delay=$(( delay * 2 ))
+          done
+          echo "::warning::github.com still unreachable after 6 attempts; letting checkout try anyway"
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0  # full history for tag lookup
@@ -129,6 +157,34 @@ jobs:
       matrix:
         build: ${{ fromJson(needs.prepare.outputs.builds) }}
     steps:
+      # actions/checkout has no retry input; its internal helper makes 3 attempts with a RANDOM
+      # 10-20s sleep between them, so roughly 20-40s of cover. A DNS or TLS blip longer than that
+      # kills the job before any of our code runs:
+      #   fatal: unable to access 'https://github.com/...': Could not resolve host: github.com
+      # The action cannot be wrapped: a local composite action needs the repo ALREADY checked out,
+      # and retry actions only wrap `run:` steps, not `uses:` steps. So wait for the host to be
+      # reachable BEFORE checkout, with the same exponential-with-jitter backoff the build scripts
+      # use (4, 8, 16, 32, 64s + jitter), and do NOT sleep after the final attempt -- nothing probes
+      # again afterwards. Worst case is ~2 minutes of sleep plus the probe timeouts.
+      # This never fails the job. If the host is still unreachable it warns and lets checkout run, so
+      # the real error is reported by the action rather than masked here.
+      - name: Wait for github.com to be reachable
+        shell: bash
+        run: |
+          command -v curl >/dev/null 2>&1 || { echo "curl unavailable - skipping reachability wait"; exit 0; }
+          delay=4
+          for i in 1 2 3 4 5 6; do
+            if curl -sSf -o /dev/null --max-time 10 "${GITHUB_SERVER_URL:-https://github.com}"; then
+              if [ "$i" -gt 1 ]; then echo "github.com reachable after attempt ${i}"; fi
+              exit 0
+            fi
+            if [ "$i" -eq 6 ]; then break; fi
+            s=$(( delay + (RANDOM % 5) ))
+            echo "github.com not reachable (attempt ${i}/6) - retrying in ${s}s" >&2
+            sleep "$s"
+            delay=$(( delay * 2 ))
+          done
+          echo "::warning::github.com still unreachable after 6 attempts; letting checkout try anyway"
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
@@ -146,14 +202,38 @@ jobs:
           HIGHEST="$(jq -r '.ffmpeg[]' deps.json | sort -V | tail -1)"
           if [[ "${VERSION}" == "${HIGHEST}" ]]; then MARK_LATEST=true; else MARK_LATEST=false; fi
           echo "Highest tracked line: ${HIGHEST} — mark ${VERSION} as latest: ${MARK_LATEST}"
+          # Retry the network git operations. These run in workflow `run:` steps, so the
+          # retrying git() wrapper in scripts/lib.sh does not apply -- and a push that fails on a
+          # transient blip is not cosmetic here: a release would be tagged locally but never
+          # published, or an update PR branch would be committed and never pushed.
+          git_net() {
+            local n=1 delay=4 wait
+            while :; do
+              git "$@" && return 0
+              if [ "$n" -ge 5 ]; then
+                echo "::error::git $1 failed after $n attempts"; return 1
+              fi
+              wait=$(( delay + (RANDOM % 5) ))
+              echo "git $1 failed (attempt $n/5) - retrying in ${wait}s" >&2
+              sleep "$wait"
+              delay=$(( delay * 2 )); n=$(( n + 1 ))
+            done
+          }
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag "${TAG}"
-          git push origin "${TAG}"
+          git_net push origin "${TAG}"
+          # Created as a DRAFT and published by the `finalize` job once every asset AND the SHA256SUMS
+          # manifest are in place. Previously it went public immediately with the assets uploading
+          # afterwards, so any upload failure left a PUBLIC release -- possibly flagged `latest` --
+          # missing artifacts or its checksums, which consumers would then fetch. A draft is invisible
+          # until complete, and if a later job fails it simply stays a draft for a human to inspect.
+          # --latest moves to finalize as well: it is meaningless on a draft.
           gh release create "${TAG}" \
             --title "FFmpeg ${VERSION} (build ${TAG##*.})" \
             --generate-notes \
-            --latest="${MARK_LATEST}"
+            --draft
+          echo "${MARK_LATEST}" > mark-latest.txt
 
   publish:
     needs: [prepare, build, test, test-mobile, release]
@@ -327,11 +407,27 @@ jobs:
         run: |
           VERSION="${{ matrix.build.version }}"
           VARIANT="${{ matrix.rid }}-${{ matrix.license }}v${{ matrix.license_version }}"
-          gh release upload "${{ matrix.build.tag }}" \
-            "ffmpeg-${VERSION}-${VARIANT}.tar.gz" --clobber --repo "${{ github.repository }}"
+          # Asset upload is a mutable network operation against the API and had no retry, while every
+          # other network call in this repo now has one -- and this is the worst place to lack one: the
+          # release is already PUBLIC by the time these run, so a blip leaves a published release missing
+          # an artifact. --clobber makes the retry idempotent: a partially-uploaded asset is replaced,
+          # not duplicated.
+          upload_retry() { # <file>
+            local f="$1" try delay=4 wait
+            for try in 1 2 3 4 5 6; do
+              gh release upload "${{ matrix.build.tag }}" "${f}" --clobber \
+                --repo "${{ github.repository }}" && return 0
+              if [ "${try}" -eq 6 ]; then
+                echo "ERROR: gh release upload ${f} failed after 6 attempts" >&2; return 1
+              fi
+              wait=$(( delay + (RANDOM % 5) ))
+              echo "  upload of ${f} failed (attempt ${try}/6) - retrying in ${wait}s..." >&2
+              sleep "${wait}"; delay=$(( delay * 2 ))
+            done
+          }
+          upload_retry "ffmpeg-${VERSION}-${VARIANT}.tar.gz"
           if [ -f "ffmpeg-${VERSION}-${VARIANT}-dev.tar.gz" ]; then
-            gh release upload "${{ matrix.build.tag }}" \
-              "ffmpeg-${VERSION}-${VARIANT}-dev.tar.gz" --clobber --repo "${{ github.repository }}"
+            upload_retry "ffmpeg-${VERSION}-${VARIANT}-dev.tar.gz"
           fi
 
   publish-ios:
@@ -469,6 +565,34 @@ jobs:
       matrix:
         build: ${{ fromJson(needs.prepare.outputs.builds) }}
     steps:
+      # actions/checkout has no retry input; its internal helper makes 3 attempts with a RANDOM
+      # 10-20s sleep between them, so roughly 20-40s of cover. A DNS or TLS blip longer than that
+      # kills the job before any of our code runs:
+      #   fatal: unable to access 'https://github.com/...': Could not resolve host: github.com
+      # The action cannot be wrapped: a local composite action needs the repo ALREADY checked out,
+      # and retry actions only wrap `run:` steps, not `uses:` steps. So wait for the host to be
+      # reachable BEFORE checkout, with the same exponential-with-jitter backoff the build scripts
+      # use (4, 8, 16, 32, 64s + jitter), and do NOT sleep after the final attempt -- nothing probes
+      # again afterwards. Worst case is ~2 minutes of sleep plus the probe timeouts.
+      # This never fails the job. If the host is still unreachable it warns and lets checkout run, so
+      # the real error is reported by the action rather than masked here.
+      - name: Wait for github.com to be reachable
+        shell: bash
+        run: |
+          command -v curl >/dev/null 2>&1 || { echo "curl unavailable - skipping reachability wait"; exit 0; }
+          delay=4
+          for i in 1 2 3 4 5 6; do
+            if curl -sSf -o /dev/null --max-time 10 "${GITHUB_SERVER_URL:-https://github.com}"; then
+              if [ "$i" -gt 1 ]; then echo "github.com reachable after attempt ${i}"; fi
+              exit 0
+            fi
+            if [ "$i" -eq 6 ]; then break; fi
+            s=$(( delay + (RANDOM % 5) ))
+            echo "github.com not reachable (attempt ${i}/6) - retrying in ${s}s" >&2
+            sleep "$s"
+            delay=$(( delay * 2 ))
+          done
+          echo "::warning::github.com still unreachable after 6 attempts; letting checkout try anyway"
       - uses: actions/checkout@v7
 
       - name: Generate and upload SHA256SUMS
@@ -491,3 +615,49 @@ jobs:
         run: |
           echo "### SHA256SUMS generation FAILED for \`${{ matrix.build.tag }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "The release is published but has no checksum manifest. Re-run this job, or generate it locally with \`bash scripts/ci/gen-manifest.sh <tag> <repo>\` and upload it." >> "$GITHUB_STEP_SUMMARY"
+
+  # The release is created as a DRAFT by `release` and becomes visible only here -- after every
+  # asset (publish, publish-ios) and the SHA256SUMS manifest are attached. Before this job existed
+  # the release went public first and the assets followed, so any upload failure left a PUBLIC
+  # release, possibly badged `latest`, missing artifacts or checksums that consumers would fetch.
+  #
+  # If any earlier job fails, this one never runs and the release stays a draft: invisible,
+  # complete-or-nothing, and there for a human to inspect or delete.
+  #
+  # MARK_LATEST is recomputed from deps.json rather than passed through: `release` is a matrix job,
+  # so its outputs would be last-wins across lines, and deps.json is the same source of truth in
+  # both places.
+  finalize:
+    needs: [prepare, manifest]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false   # publish every line that made it; one line's failure must not hide another
+      matrix:
+        build: ${{ fromJson(needs.prepare.outputs.builds) }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Publish the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${{ matrix.build.version }}"
+          TAG="${{ matrix.build.tag }}"
+          # Only the HIGHEST tracked line gets GitHub's "Latest" badge -- a maintenance release on
+          # an older line must not steal it from the newest major. Same rule the draft was created
+          # under; --latest is only meaningful once the release is no longer a draft.
+          HIGHEST="$(jq -r '.ffmpeg[]' deps.json | sort -V | tail -1)"
+          if [[ "${VERSION}" == "${HIGHEST}" ]]; then MARK_LATEST=true; else MARK_LATEST=false; fi
+          echo "Publishing ${TAG} (latest=${MARK_LATEST})"
+          delay=4
+          for try in 1 2 3 4 5 6; do
+            gh release edit "${TAG}" --draft=false --latest="${MARK_LATEST}"               --repo "${{ github.repository }}" && exit 0
+            if [ "${try}" -eq 6 ]; then
+              echo "ERROR: could not publish ${TAG} after 6 attempts - it remains a draft" >&2
+              exit 1
+            fi
+            wait=$(( delay + (RANDOM % 5) ))
+            echo "  publish failed (attempt ${try}/6) - retrying in ${wait}s..." >&2
+            sleep "${wait}"; delay=$(( delay * 2 ))
+          done

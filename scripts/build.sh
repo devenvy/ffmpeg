@@ -61,8 +61,13 @@ mkdir -p "${WORK_DIR}" "${OUT_DIR}"
 ############################################
 S="${ROOT_DIR}/scripts/steps"
 . "${S}/02_configure.sh"          # per-RID toolchain, hwaccel flags, BUILD_* switches
-. "${S}/03_install_packages.sh"   # install host build packages (apt/apk/brew)
 . "${S}/04_select_license.sh"     # apply gpl/lgpl flag; lean iOS-simulator trims
+. "${S}/03_install_packages.sh"   # install host build packages (apt/apk/brew)
+# 04 BEFORE 03, deliberately. 04_select_license is pure flag logic -- no command substitution,
+# no external tool -- while 03 PROVISIONS tools based on those flags, and the v2 series clears
+# BUILD_VULKAN there. Run the other way round, every v2 cell still saw BUILD_VULKAN=1 and would
+# build shaderc/glslc from source for a build that then disables Vulkan entirely: wasted time on
+# a good day, and an extra way to fail on a bad one. Provisioning must see the FINAL state.
 . "${S}/05_write_toolchain.sh"    # deps dir + cross-compilation toolchain files
 . "${S}/06_build_libraries.sh"    # build third-party libraries (sources deps/*)
 . "${S}/07_build_ffmpeg.sh"       # download, configure, and build FFmpeg

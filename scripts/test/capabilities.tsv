@@ -1,0 +1,159 @@
+# Claimed-vs-present capability table.
+#
+# WHY THIS EXISTS. Every other check in this repo verifies INTENT: check_config greps the
+# configure line embedded in the binary, and gen-matrix.sh reads the BUILD_* flags. Both answer
+# "did we ask for it", never "did we get it". FFmpeg and the dependency build systems routinely
+# decline a request in silence:
+#
+#   - Vulkan filters need spirv_compiler (n9) / spirv_library (n8). A too-old glslc, or a missing
+#     --enable-libshaderc, disables them with no error. Every 8.1.2 artifact shipped with zero
+#     Vulkan filters, and four RIDs did on 9.0.1, through a fully green matrix.
+#   - libvmaf's meson marks xxd `required: false` and emits its built-in models only if found, so
+#     the filter registers and then cannot load its own default model.
+#
+# Each row asserts that a flag in the artifact's OWN configure string corresponds to something
+# actually registered in the binary. Expectations come from the artifact, so this needs no
+# per-RID upkeep: enable a library anywhere and it is checked there.
+#
+# FORMAT (tab-separated), five columns:
+#   configure-flag  ffmpeg-list-option  extended-regex  static-library  static-string
+# Lines starting with # and blank lines are ignored. An unused field is "-", never empty: TAB is
+# an IFS *whitespace* character, so bash's `read` collapses runs of it and adjacent empty fields
+# silently shift every later column left (measured: a row with two empty CLI fields parsed its
+# static-library name as the ffmpeg list-option).
+#
+# Columns 2-3 drive check_claimed_capabilities, which RUNS ffmpeg and greps a listing. That
+# covers only the RIDs whose binaries execute on a test runner (Linux, macOS, Windows).
+#
+# Columns 4-5 drive check_claimed_capabilities_static, for the cross-built slices that ship no
+# CLI (Android .so, iOS/Catalyst frameworks). Those were previously verified by INTENT ALONE --
+# which is precisely how android-arm64, ios-arm64 and maccatalyst each shipped --enable-vulkan
+# with zero Vulkan filters in 9.0.1.7 and 8.1.2.7. Column 4 names the library the component
+# registers in (avfilter / avcodec / avformat), column 5 the EXACT string to find there; "-"
+# means the row has no static equivalent (the hwaccels that are desktop-only). Matching is
+# exact-line: "scale" as a substring occurs 67 times in libavfilter.
+#
+# Keep the two sides consistent: a row's static-string should name the same component its
+# regex matches, so neither check can quietly drift from the other.
+#
+# KNOWN LIMITS of the static side, stated rather than papered over:
+#   - It proves a NAME is present in the library, not that the component is reachable through a
+#     registry. A literal could in principle come from option text or diagnostics rather than a
+#     registration entry.
+#   - It cannot tell an encoder from a decoder: both directions share one name, so a row naming
+#     libvpx is satisfied by either. The CLI side DOES distinguish (it queries -encoders or
+#     -decoders), so on the RIDs that can run ffmpeg the direction is still checked.
+#   - A name that is a suffix of another string is reported inconclusive rather than missing.
+# All three are why the CLI variant remains the stronger check and the static one exists only
+# for slices that ship no runnable binary. Closing them properly means verifying against a
+# runtime registry; tracked in the behavioural-verification issue, not faked here.
+# scale_vulkan specifically, NOT a loose /_vulkan/ match. A couple of Vulkan filters
+# (avgblur_vulkan, bwdif_vulkan) need no SPIR-V compiler and survive even when the shader
+# toolchain is missing, so a loose match passes a build that lost the other 16. Measured:
+# published 8.1.2 linux-x64 has 2 vulkan filters, 9.0.1 has 18. scale_vulkan is in the
+# SPIR-V-dependent set, so it is the honest canary.
+--enable-vulkan	-filters	scale_vulkan	avfilter	scale_vulkan
+--enable-libplacebo	-filters	libplacebo	avfilter	libplacebo
+--enable-libass	-filters	[[:space:]](subtitles|ass)[[:space:]]	avfilter	subtitles
+--enable-libfreetype	-filters	drawtext	avfilter	drawtext
+--enable-whisper	-filters	whisper	avfilter	whisper
+--enable-libvmaf	-filters	libvmaf	avfilter	libvmaf
+--enable-libx264	-encoders	libx264	avcodec	libx264
+--enable-libx265	-encoders	libx265	avcodec	libx265
+--enable-libkvazaar	-encoders	libkvazaar	avcodec	libkvazaar
+--enable-libvpx	-encoders	libvpx	avcodec	libvpx
+--enable-libaom	-encoders	libaom	avcodec	libaom
+--enable-libsvtav1	-encoders	libsvtav1	avcodec	libsvtav1
+--enable-libopus	-encoders	libopus	avcodec	libopus
+--enable-libmp3lame	-encoders	libmp3lame	avcodec	libmp3lame
+--enable-libvorbis	-encoders	libvorbis	avcodec	libvorbis
+--enable-libopenh264	-encoders	libopenh264	avcodec	libopenh264
+--enable-libwebp	-encoders	libwebp	avcodec	libwebp
+--enable-libjxl	-decoders	libjxl	avcodec	libjxl
+--enable-libopenjpeg	-encoders	libopenjpeg	avcodec	libopenjpeg
+--enable-libspeex	-decoders	libspeex	avcodec	libspeex
+--enable-libgsm	-decoders	libgsm	avcodec	libgsm
+# libsoxr registers NO filter, codec or format: it adds a resampler ENGINE to
+# libswresample. The old row asserted the `aresample` filter, which FFmpeg builds
+# unconditionally (its only dep is swresample) -- so that row passed on a build with no
+# libsoxr at all. Verified against the artifact: `-h full` is the only CLI evidence that
+# discriminates. No static equivalent: the engine name lives in libswresample, which the
+# static check does not map.
+--enable-libsoxr	-h full	select SoX Resampler	-	-
+--enable-libzimg	-filters	zscale	avfilter	zscale
+--enable-chromaprint	-muxers	chromaprint	avformat	chromaprint
+# libsrt has NO usable static marker: the protocol name "srt" also names FFmpeg's BUILT-IN
+# SubRip subtitle muxer/demuxer, whose strings are in the same libavformat. An exact-line
+# match therefore proves nothing about libsrt, and would pass on a build that lost the
+# protocol entirely. The CLI row (^[[:space:]]*srt$ against -protocols) stays, because a
+# protocol listing cannot be satisfied by a subtitle format.
+--enable-libsrt	-protocols	^[[:space:]]*srt$	-	-
+--enable-librist	-protocols	^[[:space:]]*rist$	avformat	rist
+--enable-libxml2	-demuxers	dash	avformat	dash
+--enable-vaapi	-hwaccels	vaapi	-	-
+--enable-nvdec	-hwaccels	cuda	-	-
+--enable-videotoolbox	-hwaccels	videotoolbox	avcodec	videotoolbox
+--enable-mediacodec	-hwaccels	mediacodec	avcodec	mediacodec
+--enable-d3d11va	-hwaccels	d3d11va	-	-
+--enable-dxva2	-hwaccels	dxva2	-	-
+# --- Sub-capabilities -------------------------------------------------------------------
+# A top-level stack can be enabled while individual codecs inside it are silently dropped:
+# FFmpeg probes NV_ENC_PIC_PARAMS_AV1, CUVIDAV1PICPARAMS and the VAAPI HEVC/AV1 structs
+# SEPARATELY from the stack itself, so an older header set yields a build with --enable-nvenc
+# and no AV1 NVENC. The rows above would not notice: they only assert the stack. Each row here
+# was MEASURED present in the published 9.0.1.7 artifacts of every RID that claims its flag
+# (linux-x64, linux-arm64, win-x64, android-arm64, osx-arm64, ios-arm64), so they are
+# regression guards, not aspirations.
+#
+# Deliberately NOT asserted: scale_vt. It needs VTPixelTransferSessionCreate, which Apple marks
+# available from macOS 10.8 but only iOS 16.0, while apple.sh builds iOS against
+# -miphoneos-version-min=13.0 -- so FFmpeg's configure probe cannot use it there. Measured
+# accordingly: present on osx-arm64, absent on ios-arm64, both claiming --enable-videotoolbox.
+# A deployment-target difference, not a silent loss, and this table has no per-RID scoping by
+# design (expectations come from the artifact's own configure line).
+--enable-nvenc	-encoders	hevc_nvenc	avcodec	hevc_nvenc
+--enable-nvenc	-encoders	av1_nvenc	avcodec	av1_nvenc
+--enable-cuvid	-decoders	av1_cuvid	avcodec	av1_cuvid
+--enable-vaapi	-encoders	hevc_vaapi	avcodec	hevc_vaapi
+--enable-vaapi	-filters	transpose_vaapi	avfilter	transpose_vaapi
+--enable-libvpl	-encoders	hevc_qsv	avcodec	hevc_qsv
+--enable-libvpl	-encoders	av1_qsv	avcodec	av1_qsv
+--enable-mediacodec	-decoders	hevc_mediacodec	avcodec	hevc_mediacodec
+--enable-videotoolbox	-encoders	hevc_videotoolbox	avcodec	hevc_videotoolbox
+# No CLI columns: measured on the artifact, ffmpeg lists no per-codec d3d11va entry under
+# -decoders (0 matches) and -hwaccels names only the stack. Static-only row.
+--enable-d3d11va	-	-	avcodec	hevc_d3d11va
+# --- Libraries that register a component but had no row ------------------------------------
+# Found by diffing every --enable- flag the build emits against everything any test actually
+# verifies. These seven register a named component, so they cost nothing but a table line.
+# Each was measured present in the published 9.0.1.7 artifact of a RID that claims its flag,
+# with no tail-merge ambiguity, before being added.
+#
+# NOT added, deliberately: zlib, lcms2, libdrm, fontconfig, fribidi, harfbuzz, cuda and
+# ffnvcodec register no component of their own -- they are support libraries whose effect is
+# only observable through another feature (libass's subtitles filter, the vaapi stack, ...).
+# A row naming one of them could only ever match something else, which is the false-confidence
+# this table exists to avoid.
+--enable-libdav1d	-decoders	libdav1d	avcodec	libdav1d
+--enable-libopencore-amrnb	-decoders	libopencore_amrnb	avcodec	libopencore_amrnb
+--enable-libopencore-amrwb	-decoders	libopencore_amrwb	avcodec	libopencore_amrwb
+--enable-libvo-amrwbenc	-encoders	libvo_amrwbenc	avcodec	libvo_amrwbenc
+--enable-audiotoolbox	-encoders	aac_at	avcodec	aac_at
+--enable-mediafoundation	-encoders	h264_mf	avcodec	h264_mf
+--enable-v4l2-m2m	-encoders	h264_v4l2m2m	avcodec	h264_v4l2m2m
+# --- Hardware sub-capabilities that no GPU is needed to verify -----------------------------
+# The hw stacks are the likeliest thing to break, and CI runners have no GPU -- but the likelier
+# HALF of that risk needs no GPU at all. FFmpeg probes NV_ENC_PIC_PARAMS_AV1, CUVIDAV1PICPARAMS
+# and the VAAPI HEVC/AV1 structs SEPARATELY from the stack, so a newer/older SDK header yields
+# --enable-nvenc (or vaapi, or amf) with the AV1 entry point quietly gone. That is a build-time
+# drop, visible in the registry, and these rows catch it.
+#
+# The AV1 entries are the fragile ones (newest, most SDK-gated). AMF had NO row of any kind, so
+# h264_amf anchors the stack itself. Whether a GPU actually encodes is a different question and
+# genuinely needs hardware -- tracked separately, not faked here.
+#
+# All measured present in published 9.0.1.7 artifacts of the RIDs that claim each flag.
+--enable-amf	-encoders	h264_amf	avcodec	h264_amf
+--enable-amf	-encoders	av1_amf	avcodec	av1_amf
+--enable-vaapi	-encoders	av1_vaapi	avcodec	av1_vaapi
+--enable-mediacodec	-decoders	av1_mediacodec	avcodec	av1_mediacodec

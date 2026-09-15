@@ -211,6 +211,33 @@ if [[ "${RID}" == linux-musl-* ]]; then
   echo "musl: EXTRA_LIBS carries no dynamic C++ runtime."
 fi
 
+# musl: pull the unwinder from the STATIC libgcc, last on the link line.
+#
+# Measured in the branch build: libavutil, libavcodec and libswscale come out with ZERO libgcc
+# references -- -static-libgcc works for them -- while libavformat (13) and libavfilter (24) keep
+# VERSIONED references like _Unwind_Resume@GCC_3.0, _Unwind_GetIPInfo@GCC_4.2.0, __multf3@GCC_3.0.
+# The split is exactly the libraries whose C++ dependencies actually throw.
+#
+# A versioned reference can only be satisfied by a SHARED library carrying that version node;
+# libgcc_eh.a exports the same symbols unversioned, so once a reference is bound to @GCC_3.0 no
+# static archive can satisfy it and libgcc_s.so.1 becomes a hard runtime dependency.
+#
+# Why it happens: FFmpeg links its DSOs with LD=gcc, not g++. The C driver honours -static-libgcc
+# for libgcc itself but does not add libgcc_eh.a, where the unwinder lives -- so the _Unwind_*
+# references fall through to the shared libgcc and pick up its version tags. Libraries with no C++
+# exception handling never reach that path, which is precisely the clean/dirty split above.
+#
+# EXTRA_LIBS becomes FFmpeg's EXTRALIBS, appended at the very END of the link line, which is where
+# archives must sit to satisfy references from objects scanned earlier.
+#
+# Verified harmless on glibc (identical clean result with and without). It could NOT be verified
+# locally for Alpine -- no Alpine or docker available here -- so CI is the test. If it does not
+# work, the staging guard fails the build rather than shipping something that cannot start.
+if [[ "${RID}" == linux-musl-* ]]; then
+  EXTRA_LIBS="${EXTRA_LIBS:-} -l:libgcc_eh.a -l:libgcc.a"
+  echo "musl: appended static libgcc archives for the unwinder (${EXTRA_LIBS})"
+fi
+
 echo "Configuring FFmpeg..."
 # On failure configure just prints "<lib> not found" and points at ffbuild/config.log,
 # which never leaves the runner. Without the log a failed probe is indistinguishable

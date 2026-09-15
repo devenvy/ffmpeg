@@ -162,7 +162,7 @@ _16 of 23 built._
 | V4L2-M2M |  | ✓ | ✓ | ✓ | — | ✓ | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
 | VAAPI | 2.24.1 | ✓ | ✓ | — | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
 | VideoToolbox |  | n/a | n/a | n/a | n/a | n/a | n/a | n/a | ✓ | ✓ | n/a | n/a | ✓ | ✓ | ✓ | ✓ |
-| Vulkan (FFmpeg filters; whisper GPU only where the backend is Vulkan) | vulkan-sdk-1.4.357.0 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Vulkan (FFmpeg filters; whisper GPU only where the backend is Vulkan) | vulkan-sdk-1.4.357.0 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | — | ✓ | ✓ |
 | CUDA (LLVM/NVVM) |  | — | — | — | — | — | — | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
 | D3D12VA[^d3d12] |  | n/a | n/a | n/a | n/a | n/a | — | — | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
 | MMAL (Raspberry Pi) |  | — | — | — | — | — | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
@@ -179,7 +179,7 @@ _5 of 23 built._
 | JNI (Android bridge) |  | — | — | — | — | — | — | — | — | — | ✓ | ✓ | — | — | — | — |
 | libxml2 — DASH/IMF parse | v2.15.4 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | MediaCodec (Android) |  | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | ✓ | ✓ | n/a | n/a | n/a | n/a |
-| Vulkan (static ICD) | v1.4.2 | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | ✓ | ✓ | ✓ | ✓ |
+| Vulkan (static ICD) | v1.4.2 | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | ✓ | n/a | ✓ | ✓ |
 | zlib — deflate (matroska, png, http) | v1.3.2 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | AviSynth — frameserver (GPL) |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
 | FireWire capture |  | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |

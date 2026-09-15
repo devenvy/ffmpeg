@@ -783,7 +783,7 @@ run_functional() {
   # signal, and ">/dev/null 2>&1" reduced a missing-DLL load failure to "does not run" with no
   # hint which library was absent. On Windows a failed module load prints nothing at all, so the
   # exit status carries the diagnosis (0xC0000135 / 3221225781 = STATUS_DLL_NOT_FOUND).
-  local vout vrc
+  local vout vrc prc pout
   vout="$("${RUNNER[@]}" "$FFMPEG" -hide_banner -version 2>&1)"; vrc=$?
   if [ "$vrc" -eq 0 ]; then
     pass "ffmpeg runs ($(head -1 <<<"$vout"))"
@@ -791,8 +791,20 @@ run_functional() {
     fail "ffmpeg does not run under [${RUNNER[*]:-native}] (exit ${vrc}): $(tr '\n' ' ' <<<"$vout" | cut -c1-300) — skipping remaining functional checks"
     return
   fi
-  "${RUNNER[@]}" "$FFPROBE" -hide_banner -version >/dev/null 2>&1 \
-    && pass "ffprobe runs" || fail "ffprobe does not run"
+  # Report WHY, like the ffmpeg check directly above. This discarded stdout and stderr and said
+  # only "ffprobe does not run" -- useless, because ffmpeg had just run fine from the same
+  # directory against the same libraries, so the difference was the whole story and the check
+  # threw it away. A check that cannot say why it failed is the pattern this branch exists to
+  # remove; it should not survive inside the suite that enforces it.
+  prc=0
+  pout="$("${RUNNER[@]}" "$FFPROBE" -hide_banner -version 2>&1)" || prc=$?
+  if [ "${prc}" -eq 0 ]; then
+    pass "ffprobe runs ($(head -1 <<<"$pout"))"
+  else
+    fail "ffprobe does not run under [${RUNNER[*]:-native}] (exit ${prc}): $(tr '\n' " " <<<"$pout" | cut -c1-300)"
+    [ -e "$FFPROBE" ] || fail "  ...and $FFPROBE does not exist"
+    [ -x "$FFPROBE" ] || fail "  ...and $FFPROBE is not executable"
+  fi
 
   # Capture enumerations to variables first: piping straight into `grep -q`
   # makes grep close the pipe on first match, ffmpeg takes SIGPIPE, and

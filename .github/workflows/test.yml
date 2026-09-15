@@ -80,12 +80,19 @@ jobs:
     steps:
       - name: Bootstrap Alpine container
         if: matrix.container
-        # file: arch check. binutils: nm for symbol checks. libstdc++/libgcc: whisper's
-        # C++ runtime, which the (shared) libav* link — a standard runtime dep present on
-        # any real musl host (`apk add libstdc++ libgcc`), not something we can avoid.
+        # file: arch check. binutils: nm/strings for symbol and capability checks.
+        # patchelf: the musl C++ runtime invariant below is verified with it, and without it
+        # that check fails loudly rather than being skipped.
+        # libstdc++/libgcc are installed for the TEST HOST only, and deliberately NOT because
+        # the artifact needs them: the artifact links the C++ runtime statically and must run on
+        # a bare Alpine image with nothing installed -- scripts/test/linux.sh asserts exactly
+        # that. They are here so the container can build and run the smoke program. (This
+        # comment previously said they were "a standard runtime dep ... not something we can
+        # avoid", which was true of the artifacts as published and is the very thing this
+        # branch fixed.)
         # curl: fetch the (now mandatory) whisper model — Alpine has no curl by default, and
         # its absence previously made the model download silently fail (whisper skipped).
-        run: apk add --no-cache bash git file binutils libstdc++ libgcc curl build-base
+        run: apk add --no-cache bash git file binutils libstdc++ libgcc curl build-base patchelf
 
       # actions/checkout has no retry input; its internal helper makes 3 attempts with a RANDOM
       # 10-20s sleep between them, so roughly 20-40s of cover. A DNS or TLS blip longer than that
@@ -238,7 +245,7 @@ jobs:
             docker run --rm -v "${PWD}:/work" -w /work \
               -e BUILD_RID -e WHISPER_MODEL \
               "${_img}" \
-              sh -c 'apk add --no-cache bash git file binutils libstdc++ libgcc curl build-base && chmod +x scripts/test.sh scripts/test/*.sh && bash scripts/test.sh "${BUILD_RID}" "artifacts/${BUILD_RID}/native"'
+              sh -c 'apk add --no-cache bash git file binutils libstdc++ libgcc curl build-base patchelf && chmod +x scripts/test.sh scripts/test/*.sh && bash scripts/test.sh "${BUILD_RID}" "artifacts/${BUILD_RID}/native"'
           else
             bash scripts/test.sh "${BUILD_RID}" "artifacts/${BUILD_RID}/native"
           fi

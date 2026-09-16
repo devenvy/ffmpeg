@@ -11,6 +11,11 @@ on:
       - deps.json             # the ledger — FFmpeg version bumps (.ffmpeg) AND library bumps (incl. merged Renovate PRs)
       - 'scripts/**'          # a build-recipe/logic change (incl. a dep build-SCRIPT fix) → all lines
       - '!scripts/test/**'    # ...except test-only changes, which don't affect artifacts
+      # ...and except the CI validators, for the same reason. Narrow on purpose: scripts/ci also
+      # holds gen-manifest.sh, select-versions.sh and impacted-versions.sh, which the release DOES
+      # run, so only the *-test.sh validators are excluded. Without this, editing a test that
+      # merely reads a config rebuilds 15 RIDs x 4 cells x 2 FFmpeg lines for no artifact change.
+      - '!scripts/ci/*-test.sh'
   workflow_dispatch:
     inputs:
       versions:

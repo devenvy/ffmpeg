@@ -184,6 +184,32 @@ check_symbol() {
   fi
 }
 
+# check_symbol_absent <lib> <symbol>  — symbol is NOT exported. The negative counterpart to
+# check_symbol, for proving a capability we deliberately DROPPED really is gone rather than
+# merely unclaimed in the configure string.
+#
+# Absence is only provable when the symbol table was actually readable. Empty nm output means
+# "could not determine", NOT "no symbols" — treating those as the same thing is how a broken
+# artifact once shipped green. So this reports inconclusive unless nm produced a listing that
+# demonstrably contains other symbols.
+check_symbol_absent() {
+  local f="$1" s="$2" syms
+  if [ -z "$NM" ]; then _tool_missing "symbol-absent check ($s): no nm/llvm-nm available"; return; fi
+  if [ ! -e "$f" ]; then fail "missing: $f"; return 1; fi
+  local re="(^|[^A-Za-z0-9_])_?${s}([^A-Za-z0-9_]|\$)"
+  syms="$(${NM} -D --defined-only "$f" 2>/dev/null)"
+  # Fall back to the non-dynamic table when the dynamic one yielded nothing at all, so that a
+  # library whose exports live only in the static table is judged on real data either way.
+  [ -n "$syms" ] || syms="$(${NM} --defined-only "$f" 2>/dev/null)"
+  if [ -z "$syms" ]; then
+    skip "symbol-absent: $(basename "$f") — nm listed nothing, cannot prove $s is absent"
+  elif grep -qE "$re" <<<"$syms"; then
+    fail "symbol: $(basename "$f") exports $s but this cell must not provide it"
+  else
+    pass "symbol: $(basename "$f") does not export $s (correct: not built for this cell)"
+  fi
+}
+
 # check_pe_export <dll> <symbol>  — verify a Windows PE DLL exports <symbol>. nm/llvm-nm read the
 # symbol table, NOT the PE export table, so they can't see DLL exports; use a PE-aware reader instead:
 # llvm-readobj (--coff-exports), objdump (-p), or dumpbin (-exports) — whichever the runner has.

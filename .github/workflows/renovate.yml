@@ -130,6 +130,11 @@ jobs:
         env:
           RENOVATE_REPOSITORIES: ${{ github.repository }}
           RENOVATE_AUTODISCOVER: "false"
+          # Was `"onboarding": false` in renovate.json. That file is passed as configurationFile
+          # (Renovate's GLOBAL config) AND read from the default branch as the REPO config, so the
+          # option took effect globally while the repo-config pass rejected it every run. Setting
+          # it as env keeps the intent in the layer it belongs to, with no Configuration Error.
+          RENOVATE_ONBOARDING: "false"
           RENOVATE_DRY_RUN: ${{ inputs.dryRun && 'full' || null }}
           LOG_LEVEL: info
       # Renovate exits 0 whether it opened every PR or silently discarded all of them, so this

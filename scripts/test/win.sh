@@ -7,6 +7,12 @@ RID="${1:?usage: win.sh <rid> <artifact-native-dir>}"
 DIR="${2:?usage: win.sh <rid> <artifact-native-dir>}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # llvm-readobj reads PE export tables (nm cannot) and ships with the preinstalled LLVM on the
+# GitHub Windows runners. The three audits below use _tool_missing, so its absence FAILS in CI
+# and only degrades to a skip on a developer machine. They previously downgraded to info/skip
+# unconditionally -- meaning the runtime-DLL, Vulkan-hard-import and import-library-architecture
+# audits would all have gone quietly green if the runner image ever stopped shipping it. Those
+# are exactly the checks that caught the undeployable Windows artifact, so silence is the one
+# outcome they must not have.
 # Windows runner; put it on PATH so check_pe_export can verify DLL exports. No-op elsewhere.
 [ -d "/c/Program Files/LLVM/bin" ] && export PATH="/c/Program Files/LLVM/bin:${PATH}"
 . "${HERE}/lib.sh"
@@ -37,7 +43,7 @@ check_arch "${DIR}/ffmpeg.exe" "$ARCH_RE"
 # Assert it structurally instead, so the failure names the offending DLL.
 audit_runtime_dll_imports() {
   local f imp bad=""
-  command -v llvm-readobj >/dev/null 2>&1 || { info "llvm-readobj unavailable — skipping DLL-import audit"; return; }
+  command -v llvm-readobj >/dev/null 2>&1 || { _tool_missing "llvm-readobj unavailable - cannot audit DLL imports"; return; }
   for f in "${DIR}"/*.dll "${DIR}"/*.exe; do
     [ -f "$f" ] || continue
     while read -r imp; do
@@ -63,7 +69,7 @@ audit_runtime_dll_imports
 # past every other check we had.
 audit_no_vulkan_hard_import() {
   local f bad=""
-  command -v llvm-readobj >/dev/null 2>&1 || { skip "llvm-readobj unavailable - cannot audit Vulkan imports"; return; }
+  command -v llvm-readobj >/dev/null 2>&1 || { _tool_missing "llvm-readobj unavailable - cannot audit Vulkan imports"; return; }
   for f in "${DIR}"/*.dll "${DIR}"/*.exe; do
     [ -f "$f" ] || continue
     if llvm-readobj --coff-imports "$f" 2>/dev/null \
@@ -95,7 +101,7 @@ audit_import_lib_arch() {
     win-arm64) want="IMAGE_FILE_MACHINE_ARM64" ;;
     *) return ;;
   esac
-  command -v llvm-readobj >/dev/null 2>&1 || { info "llvm-readobj unavailable — skipping import-lib arch audit"; return; }
+  command -v llvm-readobj >/dev/null 2>&1 || { _tool_missing "llvm-readobj unavailable - cannot audit import-library arch"; return; }
   for f in "${DIR}"/lib/*.lib; do
     [ -f "$f" ] || continue
     m="$(llvm-readobj --file-headers "$f" 2>/dev/null | grep -m1 -oE 'IMAGE_FILE_MACHINE_[A-Z0-9]+')"
@@ -151,7 +157,7 @@ check_config "--enable-whisper" "Whisper ASR filter"
 check_config "--enable-mediafoundation" "MediaFoundation"
 check_config "--enable-d3d11va" "D3D11VA"
 check_tls
-check_license_boundary
+check_license_boundary "${DIR}"
 check_pkgconfig "${DIR}"
 
 FFMPEG="$(ls "${DIR}"/ffmpeg.exe 2>/dev/null)"; FFPROBE="$(ls "${DIR}"/ffprobe.exe 2>/dev/null)"; export FFMPEG FFPROBE  # consumed by run_functional (sourced lib.sh)
@@ -167,5 +173,13 @@ else
   # reaching here (not Windows, no Wine) is a real capability gap that must fail, not skip.
   fail "functional suite: cannot execute ${RID} target — not on Windows and no Wine (refusing to skip)"
 fi
+
+# Runs AFTER the functional suite, not before: this check ASKS THE BINARY what it registered,
+# so it needs FFMPEG and RUNNER established. It used to sit up with the structural checks,
+# where FFMPEG was still unset and every claimed capability read as missing.
+check_claimed_capabilities
+# ...and the static variant on the same artifact, so rows with no CLI form are covered here
+# too (ffmpeg lists no per-codec d3d11va entry, so hevc_d3d11va is static-only).
+check_claimed_capabilities_in_dir "${DIR}"
 
 finish

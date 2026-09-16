@@ -133,6 +133,39 @@ ta' "$pc"
   done
 fi
 
+# ── Patch pkg-config for the musl static C++ runtime ─────────────────────
+# Same problem as Windows above, different symptom. Dependency .pc files declare -lstdc++ in
+# Libs/Libs.private -- openh264, libass and others are C++ -- so FFmpeg's link resolves the
+# SHARED libstdc++ no matter what whisper's own link line says. Setting -l:libstdc++.a in
+# WHISPER_SYS_LIBS was NOT enough: it only covers whisper's contribution, and staging then
+# refuses the artifact because a base Alpine image has no libstdc++.so.6:
+#   ERROR: libavcodec.so.62.28.102 depends on a host C++ runtime: libstdc++.so.6
+# Rewrite the runtime in every .pc, exactly the way win-arm64 does for libc++ above. Not the
+# -Bstatic wrap used for mingw-w64: that leaves the shared/static choice to link order, and
+# here we want the archive named outright.
+if [[ "${RID}" == linux-musl-* ]]; then
+  echo "Patching pkg-config files for static libstdc++ (musl)..."
+  for pc in "${DEPS_DIR}"/lib/pkgconfig/*.pc; do
+    [ -f "$pc" ] || continue
+    # Strip -lgcc_s first, exactly as the Windows block above does and for the same reason: SRT's
+    # srt.pc over-captures the compiler's implicit link line into Libs.private. An explicit -lgcc_s
+    # DEFEATS -static-libgcc -- the linker resolves the unwinder against the SHARED libgcc and stamps
+    # the references with its version tags, and a versioned reference can never afterwards be
+    # satisfied by an archive. Proven in an alpine:latest container:
+    #     without -lgcc_s : DT_NEEDED libgcc_s = 0, versioned undefined = 0
+    #     with    -lgcc_s : DT_NEEDED libgcc_s = 1, versioned undefined = 3
+    #                       (_Unwind_Resume@GCC_3.0, __register_frame_info@GCC_3.0, ...)
+    # which is exactly the symbol pattern the musl artifacts carried. Only libavformat and
+    # libavfilter were affected, because they are the DSOs whose C++ dependencies actually throw;
+    # libavutil, libavcodec and libswscale never need the unwinder and were already clean.
+    sed -i -e 's/ -lgcc_s / /g' -e 's/ -lgcc_s$//' "$pc"
+    # Loop (:a/ta) because a plain /g skips the second of two adjacent matches sharing a space.
+    sed -i -E ':a
+s/(^|[[:space:]])-lstdc\+\+([[:space:]]|$)/\1-l:libstdc++.a\2/
+ta' "$pc"
+  done
+fi
+
 # ── Configure & Build ─────────────────────────────────────────────────────
 
 cd "${SRC_DIR}" || exit 1
@@ -170,14 +203,40 @@ CONFIGURE_CMD=(
   ${EXTRA_LIBS:+--extra-libs="${EXTRA_LIBS}"}
 )
 
+# musl artifacts must not link the SHARED C++ runtime. Alpine ships neither libstdc++.so.6 nor
+# libgcc_s.so.1, so a bare `-lstdc++` anywhere in EXTRA_LIBS puts both into DT_NEEDED and the
+# artifact cannot start. 08_stage_artifacts catches that after the fact; catching it HERE names
+# the cause (a dependency that fell back to the dynamic default) instead of the symptom.
+#
+# This is the check that would have caught the real thing: five C++ deps read
+# ${CXX_RT_LIB--lstdc++} and CXX_RT_LIB was set for win-arm64 only, so musl silently linked
+# EXTRALIBS="-lm -lstdc++ -lstdc++ -lstdc++ -lstdc++".
+if [[ "${RID}" == linux-musl-* ]]; then
+  if grep -qE '(^| )-lstdc\+\+( |$)' <<<" ${EXTRA_LIBS:-} "; then
+    echo "ERROR: ${RID} would link the SHARED C++ runtime (-lstdc++ in EXTRA_LIBS)." >&2
+    echo "  Alpine ships no libstdc++.so.6 or libgcc_s.so.1, so the artifact would not start." >&2
+    echo "  EXTRA_LIBS: ${EXTRA_LIBS}" >&2
+    echo "  Every C++ dep must use \${CXX_RT_LIB--lstdc++}, and platform/linux.sh must set" >&2
+    echo "  CXX_RT_LIB=-l:libstdc++.a for the musl RIDs." >&2
+    exit 1
+  fi
+  echo "musl: EXTRA_LIBS carries no dynamic C++ runtime."
+fi
+
 echo "Configuring FFmpeg..."
 # On failure configure just prints "<lib> not found" and points at ffbuild/config.log,
 # which never leaves the runner. Without the log a failed probe is indistinguishable
 # from a missing .pc, a bad version or a broken link line, so diagnosing one costs a
 # full CI round-trip per guess. Dump the tail -- it ends with the failing command and
 # the linker's actual error -- and keep configure's exit status.
-if ! "${CONFIGURE_CMD[@]}"; then
-  rc=$?
+# NOT `if ! "${CONFIGURE_CMD[@]}"`: inside a negated test, $? is the status of the NEGATION,
+# which is 0 precisely when the command failed. `rc=$?` therefore captured 0 and `exit "${rc}"`
+# below exited SUCCESSFULLY on a failed configure -- ending the build with status 0, before
+# compile, staging or verification, so the job reported success and simply produced nothing.
+# Capture the status from the command itself instead.
+rc=0
+"${CONFIGURE_CMD[@]}" || rc=$?
+if [ "${rc}" -ne 0 ]; then
   if [ -f ffbuild/config.log ]; then
     # 120 lines proved too small twice: configure keeps probing OPTIONAL features after the
     # one that will ultimately fail, so the decisive probe scrolls off the tail. Dump more,

@@ -14,6 +14,8 @@ corresponding source for the FFmpeg libraries in this build, as required by the
 GNU @LICENSE@. Everything is public; no request to the distributor is necessary
 to obtain it.
 
-The bundled libraries and their versions/licenses are listed in that build
-script, and the applicable license texts accompany this notice in the legal/
-folder. GPL builds additionally include the x264 and x265 software encoders.
+Every bundled library, with the exact version and upstream origin used for this
+build, is recorded in that repository's deps.json. Each library's own license text
+accompanies this notice under legal/licenses/<library>/, alongside the governing
+license text for this build's cell. GPL builds additionally include the x264 and
+x265 software encoders.

@@ -115,6 +115,27 @@ git() {
   command git "$@"
 }
 
+# -- Helper: resolve a python interpreter that actually RUNS ---------------
+# `command -v python3` answers "is something named python3 on PATH", not "does it work" -- the
+# same intent-vs-reality gap this repo's capability checks exist to close. On Windows, python3 is
+# usually a Microsoft Store alias stub: it resolves, then exits 49 with a "not found, install from
+# the Store" message. A script that trusts `command -v` dies later with that message instead of a
+# usable error. Probe by EXECUTING the interpreter, and prefer python3 over python.
+# Echoes the interpreter name; returns 1 (and says why) when neither works.
+resolve_python() {
+  local _py
+  for _py in python3 python; do
+    if command -v "${_py}" >/dev/null 2>&1 && "${_py}" -c 'import sys' >/dev/null 2>&1; then
+      printf '%s
+' "${_py}"; return 0
+    fi
+  done
+  echo "ERROR: no working python3/python on PATH (a name that resolves but fails to run, such as" >&2
+  echo "  the Windows Store 'python3' alias stub, does not count)." >&2
+  return 1
+}
+
+
 # ── Helper: build a CMake-based static dependency ─────────────────────────
 
 build_cmake_dep() {
@@ -128,7 +149,29 @@ build_cmake_dep() {
   # (google/highway has a Bazel `BUILD` file) that clashes with a `build` dir on macOS/iOS's
   # case-insensitive filesystem — cmake then fails ("Unable to (re)create ... pkgRedirects").
   # "_build" avoids that, and also never reuses a `build/` dir a project might vendor.
+  # CMAKE_BUILD_TYPE=Release. Without a build type, a single-configuration generator leaves the
+  # project at its own empty/default configuration, which for most of the dependencies built
+  # through this helper (freetype, chromaprint, libjxl, libpng, OpenJPEG, Opus, SRT, soxr, …)
+  # means no optimisation flags at all. A caller that passes its own -DCMAKE_BUILD_TYPE still
+  # wins, since CMake takes the last value on the command line and "$@" is appended after this.
+  #
+  # Be clear about what Release actually does: for GCC/Clang, CMake's Release configuration is
+  # `-O3 -DNDEBUG`, so this DOES disable assert() in the 14 dependencies built through this
+  # helper. That is the normal configuration for shipped release artifacts and is what these
+  # projects are tested in, but it is a behaviour change, not merely an optimisation level --
+  # an earlier version of this comment claimed otherwise and was wrong.
+  #
+  # Scope: this covers the CMake-built dependencies only -- which does include codec libraries
+  # such as AOM, SVT-AV1, Opus, WebP and libjxl. The autotools/Meson-built ones are untouched and
+  # keep their own defaults (dav1d builds Meson release with b_ndebug=if-release, libvpx's
+  # configure adds -O3 -DNDEBUG itself, x264 stays as its configure leaves it). Several of the
+  # CMake ones already default to Release on their own (AOM, x265); this makes the choice
+  # explicit and uniform rather than depending on each project's default. That matches BtbN,
+  # which sets Release per project rather than relying on defaults. If a dependency ever needs
+  # assertions kept, it can pass its own -DCMAKE_BUILD_TYPE or explicit per-configuration flags,
+  # which win by being later on the command line.
   cmake -B _build \
+    -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX="${DEPS_DIR}" \
     -DCMAKE_INSTALL_LIBDIR=lib \
     -DCMAKE_PREFIX_PATH="${DEPS_DIR}" \

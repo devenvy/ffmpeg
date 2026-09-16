@@ -51,6 +51,12 @@ finish() {
 # --- tool resolution (prefer llvm-* which are always foreign-arch capable) ----
 NM="$(command -v llvm-nm || command -v nm || true)"
 READELF="$(command -v llvm-readelf || command -v readelf || true)"
+# STRINGS follows NM/READELF: prefer the LLVM tool, which reads ELF, Mach-O and PE regardless of
+# host. check_claimed_capabilities_static reads cross-built libraries, so the host's own binutils
+# may not understand the target format -- today android-* tests land on ubuntu and ios/catalyst on
+# macOS, so plain strings would do, but that is a property of the runner matrix, not of the check.
+# android.sh already puts the NDK's llvm-* on PATH ahead of this for the same reason.
+STRINGS="$(command -v llvm-strings || command -v strings || true)"
 
 # --- structural helpers -------------------------------------------------------
 
@@ -164,12 +170,43 @@ check_symbol() {
   # (e.g. _avcodec_version), ELF does not. A pattern beats `grep -w`, whose word
   # boundary treats the leading '_' as part of the token and misses it.
   local re="(^|[^A-Za-z0-9_])_?${s}([^A-Za-z0-9_]|\$)"
+  # --defined-only on BOTH passes. The fallback used to drop it, so a plain `nm` listing --
+  # which includes UNDEFINED symbols -- would satisfy the match. That turns "this library
+  # provides X" into "this library mentions X", and a capability that was never built but is
+  # merely referenced would pass. The second pass exists only because some objects need the
+  # non-dynamic table (-D misses static archives), not to relax what counts as present.
   syms="$(${NM} -D --defined-only "$f" 2>/dev/null)"
-  grep -qE "$re" <<<"$syms" || syms="$(${NM} "$f" 2>/dev/null)"
+  grep -qE "$re" <<<"$syms" || syms="$(${NM} --defined-only "$f" 2>/dev/null)"
   if grep -qE "$re" <<<"$syms"; then
     pass "symbol: $(basename "$f") exports $s"
   else
     fail "symbol: $(basename "$f") missing $s"
+  fi
+}
+
+# check_symbol_absent <lib> <symbol>  — symbol is NOT exported. The negative counterpart to
+# check_symbol, for proving a capability we deliberately DROPPED really is gone rather than
+# merely unclaimed in the configure string.
+#
+# Absence is only provable when the symbol table was actually readable. Empty nm output means
+# "could not determine", NOT "no symbols" — treating those as the same thing is how a broken
+# artifact once shipped green. So this reports inconclusive unless nm produced a listing that
+# demonstrably contains other symbols.
+check_symbol_absent() {
+  local f="$1" s="$2" syms
+  if [ -z "$NM" ]; then _tool_missing "symbol-absent check ($s): no nm/llvm-nm available"; return; fi
+  if [ ! -e "$f" ]; then fail "missing: $f"; return 1; fi
+  local re="(^|[^A-Za-z0-9_])_?${s}([^A-Za-z0-9_]|\$)"
+  syms="$(${NM} -D --defined-only "$f" 2>/dev/null)"
+  # Fall back to the non-dynamic table when the dynamic one yielded nothing at all, so that a
+  # library whose exports live only in the static table is judged on real data either way.
+  [ -n "$syms" ] || syms="$(${NM} --defined-only "$f" 2>/dev/null)"
+  if [ -z "$syms" ]; then
+    skip "symbol-absent: $(basename "$f") — nm listed nothing, cannot prove $s is absent"
+  elif grep -qE "$re" <<<"$syms"; then
+    fail "symbol: $(basename "$f") exports $s but this cell must not provide it"
+  else
+    pass "symbol: $(basename "$f") does not export $s (correct: not built for this cell)"
   fi
 }
 
@@ -236,16 +273,25 @@ load_config_string() {
 check_config() {
   local flag="$1" label="${2:-$1}"
   if [ -z "$CONFIG_STR" ]; then fail "config check ($label): no embedded config string — artifact unreadable"; return; fi
-  if grep -q -- " ${flag}\b" <<<" ${CONFIG_STR} "; then pass "configured: ${label} (${flag})"
-  else fail "not configured: ${label} (${flag})"; fi
+  # Whole-token match, not \b: in a configure string the flags are space-separated, and \b
+  # matches at a "-" boundary -- so " --enable-vulkan\b" was satisfied by --enable-vulkan-static,
+  # meaning a check for the bare flag passed on a build that only had the variant. Match
+  # space-delimited tokens, exactly how check_claimed_capabilities reads them.
+  case " ${CONFIG_STR} " in
+    *" ${flag} "*) pass "configured: ${label} (${flag})" ;;
+    *)             fail "not configured: ${label} (${flag})" ;;
+  esac
 }
 
 # check_config_absent <flag> <label>  — the build must NOT have <flag> (license gate).
 check_config_absent() {
   local flag="$1" label="${2:-$1}"
   if [ -z "$CONFIG_STR" ]; then fail "config check ($label): no embedded config string — artifact unreadable"; return; fi
-  if grep -q -- " ${flag}\b" <<<" ${CONFIG_STR} "; then fail "unexpectedly configured: ${label} (${flag})"
-  else pass "absent as required: ${label} (${flag})"; fi
+  # Same whole-token rule as check_config, and it matters more here: this is the licence gate.
+  case " ${CONFIG_STR} " in
+    *" ${flag} "*) fail "unexpectedly configured: ${label} (${flag})" ;;
+    *)             pass "absent as required: ${label} (${flag})" ;;
+  esac
 }
 
 # check_tls  — every build must have exactly one TLS backend, and which one is
@@ -255,22 +301,27 @@ check_config_absent() {
 # (v3 OpenSSL / gplv2 GnuTLS / lgplv2 none). Structural, so it also covers the mobile
 # static libs.
 check_tls() {
-  if [ -z "$CONFIG_STR" ]; then fail "tls check: no embedded config string — artifact unreadable"; return; fi
-  case " ${CONFIG_STR} " in
-    *" --enable-openssl "*)         pass "TLS backend: OpenSSL (https/tls)" ;;
-    *" --enable-gnutls "*)          pass "TLS backend: GnuTLS (https/tls)" ;;   # v2 series
-    *" --enable-schannel "*)        pass "TLS backend: SChannel (https/tls)" ;;
-    *" --enable-securetransport "*) pass "TLS backend: SecureTransport (https/tls)" ;;
-    *)
-      # The only builds with NO TLS backend are lgpl-2 (LGPLv2.1) on Linux/Android:
-      # GnuTLS's GMP/nettle deps are LGPLv3+/GPLv2+ (never LGPLv2.1) and no other FFmpeg
-      # TLS backend is LGPLv2.1-compatible, so TLS is intentionally dropped there. That
-      # signature is --disable-gpl (lgpl) AND no --enable-version3 (v2).
+  if [ -z "$CONFIG_STR" ]; then fail "tls check: no embedded config string - artifact unreadable"; return; fi
+  # COUNT the backends rather than stopping at the first `case` arm that matches. The function
+  # claims "exactly one TLS backend", but a first-match case cannot tell one from two -- a build
+  # that somehow configured both OpenSSL and GnuTLS would have reported the first and passed.
+  local found=() b
+  for b in openssl gnutls schannel securetransport; do
+    case " ${CONFIG_STR} " in *" --enable-${b} "*) found+=("${b}") ;; esac
+  done
+  case "${#found[@]}" in
+    1) pass "TLS backend: ${found[0]} (https/tls)" ;;
+    0)
+      # The only builds with NO TLS backend are lgpl-2 (LGPLv2.1) on Linux/Android/Catalyst:
+      # GnuTLS's GMP/nettle deps are LGPLv3+/GPLv2+ (never LGPLv2.1) and no other FFmpeg TLS
+      # backend is LGPLv2.1-compatible, so TLS is intentionally dropped there. That signature is
+      # --disable-gpl (lgpl) AND no --enable-version3 (v2).
       if [[ " ${CONFIG_STR} " == *" --disable-gpl "* && " ${CONFIG_STR} " != *" --enable-version3 "* ]]; then
-        pass "no TLS backend — lgplv2 intentionally omits it (no LGPLv2.1-compatible TLS)"
+        pass "no TLS backend - lgplv2 intentionally omits it (no LGPLv2.1-compatible TLS)"
       else
         fail "no TLS backend configured (expected openssl/gnutls/schannel/securetransport)"
       fi ;;
+    *) fail "more than one TLS backend configured (${found[*]}) - exactly one is expected" ;;
   esac
 }
 
@@ -284,8 +335,25 @@ build_has_tls() {
 }
 
 # License-appropriate encoder expectations, driven by the embedded config string.
+# _assert_encoder_absent <artifact-dir> <encoder-name> <label>
+# Reads libavcodec directly, so it works on every RID including the cross-built slices with no
+# CLI. The encoder's name string exists in libavcodec only when that encoder was compiled in;
+# the configure string lives in libavUTIL, so it cannot produce a false positive here.
+_assert_encoder_absent() {
+  local d="$1" name="$2" label="$3" lib
+  [ -n "${d}" ] || { info "license boundary: no artifact dir passed - registry check skipped"; return; }
+  [ -n "${STRINGS:-}" ] || { fail "license boundary: no strings(1) - cannot verify ${label} is absent"; return; }
+  lib="$(_find_lib "${d}" avcodec)"
+  [ -n "${lib}" ] || { fail "license boundary: libavcodec not found under ${d}"; return; }
+  if "${STRINGS}" -a -n 2 "${lib}" | grep -qx -- "${name}"; then
+    fail "LICENSE VIOLATION: ${label} is compiled into libavcodec of an LGPL build"
+  else
+    pass "license boundary: ${label} absent from the artifact's registry, not just its config"
+  fi
+}
+
 check_license_boundary() {
-  local lean="${1:-}"   # a lean slice (e.g. ios-sim) intentionally omits x264/x265
+  local lean="${2:-}"   # a lean slice (e.g. ios-sim) intentionally omits x264/x265
   case " ${CONFIG_STR} " in
     *" --enable-gpl "*)
       info "GPL build (per embedded config)"
@@ -299,7 +367,14 @@ check_license_boundary() {
       info "LGPL build (per embedded config)"
       check_config_absent "--enable-gpl" "GPL"
       check_config_absent "--enable-libx264" "x264 (GPL)"
-      check_config_absent "--enable-libx265" "x265 (GPL)" ;;
+      check_config_absent "--enable-libx265" "x265 (GPL)"
+      # ...and prove it against the ARTIFACT, not just its configure line. Everything above reads
+      # the embedded string, which records what we ASKED for. A stale DEPS_DIR carrying a previous
+      # GPL cell's libx264.a would produce an LGPL-configured build with a GPL encoder inside it,
+      # and every check above would still pass. This is the one check where being wrong is a
+      # licensing problem, not a capability one.
+      _assert_encoder_absent "${1:-}" libx264 "x264 (GPL)"
+      _assert_encoder_absent "${1:-}" libx265 "x265 (GPL)" ;;
     *) fail "license boundary: could not read gpl/lgpl from config string — artifact unreadable" ;;
   esac
 }
@@ -363,7 +438,197 @@ check_smoke_link() {
 # external-lib ENCODERS are cross-checked against the embedded config: registered iff built.
 # Uses the parameterized RUNNER + FFMPEG (so it works native / wine / qemu). CLI-only; the
 # mobile library builds do the same via av_*_iterate in smoke.c.
-_enum() { "${RUNNER[@]}" "$FFMPEG" -hide_banner "$1" 2>/dev/null || true; }
+# Word-splits $1 on purpose: most rows query a single option (-filters, -encoders), but some
+# capabilities have no enumerable component and are only visible through `-h full` (libsoxr
+# registers no filter or codec -- it adds a RESAMPLER ENGINE, so the only honest CLI evidence is
+# the "select SoX Resampler" line). Every value comes from capabilities.tsv, which is in-repo.
+# Memoised: check_claimed_capabilities calls this once PER ROW, and the rows share a handful of
+# options (-encoders, -decoders, -filters, ...). Without caching, every row added to
+# capabilities.tsv costs another ffmpeg process, which makes broadening coverage quietly
+# expensive. With it, the cost is one invocation per distinct option no matter how many rows use
+# it, so the table can grow freely.
+# shellcheck disable=SC2086  # deliberate word splitting; see above
+_enum_raw() { "${RUNNER[@]}" "$FFMPEG" -hide_banner $1 2>/dev/null || true; }
+_enum() {
+  local key; key="_enumcache_$(tr -c '[:alnum:]' '_' <<<"$1")"
+  if [ -z "${!key+x}" ]; then printf -v "${key}" '%s' "$(_enum_raw "$1")"; fi
+  printf '%s' "${!key}"
+}
+# check_claimed_capabilities — assert the binary actually HAS what its configure line CLAIMS.
+#
+# This is the counterpart to check_config. check_config proves we asked; this proves we got it.
+# The distinction is not academic: FFmpeg 8.1.2 shipped with every Vulkan filter missing on all
+# 15 RIDs, and 9.0.1 on four of them, because configure silently disabled spirv_compiler when
+# the host glslc was too old. --enable-vulkan was present in the configure line the whole time,
+# so every check we had reported success.
+#
+# Expectations are read from the ARTIFACT's own configure string against scripts/test/
+# capabilities.tsv, so there is no per-RID list to maintain and no way for the table to drift
+# out of sync with what a given cell enabled.
+check_claimed_capabilities() {
+  # Locate the table relative to THIS file, not the caller's ${HERE}: lib.sh is sourced from
+  # several scripts and should not depend on a variable each of them happens to set.
+  local tsv flag opt re listing n claimed=0 missing=0
+  tsv="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/capabilities.tsv"
+  [ -f "${tsv}" ] || { fail "capabilities.tsv missing - cannot verify claimed capabilities"; return; }
+  [ -n "${CONFIG_STR:-}" ] || { fail "no embedded configure string - cannot verify capabilities"; return; }
+  # This variant ASKS THE BINARY, so it needs a runnable one. Called before FFMPEG/RUNNER are
+  # established it would silently see an empty listing and report every claimed capability as
+  # missing -- ~30 bogus failures that look exactly like a catastrophic build regression. Fail
+  # once, clearly, instead. (All three desktop scripts did call it too early; fixed alongside.)
+  if [ -z "${FFMPEG:-}" ] || [ ! -e "${FFMPEG}" ]; then
+    fail "check_claimed_capabilities called before FFMPEG is set (or the binary is missing) - capability verification did not run"
+    return
+  fi
+  if [ -z "$(_enum -filters)" ]; then
+    fail "ffmpeg produced no -filters listing under [${RUNNER[*]:-native}] - capability verification cannot run"
+    return
+  fi
+  # Five fields now: the last two belong to check_claimed_capabilities_static and are unused
+  # here, but they must still be READ or `read` folds them into ${re} and no regex matches.
+  while IFS=$'\t' read -r flag opt re slib sname; do
+    case "${flag}" in '#'*|"") continue ;; esac
+    # "-" means this row has no CLI form (see capabilities.tsv: an unused field is a sentinel,
+    # never empty, because TAB is IFS whitespace and adjacent empty fields collapse).
+    [ -n "${opt}" ] && [ "${opt}" != "-" ] && [ -n "${re}" ] && [ "${re}" != "-" ] || continue
+    : "${slib}" "${sname}"                    # consumed by the static variant, not here
+    case " ${CONFIG_STR} " in *" ${flag} "*) ;; *) continue ;; esac
+    claimed=$(( claimed + 1 ))
+    listing="$(_enum "${opt}")"
+    n="$(grep -cE "${re}" <<<"${listing}" || true)"
+    if [ "${n}" -gt 0 ]; then
+      pass "capability: ${flag} -> ${n} entr$([ "${n}" -eq 1 ] && echo y || echo ies) in ${opt}"
+    else
+      missing=$(( missing + 1 ))
+      fail "capability: ${flag} is in the configure line but NOTHING matching /${re}/ is registered in ${opt} - silently dropped at build time"
+    fi
+  done < "${tsv}"
+  if [ "${claimed}" -eq 0 ]; then
+    fail "capability table matched no flags in this build's configure line - the table or the parse is broken"
+  else
+    info "capability check: ${claimed} claimed, ${missing} silently missing"
+  fi
+}
+
+# ── The same check, for slices with no runnable CLI ───────────────────────
+# check_claimed_capabilities above has to RUN ffmpeg to ask what is registered, so it covers only
+# the RIDs whose binaries execute on a test runner. The mobile slices (Android .so, iOS/Catalyst
+# frameworks) were therefore verified by INTENT alone -- test/android.sh asserted --enable-vulkan
+# appears in the configure line and stopped there.
+#
+# That is exactly how this shipped. Measured in the published 9.0.1.7 and 8.1.2.7 artifacts:
+# android-arm64, ios-arm64 and the maccatalyst slice each carry --enable-vulkan (iOS also
+# --enable-vulkan-static) and ZERO Vulkan filters. No test noticed, because no test asked the
+# binary anything.
+#
+# A cross-built library cannot be executed, but it can be READ. Every registered component's name
+# is stored as a string in the library that registers it (the .name field of AVFilter / FFCodec /
+# AVOutputFormat), so strings(1) finds it there, and finds nothing when the component was not
+# compiled in. The ff_* registration symbols are NOT usable for this: they are hidden in a shared
+# build and stripped besides (measured -- 0 hits via nm, nm -D and readelf on a library whose
+# filters are definitely present).
+#
+# Matching is exact-line, never substring: "scale" as a substring occurs 67 times in libavfilter
+# and would pass anything. Calibrated against real published artifacts -- present components
+# score >= 1 (a universal Mach-O scores 2, once per arch slice), absent ones score exactly 0.
+#
+# TWO false-negative classes had to be handled, both found by measuring against artifacts whose
+# CLI output disagreed with this check:
+#
+#   1. strings(1) defaults to a 4-character minimum, so a 3-character name like "srt" never
+#      appears at all. Hence -n 2 below.
+#   2. The linker tail-merges a string that is a SUFFIX of another one: libavformat on linux-x64
+#      stores only "librist", so the protocol name "rist" has no standalone entry -- while the
+#      same library on linux-arm64 does have one. `ffmpeg -protocols` lists rist on both. Same
+#      shape as "flip_vulkan" inside "hflip_vulkan".
+#
+# Class 2 is indistinguishable from a genuine absence by reading strings alone, so when the exact
+# name is missing BUT some string ends with it, the result is reported INCONCLUSIVE and does not
+# fail. That keeps the check sound: it only fails when the name is absent and nothing could have
+# absorbed it -- which is the case for scale_vulkan on the artifacts that really lack it.
+#
+# Usage: check_claimed_capabilities_static <libavutil> <libavcodec> <libavfilter> <libavformat>
+# Explicit paths rather than a directory: the Android (lib/<abi>/libX.so) and Apple
+# (X.xcframework/<slice>/X.framework/X) layouts share no shape.
+# Resolve the four libav* libraries inside a staged artifact dir, whatever the platform names
+# them (libavutil.so.61 / libavutil.61.dylib / avutil-61.dll / frameworks), and run the static
+# check. Desktop RIDs run the CLI variant, which can only see rows that HAVE a CLI form -- so a
+# static-only row (hevc_d3d11va, which ffmpeg lists nowhere) was unreachable on the exact
+# platform it describes. Running both closes that: the CLI variant answers what ffmpeg reports,
+# this one answers what is compiled in, and every row is covered on every RID.
+# _find_lib <artifact-dir> <avcodec|avutil|...>  -> path, or empty.
+# Covers every layout this repo stages: versioned .so, macOS .dylib, Windows .dll (flat or bin/),
+# Android lib/<abi>/, and the Apple per-library .framework bundles.
+_find_lib() {
+  local d="$1" f="$2"
+  ls -1 "${d}/lib${f}.so."* "${d}/lib${f}."*.dylib "${d}/${f}-"*.dll         "${d}/lib/lib${f}.so."* "${d}/lib/"*/"lib${f}.so" "${d}/bin/${f}-"*.dll         "${d}/frameworks/lib${f}.framework/lib${f}" "${d}/lib${f}.framework/lib${f}"         2>/dev/null | head -1
+}
+
+check_claimed_capabilities_in_dir() {   # <artifact-dir>
+  local d="$1" f p=()
+  for f in avutil avcodec avfilter avformat; do p+=("$(_find_lib "${d}" "${f}")"); done
+  if [ -z "${p[0]}" ]; then
+    fail "capability (static): no libavutil found under ${d} - cannot verify compiled-in components"
+    return
+  fi
+  check_claimed_capabilities_static "${p[0]}" "${p[1]}" "${p[2]}" "${p[3]}"
+}
+
+check_claimed_capabilities_static() {
+  local avutil="$1" avcodec="$2" avfilter="$3" avformat="$4"
+  local tsv flag opt re slib sname cfg path n claimed=0 missing=0 inconclusive=0 d
+
+  [ -n "${STRINGS:-}" ] || {
+    fail "no strings(1)/llvm-strings - cannot verify capabilities on a non-executable slice"
+    return
+  }
+  tsv="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/capabilities.tsv"
+  [ -f "${tsv}" ]    || { fail "capabilities.tsv missing"; return; }
+  [ -f "${avutil}" ] || { fail "libavutil not found at ${avutil}"; return; }
+
+  d="$(mktemp -d)"
+  # The configure line lives in libavutil (av_configuration): the one string carrying --enable-.
+  cfg="$("${STRINGS}" -a "${avutil}" | grep -m1 -- '--enable-' || true)"
+  if [ -z "${cfg}" ]; then
+    fail "no embedded configure string in ${avutil##*/} - cannot verify claimed capabilities"
+    rm -rf "${d}"; return
+  fi
+
+  # One strings(1) pass per library, reused across every row.
+  for path in "avcodec=${avcodec}" "avfilter=${avfilter}" "avformat=${avformat}"; do
+    if [ -f "${path#*=}" ]; then "${STRINGS}" -a -n 2 "${path#*=}" > "${d}/${path%%=*}"
+    else : > "${d}/${path%%=*}"; fi
+  done
+
+  while IFS=$'\t' read -r flag opt re slib sname; do
+    case "${flag}" in '#'*|"") continue ;; esac
+    : "${opt}" "${re}"                        # columns belonging to the CLI variant
+    [ -n "${slib:-}" ] && [ "${slib}" != "-" ] || continue
+    case " ${cfg} " in *" ${flag} "*) ;; *) continue ;; esac
+    claimed=$(( claimed + 1 ))
+    n="$(grep -cx -- "${sname}" "${d}/${slib}" || true)"
+    if [ "${n}" -gt 0 ]; then
+      pass "capability: ${flag} -> '${sname}' registered in lib${slib}"
+    elif grep -qE -- "^.+${sname}\$" "${d}/${slib}"; then
+      # Tail-merge candidate: a longer string ends with this name, so the linker may have folded
+      # the standalone copy away. Cannot distinguish that from absence here -- do not fail.
+      inconclusive=$(( inconclusive + 1 ))
+      info "capability: ${flag} -> '${sname}' inconclusive in lib${slib} (absorbed by a longer string; not asserted)"
+    else
+      missing=$(( missing + 1 ))
+      fail "capability: ${flag} is in the configure line but '${sname}' is NOT registered in lib${slib} - silently dropped at build time"
+    fi
+  done < "${tsv}"
+
+  rm -rf "${d}"
+  if [ "${claimed}" -eq 0 ]; then
+    fail "capability table matched no flags in this slice's configure line - the table or the parse is broken"
+  else
+    info "capability check (static): ${claimed} claimed, ${missing} silently missing, ${inconclusive} inconclusive"
+  fi
+}
+
+
 check_registry() {
   local list w
   # kind:flag  →  the list to query + the must-be-present built-ins
@@ -428,9 +693,20 @@ exercise_tls() {
   # ffmpeg fails to DEMUX it ("Invalid data found") — that failure PROVES the handshake worked
   # and bytes were transferred. We only truly fail if the https protocol is missing entirely.
   local url="https://raw.githubusercontent.com/FFmpeg/FFmpeg/master/RELEASE" out
-  out="$("${RUNNER[@]}" "$FFMPEG" -hide_banner -v error -i "$url" -f null - 2>&1)"
-  if [ -z "$out" ] || grep -qiE 'Invalid data found|could not find codec|Unknown input format|does not contain any stream|End of file' <<<"$out"; then
+  local rc=0
+  out="$("${RUNNER[@]}" "$FFMPEG" -hide_banner -v error -i "$url" -f null - 2>&1)" || rc=$?
+  # Positive evidence only. The resource is a TEXT file, so a working handshake ALWAYS ends in a
+  # demux complaint -- that message is the proof bytes arrived. Empty output used to count as a
+  # pass on its own; it cannot, because it is also what a silently-dead ffmpeg produces. Empty is
+  # accepted only alongside a zero exit status.
+  if grep -qiE 'Invalid data found|could not find codec|Unknown input format|does not contain any stream|End of file' <<<"$out"; then
     pass "TLS handshake: fetched bytes over https:// (backend negotiates)"; return
+  fi
+  if [ -z "$out" ] && [ "$rc" -eq 0 ]; then
+    pass "TLS handshake: https:// transfer completed cleanly (exit 0)"; return
+  fi
+  if [ -z "$out" ]; then
+    fail "TLS handshake: ffmpeg exited ${rc} with no output on ${url} - cannot confirm a transfer"; return
   fi
   case "$out" in
     *"Protocol not found"*|*"Unknown protocol"*)
@@ -489,7 +765,14 @@ probe_hwaccel() {
   out="$("${RUNNER[@]}" "$FFMPEG" -hide_banner -v error "$@" -f null - 2>&1)"; rc=$?
   if [ "$rc" -eq 0 ]; then
     pass "hwaccel ${label}: ran on a real device"
-  elif grep -qiE 'Unknown (encoder|decoder)|not compiled|Cannot find a matching|is not supported|Unrecognized' <<<"$out"; then
+  # 'No such filter' MUST be a hard failure, not a tolerated "no device here". It means the
+  # filter is not in the binary at all -- the build silently dropped it -- which is a defect
+  # in the artifact, not a property of the CI host. Without it, an FFmpeg 8.1.2 build whose
+  # Vulkan filters were all disabled reported 'path exercised' and passed: the DEV_ERR
+  # pattern below matches the bare 'No such', so a missing filter looked like a missing GPU.
+  # That is precisely how every 8.1.2 cell shipped with zero Vulkan filters through a green
+  # matrix. Ordered before the 'exercised' branch so it wins.
+  elif grep -qiE 'No such filter|Unknown filter|Unknown (encoder|decoder)|not compiled|Cannot find a matching|is not supported|Unrecognized' <<<"$out"; then
     fail "hwaccel ${label}: NOT built/registered — $(tr '\n' ' ' <<<"$out" | cut -c1-140)"
   elif grep -qiE "$exercised" <<<"$out"; then
     pass "hwaccel ${label}: path exercised (driver loaded + device enumeration ran; no device on CI)"
@@ -526,7 +809,7 @@ run_functional() {
   # signal, and ">/dev/null 2>&1" reduced a missing-DLL load failure to "does not run" with no
   # hint which library was absent. On Windows a failed module load prints nothing at all, so the
   # exit status carries the diagnosis (0xC0000135 / 3221225781 = STATUS_DLL_NOT_FOUND).
-  local vout vrc
+  local vout vrc prc pout
   vout="$("${RUNNER[@]}" "$FFMPEG" -hide_banner -version 2>&1)"; vrc=$?
   if [ "$vrc" -eq 0 ]; then
     pass "ffmpeg runs ($(head -1 <<<"$vout"))"
@@ -534,8 +817,20 @@ run_functional() {
     fail "ffmpeg does not run under [${RUNNER[*]:-native}] (exit ${vrc}): $(tr '\n' ' ' <<<"$vout" | cut -c1-300) — skipping remaining functional checks"
     return
   fi
-  "${RUNNER[@]}" "$FFPROBE" -hide_banner -version >/dev/null 2>&1 \
-    && pass "ffprobe runs" || fail "ffprobe does not run"
+  # Report WHY, like the ffmpeg check directly above. This discarded stdout and stderr and said
+  # only "ffprobe does not run" -- useless, because ffmpeg had just run fine from the same
+  # directory against the same libraries, so the difference was the whole story and the check
+  # threw it away. A check that cannot say why it failed is the pattern this branch exists to
+  # remove; it should not survive inside the suite that enforces it.
+  prc=0
+  pout="$("${RUNNER[@]}" "$FFPROBE" -hide_banner -version 2>&1)" || prc=$?
+  if [ "${prc}" -eq 0 ]; then
+    pass "ffprobe runs ($(head -1 <<<"$pout"))"
+  else
+    fail "ffprobe does not run under [${RUNNER[*]:-native}] (exit ${prc}): $(tr '\n' " " <<<"$pout" | cut -c1-300)"
+    [ -e "$FFPROBE" ] || fail "  ...and $FFPROBE does not exist"
+    [ -x "$FFPROBE" ] || fail "  ...and $FFPROBE is not executable"
+  fi
 
   # Capture enumerations to variables first: piping straight into `grep -q`
   # makes grep close the pipe on first match, ffmpeg takes SIGPIPE, and

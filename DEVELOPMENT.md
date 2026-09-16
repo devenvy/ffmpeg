@@ -39,7 +39,10 @@ only detects a new upstream **major** and opens a PR adding it as a new line (se
 [Dependency versions](#dependency-versions)).
 
 The build downloads a stock upstream FFmpeg release tarball and compiles it — there is no
-vendored FFmpeg source and no patches. All customization is in the `scripts/` tree (which
+vendored FFmpeg source. The stock tarball is patched during the build only where a target
+requires it (currently `07_build_ffmpeg.sh`'s Mac Catalyst CoreVideo fix); every such patch
+lives in `scripts/` and is applied to the pinned upstream release, never vendored. All other
+customization is in the `scripts/` tree (which
 third-party libraries to build and link, and the per-platform configure flags).
 
 ## Build variants
@@ -60,18 +63,21 @@ license cells — `gplv3`, `gplv2`, `lgplv3`, `lgplv2` — not one:
 | `osx-arm64` | macOS Apple Silicon | Native | dylibs + `ffmpeg`/`ffprobe` |
 | `android-arm64` | Android arm64-v8a | Cross-compiled (Android NDK) | `lib/arm64-v8a/*.so` (unversioned) + `include/`, no binaries |
 | `android-x64` | Android x86_64 | Cross-compiled (Android NDK) | `lib/x86_64/*.so` (unversioned) + `include/`, no binaries |
-| `ios-arm64` | iOS device (arm64) | Cross-compiled (iOS SDK, on macOS) | dynamic `*.dylib` + `include/`, no binaries |
-| `ios-sim-arm64` | iOS simulator (Apple Silicon) | Cross-compiled (simulator SDK) | dynamic `*.dylib` + `include/` (lean slice) |
-| `maccatalyst-arm64` | Mac Catalyst (Apple Silicon) | Cross-compiled (macOS SDK, `-target arm64-apple-ios14.0-macabi`) | dynamic `*.dylib` + `include/`, no binaries |
-| `maccatalyst-x64` | Mac Catalyst (Intel) | Cross-compiled (macOS SDK, `-target x86_64-apple-ios14.0-macabi`) | dynamic `*.dylib` + `include/`, no binaries |
+| `ios-arm64` | iOS device (arm64) | Cross-compiled (iOS SDK, on macOS) | six `frameworks/*.framework` (dylib + Headers + Info.plist), no binaries |
+| `ios-sim-arm64` | iOS simulator (Apple Silicon) | Cross-compiled (simulator SDK) | six `frameworks/*.framework` (lean slice), no binaries |
+| `maccatalyst-arm64` | Mac Catalyst (Apple Silicon) | Cross-compiled (macOS SDK, `-target arm64-apple-ios14.0-macabi`) | six `frameworks/*.framework` (dylib + Headers + Info.plist), no binaries |
+| `maccatalyst-x64` | Mac Catalyst (Intel) | Cross-compiled (macOS SDK, `-target x86_64-apple-ios14.0-macabi`) | six `frameworks/*.framework` (dylib + Headers + Info.plist), no binaries |
 
 Each RID is built in 4 license cells: `{rid}-{gplv3,gplv2,lgplv3,lgplv2}` (15 RIDs × 4 = 60 build
-jobs). The two axes are **family** — `gpl` (`--enable-gpl`, includes x264 + x265) vs `lgpl`
+jobs). The two axes are **family** — `gpl` (`--enable-gpl`, includes x264 + x265 — except on
+the deliberately lean `ios-sim-arm64` slice, which drops both) vs `lgpl`
 (`--disable-gpl`, kvazaar for HEVC, no x264/x265) — and **version** — `v3` (`--enable-version3`,
 may link Apache-2.0 deps like OpenSSL and Vulkan) vs `v2` (GPLv2 / LGPLv2.1, no `--enable-version3`,
 no Vulkan). The `lgplv2` series is the App-Store-safe one (v3's anti-tivoization terms are
 incompatible with the Apple App Store); it exists chiefly for the iOS App Store build. The two iOS
-slices (`ios-arm64`, `ios-sim-arm64`) plus Mac Catalyst are published as one combined
+slices (`ios-arm64`, `ios-sim-arm64`) plus Mac Catalyst are published as one combined tarball
+per licence cell containing **six** `.xcframework`s — one per `libav*` library, each carrying
+three platform slices (iOS device, iOS simulator, Mac Catalyst universal). Not one combined
 `.xcframework` per license cell — three slices, with the two Catalyst RIDs `lipo`-fused into a
 single universal arm64 + x86_64 slice (an `.xcframework` holds at most one framework per
 platform+variant).
@@ -148,10 +154,13 @@ builds **cannot include GPL-licensed encoder libraries** like libx264 or libx265
   fallback where hardware HEVC encode isn't available). The GPL builds' **libx264/libx265** are
   higher quality, so where the GPL is acceptable they remain the better choice; kvazaar is
   dropped there (x265 supersedes it).
-- **VP8/VP9 encoding** (libvpx) and **AV1 encoding** (libaom, SVT-AV1) are available in all
+- **VP8/VP9 encoding** (libvpx) and **AV1 encoding** (libaom, SVT-AV1) — with platform gaps:
+  `ios-sim-arm64` drops libvpx and libaom, and SVT-AV1 is absent on armhf, Android, iOS and
+  Catalyst. See the per-cell matrix rather than assuming these are in all
   builds — those are BSD-licensed and LGPL-compatible.
 
-**GPL builds** include **libx264** (H.264 software encoder) and **libx265** (H.265 software
+**GPL builds** (except the lean `ios-sim-arm64` simulator slice, which disables both) include
+**libx264** (H.264 software encoder) and **libx265** (H.265 software
 encoder), enabling full software encoding. Distributing an application that uses a GPL build
 requires that application to comply with the GPL (source disclosure).
 
@@ -180,11 +189,12 @@ The unified build script (`scripts/build.sh`) accepts environment variables:
 | `BUILD_RID` | Yes | — | `linux-x64`, `linux-arm64`, `linux-armhf`, `linux-musl-x64`, `linux-musl-arm64`, `win-x64`, `win-arm64`, `osx-x64`, `osx-arm64`, `android-arm64`, `android-x64`, `ios-arm64`, `ios-sim-arm64`, `maccatalyst-arm64`, `maccatalyst-x64` |
 | `BUILD_LICENSE` | No | `lgpl` | `lgpl`, `gpl` — family (`--disable-gpl` vs `--enable-gpl`) |
 | `BUILD_LICENSE_VERSION` | No | `3` | `3` (`--enable-version3`) or `2` (GPLv2 / LGPLv2.1, no version3) |
-| `ANDROID_NDK_HOME` | for `android-*` | — | path to the Android NDK (r26+) |
+| `ANDROID_NDK_HOME` | optional | auto-detected | path to the Android NDK (r26+). `platform/android.sh` finds an installed NDK via `ANDROID_NDK_LATEST_HOME`/`ANDROID_SDK_ROOT`; set this only to override or when detection fails. |
 | `FFMPEG_VERSION` | No | first line of the `.ffmpeg` list in `deps.json` | e.g., `8.1.2` |
 | `SKIP_DEPS` | No | `false` | `true`, `false` — skip apt/apk/brew dependency installation |
 
-`android-*` builds run on Linux/WSL with the NDK; `ios-*`/`osx-*` builds run on macOS with the
+`android-*` builds run on Linux/WSL with the NDK; `ios-*`, `osx-*` and `maccatalyst-*` builds
+run on macOS with the
 Xcode command-line tools.
 
 ### Local build examples
@@ -202,7 +212,8 @@ ANDROID_NDK_HOME=/path/to/android-ndk-r26d \
   SKIP_DEPS=true BUILD_RID=android-arm64 BUILD_LICENSE=lgpl bash scripts/build.sh
 # Output: artifacts/android-arm64/native/  (include/ + lib/arm64-v8a/*.so)
 
-# iOS device, LGPLv2.1 (the App-Store-safe cell: no version3, no Vulkan, no TLS)
+# iOS device, LGPLv2.1 (the App-Store-safe cell: no version3, no Vulkan; TLS is still
+# present here via SecureTransport — it is Linux/Android/Catalyst lgplv2 that has none)
 SKIP_DEPS=true BUILD_RID=ios-arm64 BUILD_LICENSE=lgpl BUILD_LICENSE_VERSION=2 bash scripts/build.sh
 ```
 
@@ -224,12 +235,15 @@ however it's built:
   `readelf`/`strings` read foreign-arch binaries fine, so this works from any host.
 - **Functional (where the target runs on the runner).** Executes `ffmpeg`: version, filter/
   decoder/protocol enumeration (asserting `https`/`tls` are present on every cell **except**
-  `lgplv2`, which drops TLS and is verified to have none), and an encode→decode round-trip — natively
+  `lgplv2` on Linux/Android/Catalyst, which drops TLS and is verified to have none; Windows,
+  macOS and iOS keep their native backend in every cell), and an encode→decode round-trip — natively
   on matching hosts (Linux on Linux, **Windows on a real Windows runner**, macOS on macOS), or via
   **qemu-user** for cross Linux arches. Execution is the primary signal; a missing binary-
   inspection tool (e.g. `file` on a minimal shell) skips a structural check rather than failing.
 - **Mobile (no `ffmpeg` binary).** `test/smoke.c` is a portable libav program (encode→decode +
-  whisper filter, plus `https`/`tls` where the cell has a TLS backend — skipped on `lgplv2`)
+  whisper filter, plus `https`/`tls` where the cell has a TLS backend — the check follows the
+  configured backend, so it is asserted absent only on Linux/Android/Catalyst `lgplv2`, and
+  asserted present on iOS `lgplv2`, which has SecureTransport)
   compiled against the artifact. Compiling+linking it with no
   undefined symbols is a real **ABI check** that runs in the `test-mobile` workflow (NDK/Xcode
   present on the runner).
@@ -247,7 +261,9 @@ however it's built:
   (a line that whole-line-pins the bumped dep is skipped); a `deps.json` **`.ffmpeg`** version
   change → the added/changed lines; docs-only → nothing. It then chains build → desktop test +
   mobile test against the uploaded artifacts, gated by the aggregate `build`/`test` checks plus a
-  `docs-matrix` drift check. PR runs use `fail_fast`; release builds do not.
+  `docs-matrix` drift check. Both PR and release matrices run with **fail-fast disabled**
+  (`ci.yml` and `release.yml` each pass `fail_fast: false`), so one failing cell never hides the
+  state of the others.
 - **Release** (`release.yml`) — Runs on pushes to `main` that change `deps.json` (FFmpeg versions
   or libraries) or a build recipe (`scripts/**`, excluding tests), and can also be started
   manually. A `prepare` job uses the same `select-versions.sh` to (re)build only the affected
@@ -286,24 +302,32 @@ D3D11VA/DXVA2, AMF, MediaFoundation, MediaCodec, VideoToolbox/AudioToolbox, Vulk
 section), which is the single source of truth — this doc doesn't duplicate it (that only drifts
 stale). What's worth saying here is *how* those libraries are packaged into the artifact:
 
-The glibc Linux builds (`linux-x64`/`arm64`/`armhf`) are **self-contained**: the VAAPI/QSV/libdrm
-dispatch libraries are static-linked and the Vulkan loader is bundled, so `ffmpeg` starts on a
-bare system with no package install. (The musl build still links these dynamically — see
-[Runtime dependencies](docs/install/linux.md#runtime-dependencies).) NVIDIA (CUDA/NVENC/NVDEC) and
-Vulkan are loaded at runtime via `dlopen`, not linked into the binary, so they are silently
-unavailable if absent. To actually **use** hardware acceleration you still need the GPU
+The Linux builds are **self-contained**: the VAAPI/QSV/libdrm dispatch libraries are
+static-linked on the glibc *and* musl RIDs, so `ffmpeg` starts on a bare system with no package
+install. The Vulkan loader is bundled on `linux-x64`, `linux-arm64` and both `linux-musl-*`
+RIDs — **`linux-armhf` bundles none** and reaches Vulkan through the system loader. NVIDIA
+(CUDA/NVENC/NVDEC) is loaded at runtime via `dlopen`, not linked in, so it is silently
+unavailable if absent. FFmpeg reaches Vulkan the same way; note that Whisper's Vulkan backend
+does *not* — it links the loader directly on the Linux RIDs that have one, the system loader on
+Android, and a runtime-resolving shim on Windows. To actually **use** hardware acceleration you still need the GPU
 **driver** (Intel `intel-media-va-driver`, AMD `mesa-va-drivers`, the NVIDIA driver, or
 `mesa-vulkan-drivers` for Vulkan).
 
 Vulkan is a **v3-only** feature (the `v2` cells drop it — Vulkan-Headers are Apache-2.0). It's
-provided by the system driver on Windows/Android, a bundled libc-only loader on glibc Linux, and
-**MoltenVK** (Vulkan-over-Metal) on macOS/iOS. It powers FFmpeg's GPU filters (and, off Apple,
-Whisper's GPU backend). The auto-generated [build matrix](docs/matrix/README.md) is the exact
+provided by the system driver on Android, a runtime-resolving static shim on Windows, a bundled
+libc-only loader on Linux x64/arm64 and both musl RIDs (not armhf), a bundled loader plus
+**MoltenVK** on macOS, and statically linked MoltenVK on iOS and Catalyst. It powers FFmpeg's
+GPU filters everywhere it is enabled. Whisper's GPU backend is separate: **Vulkan** on Linux
+x64/arm64, musl and Android; **Metal** on macOS, iOS and Catalyst; and **CPU** on `linux-armhf`
+and `win-arm64`. The auto-generated [build matrix](docs/matrix/README.md) is the exact
 per-cell source of truth.
 
 ## Software codec & utility libraries
 
-Every build links a set of LGPL-compatible (BSD/MIT/permissive) codec and utility libraries —
+Most builds link a set of LGPL-compatible (BSD/MIT/permissive) codec and utility libraries —
+though coverage is per-RID and per-cell, not universal (SVT-AV1, WebP, kvazaar, TLS and the
+lean simulator's omitted codec/text stack all vary). The per-cell matrices under `docs/matrix/`
+are authoritative; this list is orientation, not a guarantee —
 AV1 (dav1d/libaom/SVT-AV1), VP8/VP9, Opus, MP3 (LAME), Vorbis, OpenH264, WebP, zimg, libass,
 FreeType, whisper.cpp, a TLS backend, and **kvazaar** (permissive H.265 encode — the LGPL
 counterpart to x265, and a software fallback where hardware HEVC encode isn't available). The
@@ -314,14 +338,16 @@ kvazaar, which x265 supersedes.
 in the auto-generated [docs/matrix/README.md](docs/matrix/README.md)**, an index to one matrix per
 maintained FFmpeg major × license cell (`docs/matrix/ffmpeg-<major>-<gplv3|gplv2|lgplv3|lgplv2>.md`). It derives from
 the build scripts and each version's own configure, so it never drifts; the per-matrix footnotes
-explain the platform gaps (SVT-AV1 needs 64-bit; fontconfig is native on Windows/Apple; etc.),
+explain the platform gaps (SVT-AV1 needs 64-bit; fontconfig is built on Linux and macOS and
+disabled on Windows, Android, iOS and Catalyst, where fonts are supplied by the platform or by
+explicit font-file paths; etc.),
 and the index flags libraries that differ between versions. Don't restate that coverage in prose
 here — update the generator, not this file.
 
 Two build-mechanics notes that aren't about coverage:
 - **TLS backend (depends on the cell) on Linux/Android:** the **v3** cells build **OpenSSL**
   (Apache-2.0, allowed by `--enable-version3`); the **gpl-2** cell builds **GnuTLS** (which pulls
-  in GMP + nettle + libtasn1 — fine under GPLv2); the **lgpl-2** cell has **no TLS at all** (no
+  in GMP + nettle + libtasn1 — fine under GPLv2); the **lgpl-2** cell on those platforms has **no TLS at all** (no
   `https`/`tls`), because GnuTLS's GMP + nettle deps are dual LGPLv3+/GPLv2+ (never LGPLv2.1) and
   no other FFmpeg TLS backend is LGPLv2.1-compatible, so a genuine LGPLv2.1 build must drop TLS.
   **Windows, macOS and iOS** are unaffected by the v2/v3 split: Windows uses OS-native
@@ -364,7 +390,9 @@ additions broke CI, usually only on one platform.
    sub-dependency FFmpeg doesn't consume appends no flag.
    - **⚠ `set -e` footgun:** a bare `[ test ] && cmd` as the *last* line of a sourced script
      aborts the whole build when the test is false. Use `if … fi`.
-   - **⚠ C++ libraries** self-supply the runtime (pkg-config doesn't): append `-lstdc++`
+   - **⚠ C++ libraries** self-supply the runtime (pkg-config doesn't): append the runtime this
+     RID uses — `-lstdc++` on glibc/win-x64, **`-l:libstdc++.a` on musl** (the artifact must not
+     depend on a host C++ runtime), `-lc++` on Apple/Android, `-l:libc++.a` on win-arm64
      (GNU/mingw-w64) / `-lc++` (apple, android) / `-l:libc++.a` (win-arm64, via `CXX_RT_LIB`) to `EXTRA_LIBS`, plus `-llog` on android if the lib
      calls Android logging (libjxl did). See `libjxl.sh`/`libvmaf.sh`.
    - **⚠ Cross `find_library`:** if the lib locates *other* built deps via CMake `find_package`,
@@ -393,10 +421,14 @@ additions broke CI, usually only on one platform.
    in each container's package list: `PKGS` (apt), the manylinux `DNF_PKGS` in
    `03_install_packages.sh`, and **`PKGS_APK`** (Alpine) in `scripts/platform/linux.sh`. Alpine
    ships **busybox stubs** — its `xxd` lacks `-i`, so libvmaf's model embedding failed on musl
-   until the real `xxd` package was added (while glibc had no `xxd` at all and fell back cleanly).
-   A tool can be fine on three platforms and broken on the fourth.
+   until the real `xxd` package was added. The manylinux (glibc) images had no `xxd` at all, and
+   there was **no clean fallback**: libvmaf's meson marks `xxd` `required: false` and emits its
+   built-in models only inside `if xxd.found()`, so those artifacts shipped a `libvmaf` filter
+   that registered and then returned `-EINVAL` for its own default model. It is a hard build
+   failure now. A tool can be fine on three platforms and quietly wrong on the fourth.
 
-7. **Regenerate the matrix.** `bash scripts/gen-matrix.sh` (needs a fake NDK locally — see below).
+7. **Regenerate the matrix.** `bash scripts/gen-matrix.sh` — no Android NDK needed; it builds its
+   own NDK-shaped stub, so the output is identical on any host.
    FFmpeg-facing libs appear automatically; if one shows as a bare token, add a category + label
    to the maps in `gen-matrix.sh`. Commit the regenerated `docs/matrix/*.md` (the `docs-matrix`
    gate enforces zero drift).
@@ -406,13 +438,18 @@ additions broke CI, usually only on one platform.
    linux-musl-x64 (Alpine — genuinely different), linux-musl-arm64, linux-armhf, win-x64,
    win-arm64, android-arm64, android-x64** — not just linux-x64. Only **osx/ios** need
    a macOS runner.
-   Done = the lib compiles on every buildable
-   cell and FFmpeg's `config.h` shows `CONFIG_MYLIB=1` (a lib that fails to link is silently
-   autodetect-disabled). Local-env notes: the harness lives in the **Ubuntu-24.04** WSL distro
+   Done is NOT "it compiled". `config.h` showing `CONFIG_MYLIB=1` is an intermediate result: it
+   says configure accepted the library, not that anything it provides survived into the artifact.
+   That distinction is the whole reason this repo shipped `--enable-vulkan` with zero Vulkan
+   filters on 9 of 15 RIDs. **Done = the component the library provides is REGISTERED in the
+   staged artifact on every applicable cell** — add a row to `scripts/test/capabilities.tsv`
+   naming it, and confirm the capability check passes. `config.h` is worth a glance on the way
+   (a lib that fails to link is silently autodetect-disabled) but it is not the finish line. Local-env notes: the harness lives in the **Ubuntu-24.04** WSL distro
    (`wsl.exe -d Ubuntu-24.04`); **⚠ root-clean reused build dirs** (`docker run --rm -v "$DST:/work"
    … rm -rf /work/.build /work/artifacts`) — docker leaves root-owned files a host `rm` can't
-   delete, and a stale target-arch `glslc` once broke a rebuild; **⚠ gen-matrix** needs a fake NDK
-   (`mkdir -p /tmp/fakendk/toolchains/llvm/prebuilt/linux-x86_64/bin; export ANDROID_NDK_HOME=/tmp/fakendk`).
+   delete, and a stale target-arch `glslc` once broke a rebuild. `gen-matrix` needs no NDK: it
+   creates an NDK-shaped stub itself (it only reads `BUILD_*` flags and never invokes a compiler),
+   which is also what keeps its output byte-identical across hosts.
 
 9. **Gates:** `shellcheck` (inline per-line disables only, never file-wide), `jq -e . deps.json`,
    `bash scripts/deps/ledger-validate.sh`, `bash scripts/ci/select-versions-test.sh`, matrix zero-drift.
@@ -425,8 +462,7 @@ if it needs a build tool) · regenerated `docs/matrix/`.
 
 Every third-party library's version is pinned in one file — **[`deps.json`](deps.json)**, the
 dependency ledger — not scattered across the `scripts/deps/*.sh` build scripts. The scripts read
-it through a small loader and clone each dep at the pinned ref. (Design record:
-[docs/superpowers/specs/2026-08-22-dependency-ledger-design.md](docs/superpowers/specs/2026-08-22-dependency-ledger-design.md).)
+it through a small loader and clone each dep at the pinned ref.
 
 ### The ledger — `deps.json`
 
@@ -553,6 +589,8 @@ dependency bump updates the docs too, not just an FFmpeg change. Never hand-edit
 
 ## Roadmap
 
-- **Other libraries** — the `—` rows in [docs/matrix/README.md](docs/matrix/README.md) list every
-  library FFmpeg supports that we don't build (SRT/RIST, VMAF, JXL, …). `check-updates.yml`
+- **Other libraries** — the per-cell matrices under [docs/matrix/](docs/matrix/README.md) mark
+  with `—` every library FFmpeg supports that we don't build; the index lists only differences
+  BETWEEN versions, so it is the wrong place to read that from. SRT, RIST, VMAF and JXL are all
+  built, so they are not examples of it. `scripts/gen-coverage.sh` prints the current gap. `check-updates.yml`
   re-surfaces this gap on each version bump.

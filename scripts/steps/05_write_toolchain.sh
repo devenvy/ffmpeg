@@ -137,6 +137,15 @@ esac
 MESON_CROSS_FILE=""
 case "${RID}" in
   win-arm64)
+    # DEPS_DIR search paths. meson's pkg_config_libdir below covers the deps that ship a .pc, but
+    # not the ones a consumer looks up another way: librist resolves mbedTLS with
+    # dependency('MbedTLS', method: 'cmake') and falls back to cc.find_library('mbedcrypto'), and
+    # MEASURED BEHAVIOUR is that meson's cmake lookup cannot see our prefix on a CROSS build at all
+    # -- not via -Dcmake_prefix_path, not via CMAKE_PREFIX_PATH, not via the documented
+    # [properties] cmake_prefix_path (all three work natively; none do cross). The find_library
+    # fallback then missed too, for want of -L/-I, and librist silently compiled its own VENDORED
+    # mbedTLS instead of the version deps.json pins. Giving the compiler our own prefix fixes it for
+    # that lookup and any other dep that searches the same way.
     MESON_CROSS_FILE="${WORK_DIR}/llvm-mingw-meson-cross.ini"
     cat > "${MESON_CROSS_FILE}" <<MESON
 [binaries]
@@ -154,9 +163,23 @@ endian = 'little'
 [properties]
 pkg_config_libdir = '${DEPS_DIR}/lib/pkgconfig'
 needs_exe_wrapper = true
+[built-in options]
+c_args = ['-I${DEPS_DIR}/include']
+cpp_args = ['-I${DEPS_DIR}/include']
+c_link_args = ['-L${DEPS_DIR}/lib']
+cpp_link_args = ['-L${DEPS_DIR}/lib']
 MESON
     ;;
   win-x64)
+    # DEPS_DIR search paths. meson's pkg_config_libdir below covers the deps that ship a .pc, but
+    # not the ones a consumer looks up another way: librist resolves mbedTLS with
+    # dependency('MbedTLS', method: 'cmake') and falls back to cc.find_library('mbedcrypto'), and
+    # MEASURED BEHAVIOUR is that meson's cmake lookup cannot see our prefix on a CROSS build at all
+    # -- not via -Dcmake_prefix_path, not via CMAKE_PREFIX_PATH, not via the documented
+    # [properties] cmake_prefix_path (all three work natively; none do cross). The find_library
+    # fallback then missed too, for want of -L/-I, and librist silently compiled its own VENDORED
+    # mbedTLS instead of the version deps.json pins. Giving the compiler our own prefix fixes it for
+    # that lookup and any other dep that searches the same way.
     MESON_CROSS_FILE="${WORK_DIR}/mingw-meson-cross.ini"
     cat > "${MESON_CROSS_FILE}" <<MESON
 [binaries]
@@ -174,9 +197,23 @@ endian = 'little'
 [properties]
 pkg_config_libdir = '${DEPS_DIR}/lib/pkgconfig'
 needs_exe_wrapper = true
+[built-in options]
+c_args = ['-I${DEPS_DIR}/include']
+cpp_args = ['-I${DEPS_DIR}/include']
+c_link_args = ['-L${DEPS_DIR}/lib']
+cpp_link_args = ['-L${DEPS_DIR}/lib']
 MESON
     ;;
   android-arm64|android-x64)
+    # DEPS_DIR search paths. meson's pkg_config_libdir below covers the deps that ship a .pc, but
+    # not the ones a consumer looks up another way: librist resolves mbedTLS with
+    # dependency('MbedTLS', method: 'cmake') and falls back to cc.find_library('mbedcrypto'), and
+    # MEASURED BEHAVIOUR is that meson's cmake lookup cannot see our prefix on a CROSS build at all
+    # -- not via -Dcmake_prefix_path, not via CMAKE_PREFIX_PATH, not via the documented
+    # [properties] cmake_prefix_path (all three work natively; none do cross). The find_library
+    # fallback then missed too, for want of -L/-I, and librist silently compiled its own VENDORED
+    # mbedTLS instead of the version deps.json pins. Giving the compiler our own prefix fixes it for
+    # that lookup and any other dep that searches the same way.
     MESON_CROSS_FILE="${WORK_DIR}/android-meson-cross.ini"
     case "${RID}" in
       android-arm64) MESON_CPU_FAMILY=aarch64; MESON_CPU=aarch64 ;;
@@ -197,9 +234,23 @@ endian = 'little'
 [properties]
 pkg_config_libdir = '${DEPS_DIR}/lib/pkgconfig'
 needs_exe_wrapper = true
+[built-in options]
+c_args = ['-I${DEPS_DIR}/include']
+cpp_args = ['-I${DEPS_DIR}/include']
+c_link_args = ['-L${DEPS_DIR}/lib']
+cpp_link_args = ['-L${DEPS_DIR}/lib']
 MESON
     ;;
   linux-armhf)
+    # DEPS_DIR search paths. meson's pkg_config_libdir below covers the deps that ship a .pc, but
+    # not the ones a consumer looks up another way: librist resolves mbedTLS with
+    # dependency('MbedTLS', method: 'cmake') and falls back to cc.find_library('mbedcrypto'), and
+    # MEASURED BEHAVIOUR is that meson's cmake lookup cannot see our prefix on a CROSS build at all
+    # -- not via -Dcmake_prefix_path, not via CMAKE_PREFIX_PATH, not via the documented
+    # [properties] cmake_prefix_path (all three work natively; none do cross). The find_library
+    # fallback then missed too, for want of -L/-I, and librist silently compiled its own VENDORED
+    # mbedTLS instead of the version deps.json pins. Giving the compiler our own prefix fixes it for
+    # that lookup and any other dep that searches the same way.
     MESON_CROSS_FILE="${WORK_DIR}/armhf-meson-cross.ini"
     cat > "${MESON_CROSS_FILE}" <<MESON
 [binaries]
@@ -216,6 +267,11 @@ endian = 'little'
 [properties]
 pkg_config_libdir = '${DEPS_DIR}/lib/pkgconfig'
 needs_exe_wrapper = true
+[built-in options]
+c_args = ['-I${DEPS_DIR}/include']
+cpp_args = ['-I${DEPS_DIR}/include']
+c_link_args = ['-L${DEPS_DIR}/lib']
+cpp_link_args = ['-L${DEPS_DIR}/lib']
 MESON
     ;;
   maccatalyst-arm64|maccatalyst-x64)
@@ -228,10 +284,10 @@ ar = '${AR}'
 strip = 'strip'
 pkg-config = 'pkg-config'
 [built-in options]
-c_args = ['-target', '${MCAT_TARGET}', '-isysroot', '${MCAT_SYSROOT}']
-cpp_args = ['-target', '${MCAT_TARGET}', '-isysroot', '${MCAT_SYSROOT}']
-c_link_args = ['-target', '${MCAT_TARGET}', '-isysroot', '${MCAT_SYSROOT}']
-cpp_link_args = ['-target', '${MCAT_TARGET}', '-isysroot', '${MCAT_SYSROOT}']
+c_args = ['-target', '${MCAT_TARGET}', '-isysroot', '${MCAT_SYSROOT}', '-I${DEPS_DIR}/include']
+cpp_args = ['-target', '${MCAT_TARGET}', '-isysroot', '${MCAT_SYSROOT}', '-I${DEPS_DIR}/include']
+c_link_args = ['-target', '${MCAT_TARGET}', '-isysroot', '${MCAT_SYSROOT}', '-L${DEPS_DIR}/lib']
+cpp_link_args = ['-target', '${MCAT_TARGET}', '-isysroot', '${MCAT_SYSROOT}', '-L${DEPS_DIR}/lib']
 [host_machine]
 system = 'darwin'
 cpu_family = '${MCAT_FFARCH}'
@@ -254,10 +310,10 @@ ar = '${AR}'
 strip = 'strip'
 pkg-config = 'pkg-config'
 [built-in options]
-c_args = ['-arch', 'arm64', '-isysroot', '${IOS_SYSROOT}', '${IOS_MINVER}']
-cpp_args = ['-arch', 'arm64', '-isysroot', '${IOS_SYSROOT}', '${IOS_MINVER}']
-c_link_args = ['-arch', 'arm64', '-isysroot', '${IOS_SYSROOT}', '${IOS_MINVER}']
-cpp_link_args = ['-arch', 'arm64', '-isysroot', '${IOS_SYSROOT}', '${IOS_MINVER}']
+c_args = ['-arch', 'arm64', '-isysroot', '${IOS_SYSROOT}', '${IOS_MINVER}', '-I${DEPS_DIR}/include']
+cpp_args = ['-arch', 'arm64', '-isysroot', '${IOS_SYSROOT}', '${IOS_MINVER}', '-I${DEPS_DIR}/include']
+c_link_args = ['-arch', 'arm64', '-isysroot', '${IOS_SYSROOT}', '${IOS_MINVER}', '-L${DEPS_DIR}/lib']
+cpp_link_args = ['-arch', 'arm64', '-isysroot', '${IOS_SYSROOT}', '${IOS_MINVER}', '-L${DEPS_DIR}/lib']
 [host_machine]
 system = 'darwin'
 cpu_family = 'aarch64'

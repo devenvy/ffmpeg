@@ -20,9 +20,11 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "${ROOT_DIR}"
 
-command -v python3 >/dev/null 2>&1 || { echo "matrix-consistency: python3 required" >&2; exit 2; }
+# shellcheck source=scripts/lib.sh  # wrappers + resolve_python; nothing runs on source
+. "${ROOT_DIR}/scripts/lib.sh"
+PYBIN="$(resolve_python)" || exit 2
 
-python3 - <<'PY'
+"${PYBIN}" - <<'PY'
 import io, sys
 try:
     import yaml
@@ -60,6 +62,27 @@ if orphan:
 both = sorted(t & m)
 if both:
     fail.append("RIDs tested by BOTH workflows (duplicated runner cost): %s" % ", ".join(both))
+
+# Per-RID ledger holds must cover every RID they claim to. deps.json pins x265 3.6 on ARM64
+# because 4.0+ ships broken aarch64 NEON intrinsics, and lists the affected RIDs explicitly --
+# but win-arm64 and maccatalyst-arm64 were added to the repo AFTER that hold was written and
+# nobody backfilled them, so two ARM64 targets silently took the broken default for months.
+# Same shape as a RID missing from a test matrix: adding a RID means touching several places,
+# and every way of forgetting one is silent. Assert it instead of remembering it.
+import json as _json
+_led = _json.load(open("deps.json", encoding="utf-8"))
+for _mj, _deps in sorted(_led.get("overrides", {}).items()):
+    for _dep, _spec in sorted(_deps.items()):
+        _plat = _spec.get("platforms")
+        if not _plat:
+            continue                      # hold applies to every RID; nothing to cross-check
+        # A hold whose listed RIDs are all arm64 is an arm64 hold: every arm64 RID we build must
+        # be in it. (Derived from the RID name, which is how the rest of the repo decides arch.)
+        if all("arm64" in r for r in _plat):
+            _missing = sorted(r for r in build if "arm64" in r and r not in _plat)
+            if _missing:
+                fail.append("ledger: %s hold for ffmpeg %s lists only ARM64 RIDs but omits built "
+                            "ARM64 RIDs: %s" % (_dep, _mj, ", ".join(_missing)))
 
 if fail:
     for f in fail:

@@ -35,8 +35,9 @@ crashes on load. Keep it in `jniLibs`. If your app (or another native dependency
 bundles its own `libc++_shared.so`, they are interchangeable — Android loads one by soname, so
 drop whichever is newer and remove the duplicate.
 
-Hardware decode uses Android **MediaCodec** (`--enable-mediacodec --enable-jni`); link the
-system framework at app build time.
+Hardware decode uses Android **MediaCodec** (`--enable-mediacodec --enable-jni`). Nothing to do
+at app build time: `libavcodec.so` already carries a `DT_NEEDED` entry for `libmediandk.so`, so
+the dynamic linker resolves it from the system on device.
 
 > **Minimum SDK: Android 9 (API 28) — every cell, both series.** The NDK compiler is pinned to
 > `…-linux-android28-clang` for all Android builds, so `minSdkVersion` **28+** applies to any

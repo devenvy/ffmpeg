@@ -9,18 +9,25 @@
 #   scripts/gen-coverage.sh --configure PATH # uses a local configure file
 set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# Source the shared helpers for the retrying curl wrapper. These scripts fetch FFmpeg's
+# configure over the network, and without it a DNS or TLS blip fails them outright: curl's own
+# --retry does not cover connection-level errors (6 resolve, 7 connect, 35 TLS), which is what
+# actually goes wrong on a CI runner. lib.sh defines wrappers only; nothing runs on source.
+# shellcheck source=scripts/lib.sh
+. "${ROOT_DIR}/scripts/lib.sh"
 
 if [[ "${1:-}" == "--configure" ]]; then
   CONF_FILE="$2"
 else
   VER="${1:?usage: gen-coverage.sh <version> | --configure <path>}"
   CONF_FILE="$(mktemp)"
-  curl -fsSL --retry 3 --retry-connrefused \
+  curl -fsSL \
     "https://raw.githubusercontent.com/FFmpeg/FFmpeg/n${VER}/configure" -o "${CONF_FILE}" \
-    || curl -fsSL --retry 3 "https://raw.githubusercontent.com/FFmpeg/FFmpeg/refs/tags/n${VER}/configure" -o "${CONF_FILE}"
+    || curl -fsSL "https://raw.githubusercontent.com/FFmpeg/FFmpeg/refs/tags/n${VER}/configure" -o "${CONF_FILE}"
 fi
 
-python3 - "${CONF_FILE}" "${ROOT_DIR}" <<'PY'
+PYBIN="$(resolve_python)"
+"${PYBIN}" - "${CONF_FILE}" "${ROOT_DIR}" <<'PY'
 import sys, re, glob, os
 conf = open(sys.argv[1]).read(); root = sys.argv[2]
 blocks = re.findall(r'(\w*(?:LIBRARY|HWACCEL)\w*_LIST)="\n(.*?)\n"', conf, re.S)

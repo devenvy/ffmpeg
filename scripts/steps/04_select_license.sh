@@ -176,6 +176,21 @@ if [[ "${RID}" == "ios-sim-arm64" ]]; then
   BUILD_LIBASS=0
   # (fribidi + harfbuzz are gated on BUILD_LIBASS in their dep scripts, so setting
   # BUILD_LIBASS=0 already drops them — no separate BUILD_FRIBIDI/BUILD_HARFBUZZ needed.)
+  #
+  # Vulkan goes too, and this one was a FALSE CLAIM until now. The lean slice sets
+  # BUILD_LIBPLACEBO=0 below, shaderc.sh returns early unless BUILD_LIBPLACEBO=1, and without
+  # shaderc there is no SPIR-V toolchain -- so FFmpeg silently dropped every Vulkan filter while
+  # --enable-vulkan stayed in the configure string. CI caught it the moment the capability check
+  # reached this RID:
+  #   capability: --enable-vulkan is in the configure line but 'scale_vulkan' is NOT registered
+  # Re-adding the whole shaderc/SPIR-V chain to a simulator slice that deliberately drops x264,
+  # x265, kvazaar, vpx, aom, opus and the entire text stack would contradict what this slice is
+  # for. So the honest fix is the other direction: stop claiming it. If a flag is on, the feature
+  # has to be there -- and here it cannot be.
+  # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
+  BUILD_VULKAN=0
+  # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
+  BUILD_VULKAN_LOADER=0
 fi
 
 # libplacebo needs Vulkan (+ shaderc), so it builds exactly where Vulkan does: on the

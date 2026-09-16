@@ -20,20 +20,27 @@ governing license text and each bundled dependency's license under `legal/`.
 
 Every platform ships **dynamic** libraries (`.dll` / `.so` / `.dylib`; iOS as a dynamic-framework
 `.xcframework`). The glibc Linux builds are self-contained (old-glibc floor, hwaccel libs
-static-linked, Vulkan loader bundled) so they run on a bare system with no package install.
+static-linked) so they run on a bare system with no package install; `linux-x64` and
+`linux-arm64` additionally bundle a Vulkan loader, while `linux-armhf` does not (it has no
+Vulkan Whisper backend and reaches any system loader through FFmpeg's dlopen path).
 
 ## License variants
 
 Each platform is built in **four cells** — pick by family and version:
 
 - **Family** — `gpl` adds the x264 + x265 encoders; `lgpl` uses kvazaar for HEVC and omits
-  x264/x265, so linking it doesn't force your app to the GPL.
+  x264/x265, so linking it doesn't force your app to the GPL. The one exception is the lean
+  `ios-sim-arm64` slice, which carries none of the three software H.26x encoders in any cell.
 - **Version** — `v3` is `(L)GPLv3` and may link the Apache-2.0 dependencies (OpenSSL TLS +
   Vulkan); `v2` is `GPLv2` / `LGPLv2.1` with no Vulkan. **`lgplv2` is the App-Store-safe cell**
   — v3's anti-tivoization terms are incompatible with the Apple App Store, so LGPLv2.1 is the
   variant you ship to iOS.
 
-Artifact naming: `ffmpeg-{version}-{rid}-{gplv3|gplv2|lgplv3|lgplv2}`.
+Artifact naming: `ffmpeg-{version}-{rid}-{gplv3|gplv2|lgplv3|lgplv2}.tar.gz`, except the four
+Apple mobile RIDs (`ios-arm64`, `ios-sim-arm64`, `maccatalyst-arm64`, `maccatalyst-x64`), which
+are merged into one `ffmpeg-{version}-ios-{cell}.tar.gz` asset. The two Catalyst RIDs are
+`lipo`-fused into one universal slice, so each xcframework there carries three slices: device,
+simulator, and Catalyst.
 
 The **TLS backend depends on the cell**: OpenSSL on `v3` (Linux/Android/Mac Catalyst), GnuTLS on
 `gplv2`, and **no TLS at all** on `lgplv2` (Linux/Android/Mac Catalyst — no LGPLv2.1-compatible

@@ -56,31 +56,51 @@ load_config_string "${FWDIR}/libavutil.framework/libavutil" "${FWDIR}/libavcodec
 # Vulkan is v3-only (MoltenVK + Vulkan-Headers are Apache-2.0, dropped from the v2
 # App-Store series). The embedded --enable-version3 flag distinguishes the series.
 #
-# On iOS, Vulkan is STATICALLY linked: MoltenVK is the driver and we don't build the Khronos
-# loader for iOS here (vulkan-loader.sh supplies no iOS CMake toolchain — upstream does
-# support iOS, this is our configuration), so FFmpeg's dlopen path (which only ever tries the
-# leaf names libvulkan.dylib / libvulkan.1.dylib / libMoltenVK.dylib) can never resolve inside
-# an app bundle. --enable-vulkan-static makes FFmpeg call vkGetInstanceProcAddr directly.
+# ios-sim-arm64 is the exception, in EVERY cell. 04_select_license builds the simulator as a
+# lean slice with BUILD_LIBPLACEBO=0, which makes shaderc.sh return early, so the slice has no
+# SPIR-V compiler and configure would silently drop every Vulkan filter while --enable-vulkan
+# stayed on the command line — a capability claimed and not delivered. So 04_select_license
+# sets BUILD_VULKAN=0/BUILD_VULKAN_LOADER=0 there and moltenvk.sh returns early with it.
+#
+# On the device/Catalyst slices Vulkan is STATICALLY linked: MoltenVK is the driver and we
+# don't build the Khronos loader for iOS here (vulkan-loader.sh supplies no iOS CMake toolchain
+# — upstream does support iOS, this is our configuration), so FFmpeg's dlopen path (which only
+# ever tries the leaf names libvulkan.dylib / libvulkan.1.dylib / libMoltenVK.dylib) can never
+# resolve inside an app bundle. --enable-vulkan-static makes FFmpeg call vkGetInstanceProcAddr
+# directly.
+VULKAN_CELL=0
 case " ${CONFIG_STR} " in
-  *" --enable-version3 "*)
-    # WIRING GUARD ONLY. check_config greps the embedded ./configure COMMAND LINE, not the
-    # feature set configure actually resolved, and moltenvk.sh appends --enable-vulkan-static
-    # unconditionally on every v3 iOS slice. So this proves the flag was passed; it can never
-    # prove Vulkan survived configure. (It also cannot fail independently of
-    # "--enable-vulkan": the pattern matches INSIDE "--enable-vulkan-static".)
-    check_config "--enable-vulkan-static" "Vulkan statically linked (MoltenVK)"
-    # The real gate, read out of the BINARY: av_vkfmt_from_pixfmt is public libavutil API
-    # compiled only under CONFIG_VULKAN, so it is absent entirely — not merely undefined —
-    # if Vulkan silently dropped out of configure. (Not vkGetInstanceProcAddr: check_symbol
-    # falls back to plain `nm`, which also lists UNDEFINED symbols, so that would pass even
-    # on a build where MoltenVK was never linked.)
-    check_symbol "${FWDIR}/libavutil.framework/libavutil" "av_vkfmt_from_pixfmt"
-    ;;
-  *)
-    check_config_absent "--enable-vulkan" "Vulkan (v2: dropped)"
-    check_config_absent "--enable-vulkan-static" "Vulkan static (v2: dropped)"
-    ;;
+  *" --enable-version3 "*) [ "$RID" = "ios-sim-arm64" ] || VULKAN_CELL=1 ;;
 esac
+
+if [ "${VULKAN_CELL}" = 1 ]; then
+  # WIRING GUARD ONLY. check_config greps the embedded ./configure COMMAND LINE, not the
+  # feature set configure actually resolved, and moltenvk.sh appends --enable-vulkan-static
+  # unconditionally on every slice it runs for. So this proves the flag was passed; it can
+  # never prove Vulkan survived configure. (It also cannot fail independently of
+  # "--enable-vulkan": the pattern matches INSIDE "--enable-vulkan-static".)
+  check_config "--enable-vulkan-static" "Vulkan statically linked (MoltenVK)"
+  # The real gate, read out of the BINARY. It must be a symbol that EXISTS ONLY when Vulkan
+  # was actually built, which rules out most of the public Vulkan API: libavutil/Makefile has
+  #     OBJS-$(!CONFIG_VULKAN) += hwcontext_stub.o
+  # and hwcontext_stub.c defines av_vkfmt_from_pixfmt and av_vk_frame_alloc as ABI-preserving
+  # stubs returning NULL. Either of those is therefore defined in EVERY slice and can never
+  # fail — measured on ios-sim (Vulkan off), which exports both. The symbol below lives only
+  # in hwcontext_vulkan.c, with no stub counterpart, on both n8.1.2 and n9.0.1. (Also not
+  # vkGetInstanceProcAddr: check_symbol falls back to plain `nm`, which lists UNDEFINED
+  # symbols too, so that would pass on a build that never linked MoltenVK.)
+  check_symbol "${FWDIR}/libavutil.framework/libavutil" "av_vk_get_optional_device_extensions"
+else
+  # v2 anywhere, or the simulator in any cell. Not claimed on the command line...
+  check_config_absent "--enable-vulkan" "Vulkan not claimed"
+  check_config_absent "--enable-vulkan-static" "Vulkan static not claimed"
+  # ...and, independently of what configure was asked for, not actually present in the binary.
+  # This is the half that would catch the reverse defect: the build regaining Vulkan without
+  # the SPIR-V compiler that makes it useful, or the lean-slice gate quietly ceasing to apply.
+  # Same symbol choice as the positive branch, and for the same reason — asserting the ABSENCE
+  # of av_vkfmt_from_pixfmt would fail on every correct build, because the stub provides it.
+  check_symbol_absent "${FWDIR}/libavutil.framework/libavutil" "av_vk_get_optional_device_extensions"
+fi
 
 # L1/L2: MoltenVK is Apache-2.0. It must be folded into the libav* frameworks on v3 and
 # be entirely absent on v2. Either way it must NEVER ship as its own framework, and the
@@ -92,23 +112,22 @@ for stray in "${FWDIR}/MoltenVK.framework" "${FWDIR}/vulkan.framework" "${FWDIR}
     || pass "no stray $(basename "${stray}") in the framework set"
 done
 
-# L3: attribution must survive the switch to static linking. The MoltenVK binary is no
-# longer a visible file in the artifact, so this is the only thing proving its Apache-2.0
-# text still ships. v2 never builds MoltenVK, so it must NOT carry the text either.
-case " ${CONFIG_STR} " in
-  *" --enable-version3 "*)
-    if compgen -G "${DIR}/legal/licenses/MoltenVK/*" >/dev/null 2>&1; then
-      pass "MoltenVK Apache-2.0 text present (legal/licenses/MoltenVK/)"
-    else
-      fail "MoltenVK is linked in but legal/licenses/MoltenVK/ is missing — attribution lost"
-    fi
-    ;;
-  *)
-    [ -d "${DIR}/legal/licenses/MoltenVK" ] \
-      && fail "v2 cell carries MoltenVK attribution — Apache-2.0 leaked into an LGPLv2.1 build" \
-      || pass "no MoltenVK attribution in the v2 cell (correct: not built)"
-    ;;
-esac
+# L3: attribution must survive the switch to static linking. The MoltenVK binary is no longer
+# a visible file in the artifact, so this is the only thing proving its Apache-2.0 text still
+# ships. Slices that never build MoltenVK — every v2 cell, plus ios-sim in every cell (see
+# VULKAN_CELL above) — must NOT carry the text, or the artifact advertises a licence
+# obligation for code it does not contain.
+if [ "${VULKAN_CELL}" = 1 ]; then
+  if compgen -G "${DIR}/legal/licenses/MoltenVK/*" >/dev/null 2>&1; then
+    pass "MoltenVK Apache-2.0 text present (legal/licenses/MoltenVK/)"
+  else
+    fail "MoltenVK is linked in but legal/licenses/MoltenVK/ is missing — attribution lost"
+  fi
+else
+  [ -d "${DIR}/legal/licenses/MoltenVK" ] \
+    && fail "MoltenVK attribution in a cell that does not build MoltenVK — stale Apache-2.0 text" \
+    || pass "no MoltenVK attribution (correct: not built for this cell)"
+fi
 
 # Record which Apple system frameworks libavutil itself loads. Static MoltenVK links Metal /
 # IOSurface / Foundation / QuartzCore / CoreGraphics into libavutil; if they show up here they
@@ -125,7 +144,15 @@ check_tls
 # ios-sim is the lean slice (04_select_license drops x264/x265 on the simulator);
 # the device slice keeps full GPL parity.
 LEAN=""; [ "$RID" = "ios-sim-arm64" ] && LEAN=lean
-check_license_boundary "$LEAN"
+check_license_boundary "${DIR}" "$LEAN"
+
+# Claimed-vs-present, read out of the frameworks themselves -- see the Android note. The lean
+# ios-sim slice needs no special case: expectations come from THIS slice's own configure string,
+# so a library it never enabled is never asserted.
+_fw() { printf '%s' "${FWDIR}/lib$1.framework/lib$1"; }
+check_claimed_capabilities_static \
+  "$(_fw avutil)"   "$(_fw avcodec)" \
+  "$(_fw avfilter)" "$(_fw avformat)"
 
 [ -f "${FWDIR}/libavcodec.framework/Headers/avcodec.h" ] \
   && pass "framework headers present (libavcodec.framework/Headers/avcodec.h)" \
@@ -211,7 +238,7 @@ if command -v xcrun >/dev/null 2>&1; then
       # Informational: proves MoltenVK reaches a real GPU when the host has one. Never gates --
       # the runner's GPU is not a property of what we shipped, the same reasoning smoke.c already
       # applies to the Android emulator. The static evidence that Vulkan is actually in the
-      # binary (check_symbol av_vkfmt_from_pixfmt + the --enable-vulkan-static config check)
+      # binary (check_symbol av_vk_get_optional_device_extensions + the --enable-vulkan-static check)
       # stays gating above, so nothing is silently lost by this being soft.
       if DYLD_FRAMEWORK_PATH="${FWDIR}" /tmp/smoke_ios >/tmp/smoke-vk.out 2>&1; then
         info "Catalyst Vulkan probe: $(tail -1 /tmp/smoke-vk.out)"

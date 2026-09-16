@@ -23,9 +23,28 @@ set -euo pipefail
 # own, different backslash convention — so an asset name containing any of those would be
 # written in a form `sha256sum -c` misreads. GitHub normalizes asset names, so this cannot
 # occur for the names this repo publishes; documented rather than coded around.
+# Retried: both I/O points here are single-attempt network calls that run when the release is
+# already public -- a blip produces a release with no SHA256SUMS rather than a retryable
+# failure. Same exponential+jitter shape as the curl/git wrappers. Both calls are read-only and
+# idempotent, so repeating one is always safe.
+_gh_retry() { # <description> <cmd...>
+  local what="$1"; shift
+  local try delay=4 wait
+  for try in 1 2 3 4 5 6; do
+    "$@" && return 0
+    if [ "${try}" -eq 6 ]; then
+      echo "ERROR: ${what} failed after 6 attempts" >&2; return 1
+    fi
+    wait=$(( delay + (RANDOM % 5) ))
+    echo "  ${what} failed (attempt ${try}/6) - retrying in ${wait}s..." >&2
+    sleep "${wait}"; delay=$(( delay * 2 ))
+  done
+}
+
 list_release_assets() { # <tag> <repo>
-  gh release view "$1" --repo "$2" --json assets \
-    --jq '.assets[] | [.name, (.digest // "")] | @tsv'
+  _gh_retry "gh release view $1" \
+    gh release view "$1" --repo "$2" --json assets \
+      --jq '.assets[] | [.name, (.digest // "")] | @tsv'
 }
 
 # I/O point 2: fallback for an asset the API gave no digest for.
@@ -36,7 +55,8 @@ download_and_hash() { # <tag> <repo> <asset-name>  -> <hex> on stdout
   local tmp; tmp="$(mktemp -d)"
   # trap, not a trailing rm: a sha256sum failure below must not leak the temp dir.
   trap 'rm -rf "${tmp}"' RETURN
-  gh release download "$1" --repo "$2" --pattern "$3" --dir "${tmp}" --clobber >&2 || return 1
+  _gh_retry "gh release download $3" \
+    gh release download "$1" --repo "$2" --pattern "$3" --dir "${tmp}" --clobber >&2 || return 1
   sha256sum "${tmp}/$3" | awk '{print $1}'
 }
 

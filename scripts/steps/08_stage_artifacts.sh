@@ -235,7 +235,7 @@ case "${RID}" in
     # Fix: do not guess. Read the load commands off each binary and rewrite whatever points
     # into the build tree, whatever it happens to be called.
     echo "Fixing macOS install names for the flat layout..."
-  
+
     # Install name = @rpath + MAJOR-only, matching upstream's
     #   -install_name $(INSTALL_NAME_DIR)/$(SLIBNAME_WITH_MAJOR) -compatibility_version $(LIBMAJOR)
     # so a consumer records libavcodec.63.dylib and keeps working across patch bumps. The real
@@ -247,7 +247,7 @@ case "${RID}" in
       major="$(printf '%s' "${libname}" | sed -E 's/^(lib[a-z0-9]+)\.([0-9]+)(\..*)?\.dylib$/\1.\2.dylib/')"
       install_name_tool -id "@rpath/${major}" "${lib}"
     done
-  
+
     for target in "${OUT_DIR}/ffmpeg" "${OUT_DIR}/ffprobe" "${OUT_DIR}"/*.dylib; do
       [ -L "${target}" ] && continue
       [ -f "${target}" ] || continue
@@ -263,7 +263,7 @@ case "${RID}" in
       # incorrectly-signed image. Re-sign ad-hoc after the last edit.
       codesign --force --sign - "${target}" 2>/dev/null || true
     done
-  
+
     # Assert the result rather than trusting it: nothing may still point into the build tree.
     _leaked=""
     for target in "${OUT_DIR}/ffmpeg" "${OUT_DIR}/ffprobe" "${OUT_DIR}"/*.dylib; do
@@ -309,6 +309,74 @@ case "${RID}" in
     echo "Mobile build — no additional rpath/install_name fixup needed."
     ;;
   *)
+    # musl has no host C++ runtime to fall back on, so the artifact must not need one. Asserted
+    # below; glibc targets are unaffected, since libstdc++/libgcc_s are present on any glibc
+    # system able to run the binary at all.
+    case "${RID}" in
+      linux-musl-*)
+        # musl artifacts must not depend on a host C++ runtime: a base Alpine image ships
+        # neither libstdc++.so.6 nor libgcc_s.so.1, so a surviving DT_NEEDED means the artifact
+        # cannot start at all. deps/whisper.sh links -l:libstdc++.a and platform/linux.sh adds
+        # -static-libgcc so there is nothing to depend on, and whisper.sh fails the build up
+        # front if libstdc++.a is unavailable -- so the static link is guaranteed, not hoped for.
+        #
+        # Deliberately NOT bundling the runtimes as a fallback. Shipping them would work, but it
+        # is redistributing GPLv3 libraries: the GCC Runtime Library Exception covers our linked
+        # output, not the runtime shipped as a library, so it would pull a GPLv3 section 6
+        # corresponding-source obligation into every musl artifact -- including the lgplv2 cell,
+        # whose whole value is a clean licence position. Static linking makes the result "Target
+        # Code" under the Exception, which carries no such obligation. BtbN ships the same shape.
+        #
+        # If the invariant ever breaks, scripts/test/linux.sh fails on the DT_NEEDED rather than
+        # silently publishing something that will not start; fixing the link is the right answer
+        # there, not quietly taking on a licence burden.
+        for _so in "${OUT_DIR}"/*.so*; do
+          [ -e "${_so}" ] || continue
+          [ -L "${_so}" ] && continue
+          # REVERTED: an earlier version of this removed a DT_NEEDED entry when `nm` reported no
+          # symbols taken from it. That was wrong, and it shipped a broken artifact: the musl test
+          # jobs then failed with
+          #   ffprobe: Error relocating libavfilter.so: __popcountdi2: symbol not found
+          #                                             _Unwind_GetRegionStart: symbol not found
+          # which are libgcc symbols the library genuinely needs. The flaw was treating an EMPTY nm
+          # result as "no symbols required" rather than "could not determine" -- nm produced nothing
+          # for Alpine's libgcc_s.so.1, and the code read that silence as proof of absence. Exactly the
+          # mistake this branch exists to eliminate, committed inside the guard meant to enforce it.
+          #
+          # A dependency on the host C++ runtime is therefore treated as REAL again, and fails. Whether
+          # the right answer is a link change or accepting the dependency is a decision, not something
+          # to paper over here.
+          if patchelf --print-needed "${_so}" 2>/dev/null | grep -qE "^(libstdc\+\+\.so|libgcc_s\.so)"; then
+            echo "ERROR: ${_so##*/} depends on a host C++ runtime:" >&2
+            patchelf --print-needed "${_so}" | grep -E "^(libstdc\+\+\.so|libgcc_s\.so)" | sed "s/^/  /" >&2
+            echo "  A base Alpine image ships neither, so this artifact would not start." >&2
+            echo "  Expected the C++ runtime to be linked statically (-l:libstdc++.a," >&2
+            echo "  -static-libgcc); see scripts/deps/whisper.sh and scripts/platform/linux.sh." >&2
+            # Diagnose in place. Reaching this guard twice cost two CI rounds of inferring the cause
+            # from outside the container, so collect the evidence that actually separates the
+            # possibilities: did -static-libgcc reach the link, does this toolchain even HAVE a static
+            # unwinder, and which symbols are being taken from the shared one.
+            echo "  --- diagnosis ---" >&2
+            grep -E "^(LDFLAGS|EXTRALIBS)=" "${SRC_DIR}/ffbuild/config.mak" 2>/dev/null | cut -c1-200 | sed "s/^/    /" >&2 || true
+            for _l in libgcc_eh.a libgcc.a; do
+              printf "    %-14s %s\n" "${_l}" "$("${CC:-gcc}" -print-file-name="${_l}" 2>/dev/null)" >&2
+            done
+            _gccs="$("${CC:-gcc}" -print-file-name=libgcc_s.so.1 2>/dev/null)"
+            if command -v nm >/dev/null 2>&1 && [ -e "${_gccs}" ]; then
+              echo "    symbols taken from the shared libgcc:" >&2
+              _u="$(mktemp)"; _d="$(mktemp)"
+              nm -D --undefined-only "${_so}"  2>/dev/null | awk '{print $NF}' | sort -u > "${_u}"
+              nm -D --defined-only   "${_gccs}" 2>/dev/null | awk '{print $NF}' | sort -u > "${_d}"
+              comm -12 "${_u}" "${_d}" | head -20 | sed "s/^/      /" >&2
+              rm -f "${_u}" "${_d}"
+            fi
+            echo "  --- end diagnosis ---" >&2
+            exit 1
+          fi
+        done
+        echo "musl artifact has no host C++ runtime dependency (statically linked)."
+        ;;
+    esac
     # Linux (glibc/musl): use patchelf to set $ORIGIN rpath
     echo "Fixing ELF rpath for flat layout..."
     patchelf --set-rpath '$ORIGIN' "${OUT_DIR}/ffmpeg"

@@ -28,7 +28,7 @@ check_core_symbols "${DIR}" so
 load_config_string "${DIR}/libavcodec.so" "${DIR}/libavutil.so"
 check_config "--enable-whisper" "Whisper ASR filter"
 check_tls
-check_license_boundary
+check_license_boundary "${DIR}"
 check_pkgconfig "${DIR}"
 
 # The -dev archive (include/ + the shared libraries) is what downstream consumers
@@ -70,5 +70,43 @@ else
   # AArch32), so it must run under qemu-user; if that is unavailable, FAIL rather than skip.
   fail "functional suite: cannot execute ${TARCH} target — ${QEMU:-qemu} not available (refusing to skip)"
 fi
+
+# Runs AFTER the functional suite, not before: this check ASKS THE BINARY what it registered,
+# so it needs FFMPEG and RUNNER established. It used to sit up with the structural checks,
+# where FFMPEG was still unset and every claimed capability read as missing.
+check_claimed_capabilities
+# ...and the static variant on the same artifact, so rows with no CLI form are covered here
+# too (ffmpeg lists no per-codec d3d11va entry, so hevc_d3d11va is static-only).
+check_claimed_capabilities_in_dir "${DIR}"
+
+# musl artifacts must not depend on a host C++ runtime. A base alpine image ships neither
+# libstdc++.so.6 nor libgcc_s.so.1, so a surviving DT_NEEDED means the artifact cannot start:
+#   Error loading shared library libstdc++.so.6: No such file or directory
+# The runtime is linked statically (-l:libstdc++.a + -static-libgcc), which both makes the
+# artifact self-contained and keeps it free of any GPLv3 redistribution obligation -- statically
+# linked runtime is covered by the GCC Runtime Library Exception. Reading DT_NEEDED is the whole
+# test: if nothing needs the runtime, nothing can fail to find it. That is host-independent, so
+# it works identically in the x64 Alpine job container and the arm64 docker-run path.
+case "${RID}" in
+  linux-musl-*)
+    if ! command -v patchelf >/dev/null 2>&1; then
+      fail "patchelf unavailable - cannot verify the musl C++ runtime invariant"
+    else
+      needs=""
+      for so in "${DIR}"/*.so*; do
+        [ -e "${so}" ] || continue
+        [ -L "${so}" ] && continue
+        if patchelf --print-needed "${so}" 2>/dev/null | grep -qE '^(libstdc\+\+\.so|libgcc_s\.so)'; then
+          needs="${needs} $(basename "${so}")"
+        fi
+      done
+      if [ -z "${needs}" ]; then
+        pass "no host C++ runtime dependency (statically linked)"
+      else
+        fail "depends on a host C++ runtime:${needs} - will not start on a bare alpine image"
+      fi
+    fi
+    ;;
+esac
 
 finish

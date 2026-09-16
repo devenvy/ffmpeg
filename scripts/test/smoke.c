@@ -134,7 +134,7 @@ static int roundtrip(void) {
 
 static int has_whisper(void) {
     if (!avfilter_get_by_name("whisper")) DIE("whisper filter not registered\n");
-    printf("smoke: whisper filter present\n");
+    printf("smoke: whisper filter REGISTERED (registration only - no inference here)\n");
     return 0;
 }
 
@@ -156,7 +156,7 @@ static int has_tls(void) {
     }
     if (backend) {
         if (!https || !tls) DIE("TLS backend configured but https/tls protocol missing\n");
-        printf("smoke: https + tls protocols present (TLS backend wired)\n");
+        printf("smoke: https + tls protocols REGISTERED (name enumeration only - no handshake)\n");
     } else {
         if (https || tls) DIE("no TLS backend configured but https/tls present (lgplv2 leak?)\n");
         printf("smoke: no TLS backend — https/tls correctly absent (lgplv2)\n");

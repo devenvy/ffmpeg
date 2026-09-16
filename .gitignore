@@ -17,3 +17,9 @@ artifacts/
 Thumbs.db
 Desktop.ini
 .DS_Store
+# Planning / spec scratch from assisted sessions. These are working artifacts, not
+# documentation: they went stale the moment the code moved on (39 factual defects at the
+# point they were removed -- stale cell counts, pre-Catalyst assumptions, sample commands
+# that no longer run). Keeping them in-tree meant they read as authoritative.
+.superpowers/
+docs/superpowers/

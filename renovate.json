@@ -3,10 +3,10 @@
   "extends": [
     "config:recommended"
   ],
-  "onboarding": false,
   "enabledManagers": [
     "custom.regex"
   ],
+  "gitAuthor": "ryan-morris <ryan-morris@users.noreply.github.com>",
   "dependencyDashboard": true,
   "labels": [
     "dependencies"
@@ -158,6 +158,15 @@
         "custom.regex"
       ],
       "groupName": "FFmpeg + library dependencies",
+      "separateMajorMinor": false,
+      "separateMinorPatch": false
+    },
+    {
+      "description": "Keep the renovate-version bump in its OWN PR, separate from the ledger group above. That manager edits .github/workflows/renovate.yml, and Renovate cannot push to .github/workflows/ unless its token carries the workflow scope. When it cannot, it does not skip that one file -- it logs 'Workflows update rejection - aborting branch' and discards the ENTIRE branch, so a single un-writable file silently took out every library bump in the batch (measured: vmaf, whisper.cpp, shaderc and libmp3lame updates were all dropped while the job still reported success). Splitting it means the blast radius of a missing scope is the renovate-version PR alone, and the ledger keeps flowing regardless.",
+      "matchDepNames": [
+        "renovate/renovate"
+      ],
+      "groupName": "Renovate itself",
       "separateMajorMinor": false,
       "separateMinorPatch": false
     },

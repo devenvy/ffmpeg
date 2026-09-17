@@ -194,6 +194,18 @@ jobs:
           if [[ "$r" == "failure" || "$r" == "cancelled" ]]; then
             echo "build failed (matrix result: $r)"; exit 1
           fi
+          # A skip has two very different causes and only one of them deserves a green:
+          #   resolve said any=false          -> nothing to build, correctly passes
+          #   a NEEDED job failed (docs-matrix) -> GitHub skips this matrix whatever its `if:` says
+          # Without this branch the second case printed "build passed (matrix result: skipped)"
+          # over a fan-out that never ran -- observed on PR #31, which reported build green with
+          # zero artifacts built. Safe today only because docs-matrix is itself a required check;
+          # this makes the roll-up true on its own terms rather than by depending on that.
+          if [[ "$r" == "skipped" && "${{ needs.resolve.outputs.any }}" == "true" ]]; then
+            echo "build-matrix was SKIPPED even though resolve selected versions" \
+                 "${{ needs.resolve.outputs.versions }} - an upstream job it needs must have failed." \
+                 "Nothing was built, so this cannot pass."; exit 1
+          fi
           echo "build passed (matrix result: $r)"
 
   test:
@@ -205,6 +217,13 @@ jobs:
           for r in "${{ needs.test-matrix.result }}" "${{ needs.test-mobile-matrix.result }}"; do
             if [[ "$r" == "failure" || "$r" == "cancelled" ]]; then
               echo "test failed (a desktop/mobile test matrix did not pass: $r)"; exit 1
+            fi
+            # Same reasoning as the build roll-up: skipped-because-nothing-to-do passes,
+            # skipped-because-an-upstream-job-failed must not.
+            if [[ "$r" == "skipped" && "${{ needs.resolve.outputs.any }}" == "true" ]]; then
+              echo "a test matrix was SKIPPED even though resolve selected versions" \
+                   "${{ needs.resolve.outputs.versions }} - an upstream job it needs must have" \
+                   "failed. Nothing was tested, so this cannot pass."; exit 1
             fi
           done
           echo "test passed (desktop + mobile)"

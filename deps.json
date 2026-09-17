@@ -79,7 +79,7 @@
     },
     "whisper": {
       "origin": "https://github.com/ggml-org/whisper.cpp.git",
-      "tag": "v1.9.3",
+      "tag": "v1.9.4",
       "datasource": "github-tags"
     },
     "zimg": {
@@ -158,8 +158,8 @@
       "datasource": "git-refs"
     },
     "libmp3lame": {
-      "origin": "https://downloads.sourceforge.net/project/lame/lame/3.100/lame-3.100.tar.gz",
-      "tag": "3.100",
+      "origin": "https://downloads.sourceforge.net/project/lame/lame/4.0/lame-4.0.tar.gz",
+      "tag": "4.0",
       "releasesUrl": "https://sourceforge.net/projects/lame/files/lame/",
       "releasesStyle": "directory",
       "reason": "libmp3lame.sh downloads a SourceForge tarball (lame-3.100.tar.gz) via dep_version, not git; no verified git mirror carries a matching RELEASE__3_100-style tag (checked github.com/rbrito/lame — closest is lame3_100_with_psymodel_v3_99_5, not exact), so this entry cannot be faithfully expressed as a clonable ref; tag is the bare tarball-filename version. 3. Tracked via the tarball-listing custom datasource against releasesUrl, so a new upstream release still raises a PR."
@@ -191,7 +191,7 @@
     },
     "libvmaf": {
       "origin": "https://github.com/Netflix/vmaf.git",
-      "tag": "v3.2.0",
+      "tag": "v3.2.1",
       "datasource": "github-tags"
     },
     "brotli": {
@@ -231,7 +231,7 @@
     },
     "shaderc": {
       "origin": "https://github.com/google/shaderc.git",
-      "tag": "v2026.3",
+      "tag": "v2026.4",
       "datasource": "github-tags"
     },
     "soxr": {

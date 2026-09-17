@@ -22,7 +22,16 @@ cd "lame-${lame_ver}" || exit 1
 sed -i.bak '/lame_init_old/d' include/libmp3lame.sym
 rm -f include/libmp3lame.sym.bak
 
-LAME_ARGS=(--prefix="${DEPS_DIR}" --disable-shared --enable-static --disable-frontend --enable-nasm --with-pic)
+# --disable-decoder: we want LAME's ENCODER only. FFmpeg decodes MP3 with its own native
+# decoder, and --enable-libmp3lame wires up the encoder alone, so LAME's decode path is dead
+# weight here. It is also load-bearing from 4.0 on: LAME 4.0 dropped the bundled mpglib for an
+# external libmpg123 >= 1.26.0 and its configure defaults the decoder ON, so the build died at
+#   checking use of external mpg123 decoder... configure: error: no, libmpg123 not found
+# across every RID and all four cells. configure only raises that when the decoder was
+# explicitly requested; with it disabled it proceeds and needs no libmpg123, so this keeps a
+# whole new dependency out of the ledger rather than adding one. The option is present in both
+# 3.100 and 4.0 (verified in each tarball's configure), so a line that pins back still builds.
+LAME_ARGS=(--prefix="${DEPS_DIR}" --disable-shared --enable-static --disable-frontend --disable-decoder --enable-nasm --with-pic)
 LAME_ENV=()
 [ -n "${CROSS_HOST:-}" ] && LAME_ARGS+=(--host="${CROSS_HOST}")   # cross triple resolved in 02_configure
 case "${RID}" in

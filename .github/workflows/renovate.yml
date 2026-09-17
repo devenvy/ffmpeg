@@ -19,9 +19,14 @@ on:
         type: boolean
         default: false
 
+# These govern GITHUB_TOKEN, used by actions/checkout and the guard step below. They do NOT
+# govern Renovate: it authenticates with the UPDATE_PR_TOKEN PAT (see the Run Renovate step),
+# so its access is bounded by that PAT's scopes, not by this block. Raising anything here
+# cannot fix a Renovate 403 -- the scope has to be added to the PAT itself.
 permissions:
   contents: write         # create branches
   pull-requests: write    # open/update bump PRs
+  issues: read            # guard step reads the Dependency Dashboard issue
 
 concurrency:
   group: renovate
@@ -60,12 +65,61 @@ jobs:
           done
           echo "::warning::github.com still unreachable after 6 attempts; letting checkout try anyway"
       - uses: actions/checkout@v7
+      # Fail FAST and legibly on a missing scope. Renovate's own response to one is an INFO-level
+      # line buried in a 400-line log plus exit code 0, which is indistinguishable from "nothing
+      # to update" -- this repo has already lost weeks of bumps to exactly that.
+      # Classic PATs report scopes in the X-OAuth-Scopes response header. Fine-grained PATs send
+      # no such header, so its absence means "cannot verify", NOT "no scopes": warn and continue
+      # rather than fail on a token that simply cannot be introspected this way.
+      - name: Check the Renovate token carries the scopes Renovate needs
+        env:
+          TOKEN: ${{ secrets.UPDATE_PR_TOKEN }}
+          # dryRun exists to preview what Renovate WOULD do; a missing scope only matters when it
+          # tries to write. So report the same finding there but don't block the preview.
+          ENFORCE: ${{ !inputs.dryRun }}
+        run: |
+          fatal() {
+            if [ "${ENFORCE}" = "true" ]; then echo "::error::$*"; exit 1; fi
+            echo "::warning::$* (dryRun: not failing the job)"; exit 0
+          }
+          if [ -z "${TOKEN}" ]; then
+            fatal "UPDATE_PR_TOKEN is empty or unset - Renovate cannot run"
+          fi
+          hdrs="$(curl -sS -o /dev/null -D - --max-time 30 \
+                    -H "Authorization: Bearer ${TOKEN}" \
+                    -H "Accept: application/vnd.github+json" \
+                    https://api.github.com/user 2>/dev/null || true)"
+          scopes="$(printf '%s' "${hdrs}" | tr -d '\r' | sed -n 's/^[Xx]-[Oo][Aa]uth-[Ss]copes:[[:space:]]*//p')"
+          if [ -z "${scopes}" ]; then
+            echo "::warning::token sends no X-OAuth-Scopes header (fine-grained PAT?) - cannot verify scopes here; the post-run guard still checks the outcome"
+            exit 0
+          fi
+          echo "token scopes: ${scopes}"
+          missing=""
+          for want in repo workflow; do
+            printf '%s' ",${scopes}," | tr -d ' ' | grep -q ",${want}," || missing="${missing} ${want}"
+          done
+          if [ -n "${missing}" ]; then
+            fatal "UPDATE_PR_TOKEN is missing required scope(s):${missing}. Without 'workflow' Renovate aborts any branch touching .github/workflows/; without 'repo' it cannot push branches or update the Dependency Dashboard."
+          fi
+          echo "ok: token carries repo + workflow"
       - name: Run Renovate
         uses: renovatebot/github-action@v46.3.0
         with:
           # A PAT (not GITHUB_TOKEN): PRs opened with the default token don't trigger other
           # workflows, so Renovate's bump PRs wouldn't run CI. UPDATE_PR_TOKEN (also used by
           # check-updates.yml) lets the PRs run the build/test/docs-matrix gates.
+          #
+          # REQUIRED PAT SCOPES -- Renovate degrades QUIETLY when one is missing, so each of these
+          # was observed failing in run 35140763146 rather than inferred:
+          #   repo      branches, PRs, and the Dependency Dashboard issue.
+          #   workflow  push changes under .github/workflows/. Without it Renovate logs
+          #             "Workflows update rejection - aborting branch" and discards the WHOLE
+          #             branch, not just the workflow file -- see the "Renovate itself" rule in
+          #             renovate.json for why that manager is now grouped on its own.
+          #   (issues)  covered by `repo` on a classic PAT; a fine-grained PAT needs Issues:RW,
+          #             or Renovate 403s on the dashboard and its reported state silently stales.
+          # Dependabot alerts must also be readable or Renovate cannot raise security bumps.
           token: ${{ secrets.UPDATE_PR_TOKEN }}
           configurationFile: renovate.json
           # Pin Renovate CORE, not just the action wrapper. The action's default
@@ -76,5 +130,34 @@ jobs:
         env:
           RENOVATE_REPOSITORIES: ${{ github.repository }}
           RENOVATE_AUTODISCOVER: "false"
+          # Was `"onboarding": false` in renovate.json. That file is passed as configurationFile
+          # (Renovate's GLOBAL config) AND read from the default branch as the REPO config, so the
+          # option took effect globally while the repo-config pass rejected it every run. Setting
+          # it as env keeps the intent in the layer it belongs to, with no Configuration Error.
+          RENOVATE_ONBOARDING: "false"
           RENOVATE_DRY_RUN: ${{ inputs.dryRun && 'full' || null }}
           LOG_LEVEL: info
+      # Renovate exits 0 whether it opened every PR or silently discarded all of them, so this
+      # job's own green check proves nothing on its own. Renovate DOES publish what went wrong --
+      # as a "Repository Problems" section on the Dependency Dashboard issue -- so read that back
+      # and fail on it. Skipped for dryRun, which deliberately changes nothing.
+      - name: Fail if Renovate reported repository problems
+        if: ${{ !inputs.dryRun }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          num="$(gh issue list --repo "${GITHUB_REPOSITORY}" --state open --limit 100 \
+                   --json number,title \
+                   --jq '.[] | select(.title == "Dependency Dashboard") | .number' | head -1)"
+          if [ -z "${num}" ]; then
+            echo "::warning::no open 'Dependency Dashboard' issue found - cannot verify this run"
+            exit 0
+          fi
+          body="$(gh issue view "${num}" --repo "${GITHUB_REPOSITORY}" --json body --jq .body)"
+          if printf '%s' "${body}" | grep -q '^## Repository Problems'; then
+            echo "Renovate reported problems on issue #${num}:"
+            printf '%s\n' "${body}" | sed -n '/^## Repository Problems/,/^## /p' | head -30
+            echo "::error::Renovate reported repository problems on the Dependency Dashboard (#${num}). Updates may have been silently dropped - see the section above."
+            exit 1
+          fi
+          echo "ok: no repository problems reported on the Dependency Dashboard (#${num})"

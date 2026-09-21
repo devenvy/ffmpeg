@@ -1,7 +1,7 @@
 {
   "ffmpeg": [
-    "8.1.2",
-    "9.0.1"
+    "8.1.3",
+    "9.0.2"
   ],
   "defaults": {
     "dav1d": {
@@ -12,12 +12,12 @@
     },
     "fribidi": {
       "origin": "https://github.com/fribidi/fribidi.git",
-      "tag": "v1.0.16",
+      "tag": "v1.0.17",
       "datasource": "github-tags"
     },
     "harfbuzz": {
       "origin": "https://github.com/harfbuzz/harfbuzz.git",
-      "tag": "14.4.0",
+      "tag": "14.5.0",
       "datasource": "github-tags"
     },
     "kvazaar": {
@@ -147,7 +147,7 @@
     },
     "amf": {
       "origin": "https://github.com/GPUOpen-LibrariesAndSDKs/AMF.git",
-      "commit": "c35f613aea2e5057a688c979e75b1cf24253297e",
+      "commit": "a4c8f39ae1959c9ca9d56ade35d6a23c52fc77c5",
       "digestBranch": "master",
       "datasource": "github-tags",
       "reason": "amf's latest release tag v1.4.36 ships DisplayCapture.h with an unguarded extern \"C\" that breaks C compilation of FFmpeg's vsrc_amf.c under mingw (issue #7); v1.4.35 is too old for FFmpeg's AMF version check. master carries the __cplusplus guard fix but has no newer tag yet, so pin a reviewed master commit. Bump to the next release tag once it includes the fix."

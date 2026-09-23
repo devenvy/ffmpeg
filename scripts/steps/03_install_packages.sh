@@ -161,6 +161,22 @@ _glslc_supports_target_env() {
   rm -rf "${d}"
   return "${rc}"
 }
+# A host glslc cached by build.yml (actions/cache on .tools/glslc, keyed by RID + the shaderc
+# ref) is tried BEFORE building one -- but only if the glslc already on PATH fails the probe,
+# so a host whose own glslc is new enough (Homebrew, apk) is left alone. The restored binary is
+# then subject to the very same probe as everything else: if it does not run on this host or
+# cannot target vulkan1.4, the source build below simply proceeds and overwrites it. Nothing
+# here trusts the cache; it only skips work the probe proves unnecessary.
+GLSLC_CACHE="${ROOT_DIR}/.tools/glslc/glslc"
+if [[ -f "${GLSLC_CACHE}" ]] && ! _glslc_supports_target_env; then
+  ${SUDO:-} install -m755 "${GLSLC_CACHE}" /usr/local/bin/glslc
+  hash -r
+  if _glslc_supports_target_env; then
+    echo "glslc restored from cache: $(glslc --version 2>&1 | head -1)"
+  else
+    echo "cached glslc is unusable on this host; rebuilding it from source." >&2
+  fi
+fi
 if ! _glslc_supports_target_env; then
   # SKIP_DEPS suppresses INSTALLS, not correctness checks. Building shaderc here would be an
   # install, so say what is wrong and stop, rather than continuing into a build that would
@@ -235,6 +251,11 @@ if ! _glslc_supports_target_env; then
   )
   ${SUDO} install -m755 "${_shaderc_dir}/build/glslc/glslc" /usr/local/bin/glslc
   hash -r   # drop the shell's cached path to the old /usr/bin/glslc
+  # Publish the freshly built binary for the cache (see GLSLC_CACHE above). Written before the
+  # verification below on purpose: if that fails the build exits 1, the job fails, and
+  # actions/cache saves nothing from a failed job -- so a broken binary never reaches the cache.
+  mkdir -p "$(dirname "${GLSLC_CACHE}")"
+  cp "${_shaderc_dir}/build/glslc/glslc" "${GLSLC_CACHE}"
   # Building it is not the same as USING it: /usr/local/bin must win over the distro copy.
   # If it does not, configure still probes the old glslc and still silently drops every
   # Vulkan filter -- the exact failure this replaces.

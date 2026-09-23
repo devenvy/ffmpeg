@@ -69,8 +69,9 @@ jobs:
       # line buried in a 400-line log plus exit code 0, which is indistinguishable from "nothing
       # to update" -- this repo has already lost weeks of bumps to exactly that.
       # Classic PATs report scopes in the X-OAuth-Scopes response header. Fine-grained PATs send
-      # no such header, so its absence means "cannot verify", NOT "no scopes": warn and continue
-      # rather than fail on a token that simply cannot be introspected this way.
+      # no such header, so its absence means "cannot verify", NOT "no scopes": note it and continue
+      # rather than fail on a token that simply cannot be introspected this way (see the
+      # github_pat_ arm below for why that is a plain line, not a warning annotation).
       - name: Check the Renovate token carries the scopes Renovate needs
         env:
           TOKEN: ${{ secrets.UPDATE_PR_TOKEN }}
@@ -89,9 +90,32 @@ jobs:
                     -H "Authorization: Bearer ${TOKEN}" \
                     -H "Accept: application/vnd.github+json" \
                     https://api.github.com/user 2>/dev/null || true)"
+          # The status line comes first in -D output. A token GitHub rejects outright (expired,
+          # revoked, or never valid) answers 401 whatever its prefix -- a fine-grained PAT that has
+          # hit its expiry date still starts with github_pat_ -- and that is a hard failure the
+          # scope check below cannot see, because a 401 carries no scopes header either. No status
+          # at all means curl itself failed (network), which is "cannot verify", not "rejected".
+          status="$(printf '%s' "${hdrs}" | tr -d '\r' | sed -n '1s#^HTTP/[0-9.]* \([0-9][0-9][0-9]\).*#\1#p')"
+          if [ -n "${status}" ] && [ "${status}" != "200" ]; then
+            fatal "GitHub rejected UPDATE_PR_TOKEN (HTTP ${status} from /user) - the token is expired, revoked or malformed; Renovate would fail on every API call"
+          fi
           scopes="$(printf '%s' "${hdrs}" | tr -d '\r' | sed -n 's/^[Xx]-[Oo][Aa]uth-[Ss]copes:[[:space:]]*//p')"
           if [ -z "${scopes}" ]; then
-            echo "::warning::token sends no X-OAuth-Scopes header (fine-grained PAT?) - cannot verify scopes here; the post-run guard still checks the outcome"
+            case "${TOKEN}" in
+              github_pat_*)
+                # A fine-grained PAT. These never send X-OAuth-Scopes and GitHub exposes no API
+                # that reports a fine-grained token's permissions, so there is nothing this step
+                # CAN verify -- by design, not degradation, and not worth a yellow annotation on
+                # every run that trains people to skim past warnings. The outcome is what proves
+                # the permissions: the post-run guard below reads the Dependency Dashboard for
+                # Repository Problems, and a "CI tooling pinned in workflows" PR appearing at all
+                # proves the Workflows permission (that is the one whose absence discards branches).
+                echo "fine-grained PAT (github_pat_*): permissions cannot be introspected up front; the post-run Dependency Dashboard guard verifies the outcome"
+                ;;
+              *)
+                echo "::warning::token sends no X-OAuth-Scopes header and is not a github_pat_ token - cannot verify scopes here; the post-run guard still checks the outcome"
+                ;;
+            esac
             exit 0
           fi
           echo "token scopes: ${scopes}"

@@ -276,8 +276,11 @@ however it's built:
   badge. Bumping one line publishes only that line.
 - **Renovate** (`renovate.yml` + `renovate.json`) — Weekly. Bumps the library `defaults` **and**
   the FFmpeg `.ffmpeg` point releases in `deps.json`, batched into one grouped PR; it never touches
-  the `overrides` holds. PRs use `UPDATE_PR_TOKEN` so CI runs on them. Workflow actions are handled
-  separately by Dependabot (`.github/dependabot.yml`).
+  the `overrides` holds. The ledger is read with JSONata managers (structural queries over the
+  parsed JSON), so key order and extra fields in `deps.json` don't affect tracking. Pins that live
+  in workflow files (Renovate's own version, the Alpine build image) get a separate PR. PRs use
+  `UPDATE_PR_TOKEN` so CI runs on them. Workflow actions are handled separately by Dependabot
+  (`.github/dependabot.yml`).
 - **Check Updates** (`check-updates.yml`) — Weekly. Does only what Renovate can't: when a newer
   FFmpeg **major** appears upstream, it opens a PR adding it to `.ffmpeg` (plus the matching
   Renovate per-series rule) so Renovate tracks the new line going forward. Uses `UPDATE_PR_TOKEN`
@@ -519,11 +522,14 @@ clone the wrong thing. `bash scripts/deps/ledger-validate.sh` checks the ledger'
 
 - **Automatically:** self-hosted **Renovate** ([`renovate.json`](renovate.json) +
   [`.github/workflows/renovate.yml`](.github/workflows/renovate.yml)) watches, weekly:
-  - every dependency in the `defaults` block of `deps.json` — tag pins via git-tags, tarball deps
-    with no git remote (gmp, libmp3lame, libgsm, opencore-amr, vo-amrwbenc) via a custom datasource
-    reading the upstream release listing, and commit pins (x264) as git-refs digests against
-    the branch recorded in `digestBranch`. Scoped to `defaults` only: it never edits an **override**,
-    which is where a deliberate per-platform hold lives, and
+  - every dependency in the `defaults` block of `deps.json` — tag pins via git-tags (any entry
+    with a `tag` and a `datasource` key), tarball deps with no git remote (gmp, libmp3lame, libgsm,
+    opencore-amr, vo-amrwbenc; any entry with a `releasesUrl`) via a custom datasource reading the
+    upstream release listing, and commit pins (x264, vulkan-shim) as git-refs digests against
+    the branch recorded in `digestBranch`. These are JSONata queries over the parsed ledger, not
+    regexes over its text, so reordering or annotating an entry cannot drop it from tracking.
+    Scoped to `defaults` only: it never edits an **override**, which is where a deliberate
+    per-platform hold lives, and
   - each **FFmpeg** line in the `.ffmpeg` list in `deps.json`, constrained to **its own major**
     — any newer release within the major, patch or minor alike (9.0.1 → 9.0.2 → 9.1.0), never a
     cross-major jump (9.x → 10.x).
@@ -531,9 +537,12 @@ clone the wrong thing. `bash scripts/deps/ledger-validate.sh` checks the ledger'
   It batches all of these — libraries **and** FFmpeg point bumps, major/minor/patch/digest alike —
   into **one grouped PR** per run. Majors used to be split out for individual review, but every
   update edits `deps.json`, so concurrent PRs only conflict; hold a specific major back by pinning
-  it in `overrides` with a tracking issue instead.
-  affected line before you merge. Workflow **actions** are handled separately by **Dependabot**
-  ([`.github/dependabot.yml`](.github/dependabot.yml)); Renovate never touches them.
+  it in `overrides` with a tracking issue instead. Pins that live in **workflow files** (the
+  `renovate-version` in `renovate.yml`, the build/test container images below) are grouped into
+  their own PRs, because a token without the workflow scope makes Renovate discard the whole
+  branch, and that must not take the ledger bumps down with it. Workflow **actions** are handled
+  separately by **Dependabot** ([`.github/dependabot.yml`](.github/dependabot.yml)); Renovate never
+  touches them.
 - **Build/test container images** (Alpine for musl, manylinux_2_28 for glibc, Debian bookworm for
   armhf) are the toolchain, so they are pinned `tag@sha256` in `build.yml`/`test.yml` — never
   `:latest` — and Renovate bumps them in their **own** PR (`build container images`), apart from

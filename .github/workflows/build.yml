@@ -50,10 +50,16 @@ jobs:
             container: debian:bookworm
           - rid: linux-musl-x64
             runner: ubuntu-latest
-            container: alpine:latest
+            # Pinned to an Alpine MINOR, not `latest`: each minor ships a new gcc and musl, i.e.
+            # the toolchain the musl artifacts are linked with, and `latest` moved 3.22 -> 3.23
+            # -> 3.24 inside a year with no diff on our side (issue #26). Patch rebuilds within
+            # the minor still flow. Tracked by a Renovate manager in renovate.json (own PR, since
+            # it edits a workflow file). test.yml deliberately stays on alpine:latest so the
+            # artifacts are exercised on the newest Alpine, not just the one they were built on.
+            container: alpine:3.24
           # No container: here (unlike linux-musl-x64) — GitHub only supports
           # JavaScript actions in Alpine containers on x64 runners, so this RID
-          # instead docker-runs alpine:latest itself in the build step below,
+          # instead docker-runs the same pinned Alpine itself in the build step below,
           # keeping actions/checkout etc. on the host's glibc Node runtime.
           - rid: linux-musl-arm64
             runner: ubuntu-24.04-arm
@@ -155,6 +161,57 @@ jobs:
           # is shared with the calling workflow, so every cell builds exactly one tree.
           ref: ${{ inputs.ref || github.sha }}
 
+      # The HOST glslc. FFmpeg's configure executes it on the runner to compile shaders, and it
+      # has to be new enough for --target-env=vulkan1.4 -- the distro glslc on Ubuntu, Debian and
+      # manylinux is not, so 03_install_packages.sh builds the pinned shaderc from source. That is
+      # 4-5 minutes on every Vulkan (v3) cell of every Linux/Windows/Android RID: 28 cells, about
+      # two hours of compute, per two-line release, all producing the same binary. It is a single
+      # executable that changes only when the shaderc pin does, so cache it.
+      #
+      # Key = RID + the host the binary is built ON + the shaderc ref the ledger resolves for this
+      # RID and FFmpeg line.
+      #   - The ref comes from the real loader (dep_version), so a shaderc override for one line
+      #     or platform gets its own key instead of silently reusing the default's. NOT
+      #     hashFiles(deps.json): that would miss on every weekly ledger bump.
+      #   - The host fingerprint is the distro release the build runs in (ubuntu-24.04,
+      #     debian-12), or the manylinux image name for the RIDs that build inside it (its glibc
+      #     is 2.28 by definition, whatever the image date). Cache entries are IMMUTABLE: without
+      #     this, a runner-image move that made the cached binary unloadable would not be a
+      #     one-off rebuild but a rebuild on EVERY run, because the fixed key could never be
+      #     re-saved. A new release string is a new key. (Image-date tags are deliberately NOT in
+      #     the key: they change weekly and would make the cache miss more than it hits.)
+      # A stale or foreign binary cannot be USED by accident either way: 03 runs the SAME
+      # capability probe on the restored copy and builds from source when it fails. Apple RIDs take
+      # glslc from Homebrew and the musl RIDs from apk, so neither builds it; the v2 cells drop
+      # Vulkan and never need it. Both are excluded so they do not create empty caches.
+      - name: Resolve the shaderc pin (glslc cache key)
+        id: shaderc
+        if: matrix.license_version == 3 && !startsWith(matrix.rid, 'osx-') && !startsWith(matrix.rid, 'ios-') && !startsWith(matrix.rid, 'maccatalyst-') && !startsWith(matrix.rid, 'linux-musl-')
+        shell: bash
+        env:
+          FFMPEG_VERSION: ${{ inputs.ffmpeg_version }}
+        run: |
+          set -euo pipefail
+          export ROOT_DIR="${PWD}"   # the loader resolves the ledger relative to it
+          # shellcheck source=scripts/deps/lib.sh
+          . scripts/deps/lib.sh
+          tag="$(dep_version shaderc)"
+          case "${BUILD_RID}" in
+            # Built inside the manylinux container (see the Build step), not on this host.
+            linux-x64|linux-arm64) host="manylinux_2_28" ;;
+            # This step runs where the build runs: on the bare runner for win-*/android-*, inside
+            # the job container for linux-armhf. /etc/os-release names that environment.
+            *) host="$(. /etc/os-release && printf '%s-%s' "${ID}" "${VERSION_ID}")" ;;
+          esac
+          echo "glslc cache key: rid=${BUILD_RID} host=${host} shaderc=${tag} (FFmpeg ${FFMPEG_VERSION})"
+          { echo "tag=${tag}"; echo "host=${host}"; } >> "$GITHUB_OUTPUT"
+      - name: Cache the host glslc
+        if: steps.shaderc.outputs.tag != ''
+        uses: actions/cache@v6
+        with:
+          path: .tools/glslc
+          key: glslc-v1-${{ matrix.rid }}-${{ steps.shaderc.outputs.host }}-${{ steps.shaderc.outputs.tag }}
+
       - name: Build FFmpeg
         shell: bash
         run: |
@@ -216,8 +273,9 @@ jobs:
               bash -c 'chmod +x scripts/build.sh && ./scripts/build.sh' \
               2>&1 | tee "artifacts/${BUILD_RID}/logs/build.log"
             # Container ran as root — hand the outputs back to the runner user so the
-            # host-side test/upload steps can read/clean them.
-            sudo chown -R "$(id -u):$(id -g)" artifacts .build 2>/dev/null || true
+            # host-side test/upload steps can read/clean them (.tools holds the cached glslc,
+            # which the actions/cache post-step reads back on the host).
+            sudo chown -R "$(id -u):$(id -g)" artifacts .build .tools 2>/dev/null || true
           elif [[ "${BUILD_RID}" == "linux-musl-arm64" ]]; then
             # Same reasoning as linux-x64/linux-arm64 above, but for musl: GitHub
             # only supports JavaScript actions in Alpine containers on x64 runners,
@@ -236,7 +294,7 @@ jobs:
             # Pull explicitly first, with the same exponential+jitter backoff scripts/lib.sh uses, so
             # `docker run` below finds the image locally. Retrying the PULL rather than the `docker run`
             # matters: re-running the run would repeat the entire build.
-            _img="alpine:latest"
+            _img="alpine:3.24"   # same pin as linux-musl-x64's container: above; Renovate bumps both
             _delay=4
             for _try in 1 2 3 4 5 6; do
               docker pull "${_img}" && break
@@ -256,7 +314,7 @@ jobs:
               2>&1 | tee "artifacts/${BUILD_RID}/logs/build.log"
             # Container ran as root — hand the outputs back to the runner user so the
             # host-side test/upload steps can read/clean them.
-            sudo chown -R "$(id -u):$(id -g)" artifacts .build 2>/dev/null || true
+            sudo chown -R "$(id -u):$(id -g)" artifacts .build .tools 2>/dev/null || true
           else
             ./scripts/build.sh 2>&1 | tee "artifacts/${BUILD_RID}/logs/build.log"
           fi

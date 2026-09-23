@@ -4,6 +4,7 @@
     "config:recommended"
   ],
   "enabledManagers": [
+    "custom.jsonata",
     "custom.regex"
   ],
   "gitAuthor": "ryan-morris <ryan-morris@users.noreply.github.com>",
@@ -13,28 +14,51 @@
   ],
   "customManagers": [
     {
-      "customType": "regex",
-      "description": "Bump the DEFAULTS block of the dependency ledger (deps.json). The recursive first matchString scopes extraction to defaults only — the overrides block (per-version / per-platform holds) is deliberately outside the region, so Renovate never touches a pinned hold. Only tag-pinned entries with a datasource are matched; commit pins (x264, amf) and tarball deps (gmp, libmp3lame, libgsm, opencore-amr, vo-amrwbenc) are picked up by the dedicated managers below instead, so every ledger dep is tracked by exactly one manager -- asserted by scripts/ci/renovate-coverage-test.sh.",
+      "customType": "jsonata",
+      "fileFormat": "json",
+      "description": "Tag-pinned deps in the DEFAULTS block of the ledger (deps.json). JSONata reads the parsed document, so the ledger's key order and any extra fields (reason, registryUrl, ...) no longer matter -- the regex managers this replaced required origin/tag/datasource to be contiguous and in order, and a harmless reorder silently dropped a dep from tracking. Only .defaults is queried; .overrides (per-version / per-platform holds) is never touched. A dep is tracked iff it has a `tag` AND a `datasource` key: the datasource VALUE is informational (all git hosts are queried uniformly through git-tags against the clone URL, which is also what the packageRules below match on), its PRESENCE is the opt-in. Commit pins and tarball deps are handled by the two managers below, so every ledger dep is tracked by exactly one manager -- asserted by scripts/ci/renovate-coverage-test.sh.",
       "managerFilePatterns": [
         "/^deps\\.json$/"
       ],
-      "matchStringsStrategy": "recursive",
       "matchStrings": [
-        "\"defaults\"\\s*:\\s*\\{([\\s\\S]*?)\\}\\s*,\\s*\"overrides\"",
-        "\"origin\"\\s*:\\s*\"(?<packageName>https?://[^\"]+)\"\\s*,\\s*\"tag\"\\s*:\\s*\"(?<currentValue>[^\"]+)\"\\s*,\\s*\"datasource\""
+        "$each(defaults, function($v, $k) { $v.tag and $v.datasource ? { \"depName\": $k, \"packageName\": $v.origin, \"currentValue\": $v.tag } })"
       ],
       "datasourceTemplate": "git-tags"
     },
     {
-      "customType": "regex",
-      "description": "Track FFmpeg point releases listed in the .ffmpeg array of deps.json (one entry per maintained major line, e.g. 8.1.2). The recursive first matchString scopes extraction to the .ffmpeg array only; FFmpeg's upstream tags are n<version> (stripped via extractVersion).",
+      "customType": "jsonata",
+      "fileFormat": "json",
+      "description": "Deps pinned to a reviewed commit rather than a tag (x264 publishes no release tags; amf is held off-tag per issue #7; the Vulkan shim has no releases). Tracked as git-refs digests against the branch the pin actually follows: the key is digestBranch, NOT branch, because the ledger treats tag/branch/commit as mutually exclusive ref types (scripts/deps/lib.sh picks the first one present), so a second ref key would fail ledger-validate and could change which ref gets built.",
       "managerFilePatterns": [
         "/^deps\\.json$/"
       ],
-      "matchStringsStrategy": "recursive",
       "matchStrings": [
-        "\"ffmpeg\"\\s*:\\s*\\[([\\s\\S]*?)\\]",
-        "\"(?<currentValue>\\d+\\.\\d+\\.\\d+)\""
+        "$each(defaults, function($v, $k) { $v.commit and $v.digestBranch ? { \"depName\": $k, \"packageName\": $v.origin, \"currentDigest\": $v.commit, \"currentValue\": $v.digestBranch } })"
+      ],
+      "datasourceTemplate": "git-refs"
+    },
+    {
+      "customType": "jsonata",
+      "fileFormat": "json",
+      "description": "Deps that ship as a plain tarball with no git remote (GNU FTP, SourceForge, quut.com): versions come from the upstream release listing via the html custom datasource, selected by a `releasesUrl` key. The extractVersion is anchored to each project's OWN artifact name -- an html listing exposes every link on the page, so a shape-only pattern would accept an unrelated project's archive on a shared listing (SourceForge hosts opencore-amr and vo-amrwbenc under one project). The per-dep patterns live in the $lookup table here; a tarball dep missing from it yields no extractVersion, which renovate-coverage-test.sh fails on rather than letting Renovate treat every link as a version. Numeric-dot only: 'loose' records a trailing suffix as suffix rather than prerelease, so a future 3.102beta would otherwise rank as stable. [.] rather than \\. in the patterns because JSONata string literals reject that escape.",
+      "managerFilePatterns": [
+        "/^deps\\.json$/"
+      ],
+      "matchStrings": [
+        "$each(defaults, function($v, $k) { $v.releasesUrl ? { \"depName\": $k, \"currentValue\": $v.tag, \"registryUrl\": $v.releasesUrl, \"extractVersion\": $lookup({ \"gmp\": \"gmp-(?<version>[0-9]+(?:[.][0-9]+)*)[.]tar[.](?:gz|xz|bz2)(?:/|$)\", \"libgsm\": \"gsm-(?<version>[0-9]+(?:[.][0-9]+)*)[.]tar[.](?:gz|xz|bz2)(?:/|$)\", \"opencore-amr\": \"opencore-amr-(?<version>[0-9]+(?:[.][0-9]+)*)[.]tar[.](?:gz|xz|bz2)(?:/|$)\", \"vo-amrwbenc\": \"vo-amrwbenc-(?<version>[0-9]+(?:[.][0-9]+)*)[.]tar[.](?:gz|xz|bz2)(?:/|$)\", \"libmp3lame\": \"/files/lame/(?<version>[0-9]+(?:[.][0-9]+)*)/\" }, $k) } })"
+      ],
+      "datasourceTemplate": "custom.tarball-listing",
+      "versioningTemplate": "loose"
+    },
+    {
+      "customType": "jsonata",
+      "fileFormat": "json",
+      "description": "FFmpeg point releases: one entry per maintained major line in the .ffmpeg array of deps.json (e.g. 8.1.2). FFmpeg's upstream tags are n<version>, stripped via extractVersion. The per-major packageRules below keep each line inside its own major.",
+      "managerFilePatterns": [
+        "/^deps\\.json$/"
+      ],
+      "matchStrings": [
+        "$map(ffmpeg, function($v) { { \"currentValue\": $v } })"
       ],
       "depNameTemplate": "FFmpeg",
       "packageNameTemplate": "https://github.com/FFmpeg/FFmpeg.git",
@@ -43,95 +67,7 @@
     },
     {
       "customType": "regex",
-      "description": "Deps pinned to a reviewed commit rather than a tag (x264 publishes no release tags; amf is held off-tag per issue #7). Tracked as git-refs digests against the branch the pin actually follows -- x264's pin is stable, not master, so a HEAD assumption would have offered commits off the wrong branch. The key is digestBranch, NOT branch: the ledger treats tag/branch/commit as mutually exclusive ref types (scripts/deps/lib.sh picks the first one present), so a second ref key would fail ledger-validate and could change which ref actually gets built.",
-      "managerFilePatterns": [
-        "/^deps\\.json$/"
-      ],
-      "matchStringsStrategy": "recursive",
-      "matchStrings": [
-        "\"defaults\"\\s*:\\s*\\{([\\s\\S]*?)\\}\\s*,\\s*\"overrides\"",
-        "\"(?<depName>[A-Za-z0-9._-]+)\"\\s*:\\s*\\{\\s*\"origin\"\\s*:\\s*\"(?<packageName>https?://[^\"]+)\"\\s*,\\s*\"commit\"\\s*:\\s*\"(?<currentDigest>[0-9a-f]{40})\"\\s*,\\s*\"digestBranch\"\\s*:\\s*\"(?<currentValue>[^\"]+)\""
-      ],
-      "datasourceTemplate": "git-refs"
-    },
-    {
-      "customType": "regex",
-      "description": "gmp: no git remote, so versions come from the upstream release listing via the html custom datasource. The extractVersion is anchored to gmp's OWN artifact name -- an html listing exposes every link on the page, so a shape-only pattern would accept an unrelated project's archive that happens to sit on a shared listing (SourceForge hosts opencore-amr and vo-amrwbenc under one project). Numeric-dot only: 'loose' records a trailing suffix as suffix rather than prerelease, so a future 3.102beta would otherwise rank as stable.",
-      "managerFilePatterns": [
-        "/^deps\\.json$/"
-      ],
-      "matchStringsStrategy": "recursive",
-      "matchStrings": [
-        "\"defaults\"\\s*:\\s*\\{([\\s\\S]*?)\\}\\s*,\\s*\"overrides\"",
-        "\"(?<depName>gmp)\"\\s*:\\s*\\{\\s*\"origin\"\\s*:\\s*\"[^\"]+\"\\s*,\\s*\"tag\"\\s*:\\s*\"(?<currentValue>[^\"]+)\"\\s*,\\s*\"releasesUrl\"\\s*:\\s*\"(?<registryUrl>[^\"]+)\"\\s*,\\s*\"releasesStyle\"\\s*:\\s*\"tarball\""
-      ],
-      "datasourceTemplate": "custom.tarball-listing",
-      "versioningTemplate": "loose",
-      "extractVersionTemplate": "gmp-(?<version>[0-9]+(?:\\.[0-9]+)*)\\.tar\\.(?:gz|xz|bz2)(?:/|$)"
-    },
-    {
-      "customType": "regex",
-      "description": "libgsm: no git remote, so versions come from the upstream release listing via the html custom datasource. The extractVersion is anchored to libgsm's OWN artifact name -- an html listing exposes every link on the page, so a shape-only pattern would accept an unrelated project's archive that happens to sit on a shared listing (SourceForge hosts opencore-amr and vo-amrwbenc under one project). Numeric-dot only: 'loose' records a trailing suffix as suffix rather than prerelease, so a future 3.102beta would otherwise rank as stable.",
-      "managerFilePatterns": [
-        "/^deps\\.json$/"
-      ],
-      "matchStringsStrategy": "recursive",
-      "matchStrings": [
-        "\"defaults\"\\s*:\\s*\\{([\\s\\S]*?)\\}\\s*,\\s*\"overrides\"",
-        "\"(?<depName>libgsm)\"\\s*:\\s*\\{\\s*\"origin\"\\s*:\\s*\"[^\"]+\"\\s*,\\s*\"tag\"\\s*:\\s*\"(?<currentValue>[^\"]+)\"\\s*,\\s*\"releasesUrl\"\\s*:\\s*\"(?<registryUrl>[^\"]+)\"\\s*,\\s*\"releasesStyle\"\\s*:\\s*\"tarball\""
-      ],
-      "datasourceTemplate": "custom.tarball-listing",
-      "versioningTemplate": "loose",
-      "extractVersionTemplate": "gsm-(?<version>[0-9]+(?:\\.[0-9]+)*)\\.tar\\.(?:gz|xz|bz2)(?:/|$)"
-    },
-    {
-      "customType": "regex",
-      "description": "opencore-amr: no git remote, so versions come from the upstream release listing via the html custom datasource. The extractVersion is anchored to opencore-amr's OWN artifact name -- an html listing exposes every link on the page, so a shape-only pattern would accept an unrelated project's archive that happens to sit on a shared listing (SourceForge hosts opencore-amr and vo-amrwbenc under one project). Numeric-dot only: 'loose' records a trailing suffix as suffix rather than prerelease, so a future 3.102beta would otherwise rank as stable.",
-      "managerFilePatterns": [
-        "/^deps\\.json$/"
-      ],
-      "matchStringsStrategy": "recursive",
-      "matchStrings": [
-        "\"defaults\"\\s*:\\s*\\{([\\s\\S]*?)\\}\\s*,\\s*\"overrides\"",
-        "\"(?<depName>opencore-amr)\"\\s*:\\s*\\{\\s*\"origin\"\\s*:\\s*\"[^\"]+\"\\s*,\\s*\"tag\"\\s*:\\s*\"(?<currentValue>[^\"]+)\"\\s*,\\s*\"releasesUrl\"\\s*:\\s*\"(?<registryUrl>[^\"]+)\"\\s*,\\s*\"releasesStyle\"\\s*:\\s*\"tarball\""
-      ],
-      "datasourceTemplate": "custom.tarball-listing",
-      "versioningTemplate": "loose",
-      "extractVersionTemplate": "opencore-amr-(?<version>[0-9]+(?:\\.[0-9]+)*)\\.tar\\.(?:gz|xz|bz2)(?:/|$)"
-    },
-    {
-      "customType": "regex",
-      "description": "vo-amrwbenc: no git remote, so versions come from the upstream release listing via the html custom datasource. The extractVersion is anchored to vo-amrwbenc's OWN artifact name -- an html listing exposes every link on the page, so a shape-only pattern would accept an unrelated project's archive that happens to sit on a shared listing (SourceForge hosts opencore-amr and vo-amrwbenc under one project). Numeric-dot only: 'loose' records a trailing suffix as suffix rather than prerelease, so a future 3.102beta would otherwise rank as stable.",
-      "managerFilePatterns": [
-        "/^deps\\.json$/"
-      ],
-      "matchStringsStrategy": "recursive",
-      "matchStrings": [
-        "\"defaults\"\\s*:\\s*\\{([\\s\\S]*?)\\}\\s*,\\s*\"overrides\"",
-        "\"(?<depName>vo-amrwbenc)\"\\s*:\\s*\\{\\s*\"origin\"\\s*:\\s*\"[^\"]+\"\\s*,\\s*\"tag\"\\s*:\\s*\"(?<currentValue>[^\"]+)\"\\s*,\\s*\"releasesUrl\"\\s*:\\s*\"(?<registryUrl>[^\"]+)\"\\s*,\\s*\"releasesStyle\"\\s*:\\s*\"tarball\""
-      ],
-      "datasourceTemplate": "custom.tarball-listing",
-      "versioningTemplate": "loose",
-      "extractVersionTemplate": "vo-amrwbenc-(?<version>[0-9]+(?:\\.[0-9]+)*)\\.tar\\.(?:gz|xz|bz2)(?:/|$)"
-    },
-    {
-      "customType": "regex",
-      "description": "libmp3lame: no git remote, so versions come from the upstream release listing via the html custom datasource. The extractVersion is anchored to libmp3lame's OWN artifact name -- an html listing exposes every link on the page, so a shape-only pattern would accept an unrelated project's archive that happens to sit on a shared listing (SourceForge hosts opencore-amr and vo-amrwbenc under one project). Numeric-dot only: 'loose' records a trailing suffix as suffix rather than prerelease, so a future 3.102beta would otherwise rank as stable.",
-      "managerFilePatterns": [
-        "/^deps\\.json$/"
-      ],
-      "matchStringsStrategy": "recursive",
-      "matchStrings": [
-        "\"defaults\"\\s*:\\s*\\{([\\s\\S]*?)\\}\\s*,\\s*\"overrides\"",
-        "\"(?<depName>libmp3lame)\"\\s*:\\s*\\{\\s*\"origin\"\\s*:\\s*\"[^\"]+\"\\s*,\\s*\"tag\"\\s*:\\s*\"(?<currentValue>[^\"]+)\"\\s*,\\s*\"releasesUrl\"\\s*:\\s*\"(?<registryUrl>[^\"]+)\"\\s*,\\s*\"releasesStyle\"\\s*:\\s*\"directory\""
-      ],
-      "datasourceTemplate": "custom.tarball-listing",
-      "versioningTemplate": "loose",
-      "extractVersionTemplate": "/files/lame/(?<version>[0-9]+(?:\\.[0-9]+)*)/"
-    },
-    {
-      "customType": "regex",
-      "description": "Pinning the ACTION (renovatebot/github-action) does not pin Renovate itself: the action's default renovate-version pulls a moving major tag, so the tool that maintains every other pin was itself unpinned and untracked. renovate.yml now pins a full version and this manager keeps it updated from the published container tags.",
+      "description": "Pinning the ACTION (renovatebot/github-action) does not pin Renovate itself: the action's default renovate-version pulls a moving major tag, so the tool that maintains every other pin was itself unpinned and untracked. renovate.yml pins a full version and this manager keeps it updated from the published container tags.",
       "managerFilePatterns": [
         "/^\\.github/workflows/renovate\\.yml$/"
       ],
@@ -141,12 +77,26 @@
       "datasourceTemplate": "docker",
       "depNameTemplate": "renovate/renovate",
       "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
+      "description": "The Alpine BUILD image for the musl RIDs, pinned to a minor (3.NN) tag in build.yml. Each Alpine minor ships a new gcc and musl, i.e. the toolchain the musl artifacts are linked with, so `latest` moving 3.22 -> 3.23 -> 3.24 changed the effective ABI floor silently (issue #26). A minor tag pins that while still taking patch rebuilds; the docker datasource offers 3.25 when it appears. Only build.yml: test.yml deliberately stays on alpine:latest so the artifacts are exercised on the newest Alpine. The other two images are left floating on purpose -- debian:bookworm is already a frozen stable release, and manylinux_2_28's toolchain is selected by name (gcc-toolset-14) in 03_install_packages.sh, so its weekly rebuilds carry nothing that matters here.",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/build\\.yml$/"
+      ],
+      "matchStrings": [
+        "alpine:(?<currentValue>[0-9]+\\.[0-9]+)\\b"
+      ],
+      "datasourceTemplate": "docker",
+      "depNameTemplate": "alpine",
+      "versioningTemplate": "docker"
     }
   ],
   "packageRules": [
     {
       "description": "Group all ledger dependency bumps under a clear prefix so CI (build + docs-matrix) validates each PR against every FFmpeg line before merge.",
       "matchManagers": [
+        "custom.jsonata",
         "custom.regex"
       ],
       "commitMessagePrefix": "chore(deps):",
@@ -155,6 +105,7 @@
     {
       "description": "Batch EVERY ledger update -- major, minor, patch and digest alike -- into ONE grouped PR per run. Majors used to be left ungrouped so each got individual scrutiny, but every one of these updates edits deps.json, so concurrent PRs conflict with each other and the conflict resolution costs more than the separate review buys. One PR means one deps.json to reason about and one CI run (build + docs-matrix) validating the whole set against every FFmpeg line. A major that needs to be held back can be split out by pinning it in .overrides with a tracking issue, the same as x265.",
       "matchManagers": [
+        "custom.jsonata",
         "custom.regex"
       ],
       "groupName": "FFmpeg + library dependencies",
@@ -162,11 +113,11 @@
       "separateMinorPatch": false
     },
     {
-      "description": "Keep the renovate-version bump in its OWN PR, separate from the ledger group above. That manager edits .github/workflows/renovate.yml, and Renovate cannot push to .github/workflows/ unless its token carries the workflow scope. When it cannot, it does not skip that one file -- it logs 'Workflows update rejection - aborting branch' and discards the ENTIRE branch, so a single un-writable file silently took out every library bump in the batch (measured: vmaf, whisper.cpp, shaderc and libmp3lame updates were all dropped while the job still reported success). Splitting it means the blast radius of a missing scope is the renovate-version PR alone, and the ledger keeps flowing regardless.",
-      "matchDepNames": [
-        "renovate/renovate"
+      "description": "Anything pinned INSIDE a workflow file (renovate-version, the Alpine build image) gets its OWN PR, separate from the ledger group above. Renovate cannot push to .github/workflows/ unless its token carries the workflow scope, and when it cannot it does not skip that one file -- it logs 'Workflows update rejection - aborting branch' and discards the ENTIRE branch, so a single un-writable file silently took out every library bump in the batch (measured: vmaf, whisper.cpp, shaderc and libmp3lame updates were all dropped while the job still reported success). Splitting by file keeps the blast radius of a missing scope to this PR alone, and the ledger keeps flowing regardless. Matched by file rather than by dep name so a future workflow pin lands here automatically.",
+      "matchFileNames": [
+        ".github/workflows/**"
       ],
-      "groupName": "Renovate itself",
+      "groupName": "CI tooling pinned in workflows",
       "separateMajorMinor": false,
       "separateMinorPatch": false
     },

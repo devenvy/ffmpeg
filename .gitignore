@@ -1,6 +1,8 @@
 # Build artifacts
 .build/
 artifacts/
+# Host build tools cached across CI runs (the glslc built by 03_install_packages.sh)
+.tools/
 
 # Stray build/config logs (e.g. an FFmpeg config.log copied out for debugging)
 *.log

@@ -877,12 +877,12 @@ run_functional() {
   case " ${CONFIG_STR} " in
     *" --enable-libx265 "*)
       local x265_out x265_ec
-      x265_out="$("${RUNNER[@]}" "$FFMPEG" -hide_banner -y -v error \
+      x265_out="$(${RUNNER[@]+"${RUNNER[@]}"} "$FFMPEG" -hide_banner -y -v error \
             -f lavfi -i testsrc=size=320x240:rate=25:duration=1 \
             -c:v libx265 -preset ultrafast -x265-params log-level=error "$tmp/x265.mp4" 2>&1)"
       x265_ec=$?
       if [ "$x265_ec" -eq 0 ] \
-         && "${RUNNER[@]}" "$FFMPEG" -hide_banner -v error -i "$tmp/x265.mp4" -f null - >/dev/null 2>&1; then
+         && ${RUNNER[@]+"${RUNNER[@]}"} "$FFMPEG" -hide_banner -v error -i "$tmp/x265.mp4" -f null - >/dev/null 2>&1; then
         pass "libx265 encode + decode round-trip"
       else
         fail "libx265 encode + decode round-trip (encode exit ${x265_ec}) — $(printf '%s' "$x265_out" | tr '\n' ' ' | tail -c 300)"

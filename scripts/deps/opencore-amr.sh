@@ -11,8 +11,9 @@ amr_ver="$(dep_version opencore-amr)"
 echo "Building opencore-amr ${amr_ver} (static)..."
 cd "${WORK_DIR}" || exit 1
 rm -rf "opencore-amr-${amr_ver}"
-curl -fsSL --connect-timeout 30 \
-  "https://downloads.sourceforge.net/opencore-amr/opencore-amr-${amr_ver}.tar.gz" -o opencore-amr.tar.gz
+fetch_tarball opencore-amr.tar.gz \
+  "https://downloads.sourceforge.net/opencore-amr/opencore-amr-${amr_ver}.tar.gz" \
+  "https://deb.debian.org/debian/pool/main/o/opencore-amr/opencore-amr_${amr_ver}.orig.tar.gz"
 tar -xf opencore-amr.tar.gz
 cd "opencore-amr-${amr_ver}" || exit 1
 

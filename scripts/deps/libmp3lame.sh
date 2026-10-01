@@ -10,8 +10,9 @@ lame_ver="$(dep_version libmp3lame)"
 echo "Building libmp3lame ${lame_ver} (static)..."
 cd "${WORK_DIR}" || exit 1
 rm -rf "lame-${lame_ver}"
-curl -fsSL --connect-timeout 30 \
-  "https://downloads.sourceforge.net/project/lame/lame/${lame_ver}/lame-${lame_ver}.tar.gz" -o lame.tar.gz
+fetch_tarball lame.tar.gz \
+  "https://downloads.sourceforge.net/project/lame/lame/${lame_ver}/lame-${lame_ver}.tar.gz" \
+  "https://deb.debian.org/debian/pool/main/l/lame/lame_${lame_ver}.orig.tar.gz"
 tar -xf lame.tar.gz
 cd "lame-${lame_ver}" || exit 1
 # LAME 3.100 exports lame_init_old in its symbol file but no longer defines it,

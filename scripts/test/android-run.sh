@@ -45,7 +45,7 @@ DEST=/data/local/tmp/ffsmoke
 # is harmless and keeps both RIDs on one code path.
 check_smoke_link "${TCBIN}/${CLANG_TRIPLE}${NDK_API}-clang" "${DIR}/include" /tmp/smoke_android \
   -L "${LIBDIR}" -lavformat -lavcodec -lavfilter -lavutil -lswscale -lswresample \
-  -Wl,-rpath,"${DEST}" || finish
+  -Wl,-rpath,"${DEST}" || { finish; exit; }   # no binary to run: report and stop here
 
 adb wait-for-device
 adb shell "rm -rf ${DEST}; mkdir -p ${DEST}" >/dev/null

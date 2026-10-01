@@ -16,6 +16,11 @@ on:
       # run, so only the *-test.sh validators are excluded. Without this, editing a test that
       # merely reads a config rebuilds 15 RIDs x 4 cells x 2 FFmpeg lines for no artifact change.
       - '!scripts/ci/*-test.sh'
+      # The pinned build/test container images ARE the toolchain (issue #26), so a merged
+      # Renovate image bump must reach select-versions.sh. It selects every line only when a
+      # changed line carries an `@sha256:` image ref; any other edit to these files selects none.
+      - '.github/workflows/build.yml'
+      - '.github/workflows/test.yml'
   workflow_dispatch:
     inputs:
       versions:

@@ -4,6 +4,9 @@
 # in .ffmpeg, library versions in .defaults, and per-line holds in .overrides. ci.yml (PR) and
 # release.yml (push) share this ONE tested implementation. Rules (unioned):
 #   - a build-recipe change (scripts/**, except scripts/test/**) -> ALL tracked versions
+#   - a build/test container IMAGE change (a changed `@sha256:` line in build.yml/test.yml)
+#                                    -> ALL tracked versions; the image is the toolchain
+#                                       (issue #26), so a digest-only Renovate bump must build
 #   - a .ffmpeg entry added/changed  -> that version line (an FFmpeg point bump)
 #   - a .defaults/.overrides change  -> only lines whose RESOLVED dep set changed (a line that
 #     whole-line-pins the bumped dep is NOT affected — see impacted-versions.sh)
@@ -23,6 +26,16 @@ changed="$(git diff --name-only "${base}" HEAD)"
 
 # Build-recipe change affects every line's artifacts.
 if printf '%s\n' "${changed}" | grep -E '^scripts/' | grep -qv '^scripts/test/'; then
+  printf '%s\n' "${tracked[@]}"; exit 0
+fi
+
+# Build/test image change. The images are pinned tag@sha256 (issue #26) and Renovate bumps them in
+# PRs that touch nothing else, so without this rule such a PR selected NOTHING and merged a new
+# toolchain unbuilt. Keyed on `@sha256:` in a changed line: every image bump changes one, and no
+# other construct in these workflows uses that syntax (actions are tag-pinned). Other workflow
+# edits stay out, so a comment or step tweak does not cost a full rebuild.
+if git diff -U0 "${base}" HEAD -- .github/workflows/build.yml .github/workflows/test.yml \
+     | grep -E '^[+-]' | grep -Ev '^(\+\+\+|---) ' | grep -q '@sha256:'; then
   printf '%s\n' "${tracked[@]}"; exit 0
 fi
 

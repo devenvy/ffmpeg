@@ -51,10 +51,10 @@ jobs:
             runner: ubuntu-latest
           - rid: linux-musl-x64
             runner: ubuntu-latest
-            container: alpine:latest
+            container: alpine:3.24.2@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6
           # No container: here (unlike linux-musl-x64) — GitHub only supports
           # JavaScript actions in Alpine containers on x64 runners, so this RID
-          # instead docker-runs alpine:latest itself in the Test artifact step
+          # instead docker-runs the pinned Alpine image itself in the Test artifact step
           # below, keeping actions/checkout etc. on the host's glibc Node runtime.
           - rid: linux-musl-arm64
             runner: ubuntu-24.04-arm
@@ -217,7 +217,7 @@ jobs:
           if [[ "${BUILD_RID}" == "linux-musl-arm64" ]]; then
             # Same reasoning as the build job: GitHub only supports JavaScript
             # actions in Alpine containers on x64 runners, so this arm64 runner
-            # docker-runs alpine:latest for the test itself instead of using
+            # docker-runs the pinned Alpine image for the test itself instead of using
             # `container:` on the job (which breaks actions/checkout — see
             # linux-musl-x64, which stays on `container:` because its x64
             # runner *is* supported).
@@ -230,7 +230,7 @@ jobs:
             # Pull explicitly first, with the same exponential+jitter backoff scripts/lib.sh uses, so
             # `docker run` below finds the image locally. Retrying the PULL rather than the `docker run`
             # matters: re-running the run would repeat the entire build.
-            _img="alpine:latest"
+            _img="alpine:3.24.2@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6"
             _delay=4
             for _try in 1 2 3 4 5 6; do
               docker pull "${_img}" && break

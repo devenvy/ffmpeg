@@ -532,6 +532,14 @@ clone the wrong thing. `bash scripts/deps/ledger-validate.sh` checks the ledger'
   it in `overrides` with a tracking issue instead.
   affected line before you merge. Workflow **actions** are handled separately by **Dependabot**
   ([`.github/dependabot.yml`](.github/dependabot.yml)); Renovate never touches them.
+- **Build/test container images** (Alpine for musl, manylinux_2_28 for glibc, Debian bookworm for
+  armhf) are the toolchain, so they are pinned `tag@sha256` in `build.yml`/`test.yml` — never
+  `:latest` — and Renovate bumps them in their **own** PR (`build container images`), apart from
+  the ledger batch because that PR edits `.github/workflows/`. Merging it rebuilds and releases
+  every FFmpeg line (`select-versions.sh` treats a changed `@sha256:` line like a recipe change),
+  so merge it at the cadence a toolchain change deserves; Renovate keeps the one PR rebased.
+  `scripts/ci/image-pins-test.sh` fails any ref that is unpinned or that the Renovate regex no
+  longer matches.
 - **A new FFmpeg major line** (e.g. 10.0) is the one thing Renovate can't do — it edits
   existing values, not add lines. [`check-updates.yml`](.github/workflows/check-updates.yml) detects
   a new upstream major and opens a *separate* PR adding the parallel line (a human-reviewed change:

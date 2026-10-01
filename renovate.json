@@ -141,6 +141,17 @@
       "datasourceTemplate": "docker",
       "depNameTemplate": "renovate/renovate",
       "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
+      "description": "Build/test container images (issue #26). The musl, glibc and armhf builds run inside these images, so the image IS the toolchain: a floating alpine:latest or untagged manylinux ref changed GCC/musl/glibc between runs with no diff on our side. Every ref in build.yml/test.yml is pinned tag@sha256 and tracked here; scripts/ci/image-pins-test.sh asserts none is left unpinned or unmatched. Tag and digest are captured separately so Renovate can bump either -- bookworm only ever moves its digest.",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/(build|test)\\.yml$/"
+      ],
+      "matchStrings": [
+        "(?<depName>quay\\.io/pypa/manylinux_2_28_(?:x86_64|aarch64)|alpine|debian):(?<currentValue>[A-Za-z0-9][A-Za-z0-9._-]*)@(?<currentDigest>sha256:[a-f0-9]{64})"
+      ],
+      "datasourceTemplate": "docker"
     }
   ],
   "packageRules": [
@@ -169,6 +180,37 @@
       "groupName": "Renovate itself",
       "separateMajorMinor": false,
       "separateMinorPatch": false
+    },
+    {
+      "description": "Build/test container images in their OWN PR, after the ledger group above so it wins. Same reason as Renovate itself: these refs live in .github/workflows/, and a token without the workflow scope aborts the whole branch, so they must not ride in the ledger batch. A merged bump rebuilds and releases every FFmpeg line (select-versions.sh keys on the changed @sha256 line), so this is one PR Renovate keeps rebased rather than one per image: merge it at the cadence a toolchain change deserves.",
+      "matchManagers": [
+        "custom.regex"
+      ],
+      "matchDepNames": [
+        "quay.io/pypa/manylinux_2_28_x86_64",
+        "quay.io/pypa/manylinux_2_28_aarch64",
+        "alpine",
+        "debian"
+      ],
+      "groupName": "build container images",
+      "commitMessagePrefix": "chore(images):",
+      "separateMajorMinor": false,
+      "separateMinorPatch": false
+    },
+    {
+      "description": "manylinux publishes date tags (YYYY.MM.DD-N, N = same-day rebuild). Default docker versioning reads the -N suffix as a compatibility marker rather than an ordinal, so spell the scheme out: build orders same-day rebuilds.",
+      "matchDepNames": [
+        "quay.io/pypa/manylinux_2_28_x86_64",
+        "quay.io/pypa/manylinux_2_28_aarch64"
+      ],
+      "versioning": "regex:^(?<major>\\d{4})\\.(?<minor>\\d{2})\\.(?<patch>\\d{2})-(?<build>\\d+)$"
+    },
+    {
+      "description": "Alpine: offer patch and minor releases (3.24.x -> 3.25.y) -- a minor IS a new GCC/musl and therefore a new ABI floor for the musl artifacts, which is exactly why it must arrive as a reviewable PR rather than silently. Never the edge/date-tagged development stream.",
+      "matchDepNames": [
+        "alpine"
+      ],
+      "allowedVersions": "/^3\\.\\d+\\.\\d+$/"
     },
     {
       "description": "Vulkan-Headers/Loader + SPIRV-Headers ship in lockstep on vulkan-sdk-* release tags (the ledger pins the same SDK version across all three). Each repo ALSO carries a parallel v1.4.x tag scheme; restrict Renovate to the vulkan-sdk-* versioning so it can't cross namespaces or desync the trio (which it otherwise would — it proposed v1.4.360 for Loader+SPIRV but not Headers).",

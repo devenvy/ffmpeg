@@ -7,7 +7,7 @@
     "custom.regex"
   ],
   "gitAuthor": "ryan-morris <ryan-morris@users.noreply.github.com>",
-  "dependencyDashboard": true,
+  "dependencyDashboard": false,
   "labels": [
     "dependencies"
   ],

@@ -715,10 +715,10 @@ exercise_tls() {
   skip "TLS handshake: incomplete (runner network/cert, not a TLS-backend defect): $(tr '\n' ' ' <<<"$out" | cut -c1-160)"
 }
 
-# --- whisper CPU inference ----------------------------------------------------
+# --- whisper inference --------------------------------------------------------
 # Prove the af_whisper filter actually RUNS ggml inference (not just that it registers).
 # Needs a model: the workflow downloads a tiny GGML model (cached) and sets WHISPER_MODEL.
-# We run it over generated audio on the CPU and assert it completes — a real forward pass;
+# We run it over generated audio and assert it completes — a real forward pass;
 # transcription accuracy is out of scope (a tone yields little text, but the pipeline runs).
 exercise_whisper() {
   local model="${WHISPER_MODEL:-}"
@@ -740,16 +740,27 @@ exercise_whisper() {
   # pinned (needs a debugger on a crashing runner — a later task). We run ONCE and FAIL LOUD on any
   # nonzero exit — no retry, no masking — capturing exit code + stderr (exit 139 = SIGSEGV). Re-run
   # the job if a bad runner trips it. (queue uses the 3s default — a DURATION; our clip is 2s.)
-  local out ec
-  out="$("${RUNNER[@]}" "$FFMPEG" -hide_banner -v verbose -f lavfi -i "sine=frequency=220:duration=2" \
-        -af "whisper=model=${model}:language=en:destination=${tmp}/out.txt" \
-        -f null - 2>&1)"
-  ec=$?
-  if [ "$ec" -eq 0 ] && [ -e "${tmp}/out.txt" ]; then
-    pass "whisper inference: af_whisper ran a CPU forward pass to completion"
-  else
-    fail "whisper inference: af_whisper did not complete (exit ${ec}; exit 139 is the known intermittent segfault, see issue #20 — re-run before investigating) — $(printf '%s' "$out" | tr '\n' ' ' | tail -c 400)"
-  fi
+  # Two runs, because they prove different things. use_gpu=0 is a forward pass on the CPU by
+  # construction. The default (use_gpu=1) on a GPU backend build is what a user gets, and on these
+  # GPU-less runners it proves the backend degrades to the CPU instead of failing -- the property
+  # the Vulkan shim exists to give win-* (no driver => vulkan-1.dll absent at runtime).
+  local out ec gpu label
+  for gpu in 0 1; do
+    case "$gpu" in
+      0) label="forced CPU (use_gpu=0)" ;;
+      1) label="default GPU request (use_gpu=1, CPU fallback without a device)" ;;
+    esac
+    rm -f "${tmp}/out.txt"
+    out="$(${RUNNER[@]+"${RUNNER[@]}"} "$FFMPEG" -hide_banner -v verbose -f lavfi -i "sine=frequency=220:duration=2" \
+          -af "whisper=model=${model}:language=en:use_gpu=${gpu}:destination=${tmp}/out.txt" \
+          -f null - 2>&1)"
+    ec=$?
+    if [ "$ec" -eq 0 ] && [ -e "${tmp}/out.txt" ]; then
+      pass "whisper inference ${label}: af_whisper ran a forward pass to completion"
+    else
+      fail "whisper inference ${label}: af_whisper did not complete (exit ${ec}; exit 139 is the known intermittent segfault, see issue #20 — re-run before investigating) — $(printf '%s' "$out" | tr '\n' ' ' | tail -c 400)"
+    fi
+  done
   rm -rf "$tmp"
 }
 
@@ -871,7 +882,7 @@ run_functional() {
 
   # Registry enumeration — the built-ins + external encoders actually registered (needs CONFIG_STR).
   check_registry
-  # Real behavior: an https handshake (if the build has TLS) + a whisper CPU forward pass (if a model).
+  # Real behavior: an https handshake (if the build has TLS) + whisper forward passes, forced-CPU and default (if a model).
   exercise_tls
   exercise_whisper
 

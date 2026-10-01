@@ -14,7 +14,7 @@
   "customManagers": [
     {
       "customType": "regex",
-      "description": "Bump the DEFAULTS block of the dependency ledger (deps.json). The recursive first matchString scopes extraction to defaults only — the overrides block (per-version / per-platform holds) is deliberately outside the region, so Renovate never touches a pinned hold. Only tag-pinned entries with a datasource are matched; commit pins (x264, amf) and tarball deps (gmp, libmp3lame, libgsm, opencore-amr, vo-amrwbenc) are picked up by the dedicated managers below instead, so every ledger dep is tracked by exactly one manager -- asserted by scripts/ci/renovate-coverage-test.sh.",
+      "description": "Bump the DEFAULTS block of the dependency ledger (deps.json). The recursive first matchString scopes extraction to defaults only — the overrides block (per-version / per-platform holds) is deliberately outside the region, so Renovate never touches a pinned hold. Only tag-pinned entries with a datasource are matched; commit pins (x264) and tarball deps (gmp, libmp3lame, libgsm, opencore-amr, vo-amrwbenc) are picked up by the dedicated managers below instead, so every ledger dep is tracked by exactly one manager -- asserted by scripts/ci/renovate-coverage-test.sh.",
       "managerFilePatterns": [
         "/^deps\\.json$/"
       ],
@@ -43,7 +43,7 @@
     },
     {
       "customType": "regex",
-      "description": "Deps pinned to a reviewed commit rather than a tag (x264 publishes no release tags; amf is held off-tag per issue #7). Tracked as git-refs digests against the branch the pin actually follows -- x264's pin is stable, not master, so a HEAD assumption would have offered commits off the wrong branch. The key is digestBranch, NOT branch: the ledger treats tag/branch/commit as mutually exclusive ref types (scripts/deps/lib.sh picks the first one present), so a second ref key would fail ledger-validate and could change which ref actually gets built.",
+      "description": "Deps pinned to a reviewed commit rather than a tag (x264 publishes no release tags). Tracked as git-refs digests against the branch the pin actually follows -- x264's pin is stable, not master, so a HEAD assumption would have offered commits off the wrong branch. The key is digestBranch, NOT branch: the ledger treats tag/branch/commit as mutually exclusive ref types (scripts/deps/lib.sh picks the first one present), so a second ref key would fail ledger-validate and could change which ref actually gets built.",
       "managerFilePatterns": [
         "/^deps\\.json$/"
       ],

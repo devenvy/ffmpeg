@@ -519,7 +519,7 @@ clone the wrong thing. `bash scripts/deps/ledger-validate.sh` checks the ledger'
   [`.github/workflows/renovate.yml`](.github/workflows/renovate.yml)) watches, weekly:
   - every dependency in the `defaults` block of `deps.json` — tag pins via git-tags, tarball deps
     with no git remote (gmp, libmp3lame, libgsm, opencore-amr, vo-amrwbenc) via a custom datasource
-    reading the upstream release listing, and commit pins (x264, amf) as git-refs digests against
+    reading the upstream release listing, and commit pins (x264) as git-refs digests against
     the branch recorded in `digestBranch`. Scoped to `defaults` only: it never edits an **override**,
     which is where a deliberate platform hold like x265-on-ARM64 lives, and
   - each **FFmpeg** line in the `.ffmpeg` list in `deps.json`, constrained to **its own major**

@@ -144,7 +144,7 @@ _15 of 22 built._
 
 | Feature | Version | lin-x64 | lin-a64 | lin-hf | musl | musl-a64 | win | win-a64 | osx-x64 | osx-a64 | android | android-x64 | ios | ios-sim | mcat-a64 | mcat-x64 |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| AMF (AMD) | 6277e353f | n/a | n/a | n/a | n/a | n/a | ✓ | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
+| AMF (AMD) | v1.5.3 | n/a | n/a | n/a | n/a | n/a | ✓ | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
 | AudioToolbox |  | n/a | n/a | n/a | n/a | n/a | n/a | n/a | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a | n/a |
 | CUDA |  | ✓ | ✓ | — | ✓ | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
 | CUVID (NVIDIA decode) |  | ✓ | ✓ | — | ✓ | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |

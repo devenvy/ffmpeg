@@ -869,6 +869,27 @@ run_functional() {
     fail "encode + decode round-trip"
   fi
 
+  # libx265 actually ENCODES, not just registers. x265's per-arch SIMD (NEON on aarch64, the
+  # ARM64 hold of issue #6; the open upstream Windows-on-ARM/MinGW crash, Multicorewareinc/x265
+  # #653) can compile, register and then fault on the first frame, which registration and the
+  # mpeg4 round-trip above cannot see. Gated on the embedded config, so lgpl cells and the lean
+  # slices (no x265) skip it rather than fail.
+  case " ${CONFIG_STR} " in
+    *" --enable-libx265 "*)
+      local x265_out x265_ec
+      x265_out="$("${RUNNER[@]}" "$FFMPEG" -hide_banner -y -v error \
+            -f lavfi -i testsrc=size=320x240:rate=25:duration=1 \
+            -c:v libx265 -preset ultrafast -x265-params log-level=error "$tmp/x265.mp4" 2>&1)"
+      x265_ec=$?
+      if [ "$x265_ec" -eq 0 ] \
+         && "${RUNNER[@]}" "$FFMPEG" -hide_banner -v error -i "$tmp/x265.mp4" -f null - >/dev/null 2>&1; then
+        pass "libx265 encode + decode round-trip"
+      else
+        fail "libx265 encode + decode round-trip (encode exit ${x265_ec}) — $(printf '%s' "$x265_out" | tr '\n' ' ' | tail -c 300)"
+      fi
+      ;;
+  esac
+
   # Registry enumeration — the built-ins + external encoders actually registered (needs CONFIG_STR).
   check_registry
   # Real behavior: an https handshake (if the build has TLS) + a whisper CPU forward pass (if a model).

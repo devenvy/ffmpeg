@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# x265 — H.265 / HEVC software encoder (GPL-2.0+). GPL builds only; pinned to
-# 3.6 (4.0+ has broken aarch64 NEON intrinsics).
+# x265 — H.265 / HEVC software encoder (GPL-2.0+). GPL builds only. Upstream development moved
+# from Bitbucket to github.com/Multicorewareinc/x265 (Bitbucket's tags stop at 4.2).
 # SOURCED by scripts/build.sh (shares its environment; appends its --enable-*
 # to CONFIGURE_FLAGS where applicable). Not a standalone script.
 
@@ -20,16 +20,13 @@ if [[ "${BUILD_LIBX265}" == "1" ]]; then
   echo "Building libx265 (static)..."
   cd "${WORK_DIR}" || exit 1
   rm -rf x265_git
-  # x265 4.0+ has broken aarch64 NEON intrinsics (intrapred-prim.cpp):
-  # https://github.com/HandBrake/HandBrake/issues/3652
-  # https://github.com/microsoft/vcpkg/issues/46880
+  # No ARM64 hold any more (issue #6). It cited an "aarch64 NEON intrinsics" break that the linked
+  # reports did not describe; the real intrapred-prim.cpp failure (upstream #737) was AppleClang
+  # being reported as "AppleClang", not "Clang", so 4.1 skipped its NEON setup -- fixed in 4.2.
+  # The CMP0025/CMP0054 OLD->NEW seds that used to follow were for 3.x; 4.x has neither policy line
+  # and declares a cmake_minimum_required range, so CMake 4 configures it unpatched.
   clone_dep x265 "${WORK_DIR}/x265_git"
   cd x265_git || exit 1
-
-  # Apply upstream fix for CMake 4.x: change cmake_policy OLD → NEW
-  # https://mailman.videolan.org/pipermail/x265-devel/2025-February/014251.html
-  sed -i.bak 's/cmake_policy(SET CMP0025 OLD)/cmake_policy(SET CMP0025 NEW)/' source/CMakeLists.txt
-  sed -i.bak 's/cmake_policy(SET CMP0054 OLD)/cmake_policy(SET CMP0054 NEW)/' source/CMakeLists.txt
 
   X265_EXTRA=()
   case "${RID}" in

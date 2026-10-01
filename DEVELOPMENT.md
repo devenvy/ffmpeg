@@ -357,10 +357,11 @@ Two build-mechanics notes that aren't about coverage:
   `--enable-securetransport`), which puts it on the Linux/Android ladder: OpenSSL on v3, GnuTLS on
   gplv2, and no TLS at all on lgplv2. (`--disable-autodetect` is set, so
   each backend is requested explicitly.) See [License version](#lgpl-vs-gpl).
-- **x265** tracks the latest release on x86, but is **held at 3.6 on the ARM64 targets** (4.0+
-  ships broken aarch64 NEON intrinsics) via a per-platform ledger override — see
-  [Dependency versions](#dependency-versions). It also builds with `-DENABLE_ASSEMBLY=OFF` under
-  the NDK/iOS toolchains, where its aarch64 asm won't assemble.
+- **x265** tracks the latest release on every architecture, from its GitHub home
+  (`Multicorewareinc/x265`; Bitbucket stopped at 4.2). The former 3.6 hold on the ARM64 targets was
+  removed in issue #6 — the gpl cells now prove an actual libx265 encode→decode round-trip, not
+  just registration. It builds with `-DENABLE_ASSEMBLY=OFF` under the NDK/iOS toolchains, where its
+  aarch64 asm won't assemble.
 
 ## Adding a library
 
@@ -480,18 +481,19 @@ Two blocks:
     covers every platform on that major; with it, only the listed RIDs use the override and every
     other platform falls through to the default.
 
-Example — x265 tracks latest everywhere except the ARM64 targets, held at 3.6 because x265 4.0+
-has broken aarch64 NEON intrinsics:
+Example (hypothetical `libfoo`) — track latest everywhere except the ARM64 targets, held at 3.6.
+The `reason` should quote the real error and link the upstream report that actually describes it;
+the x265 hold this example used to show was removed in issue #6 because its cited reports did not:
 
 ```jsonc
 "overrides": {
   "9": {
-    "x265": {
-      "origin": "https://bitbucket.org/multicoreware/x265_git.git",
+    "libfoo": {
+      "origin": "https://github.com/example/libfoo.git",
       "tag": "3.6",
-      "reason": "x265 4.0+ ships broken aarch64 NEON intrinsics in intrapred-prim.cpp …",
-      "issue": 6,
-      "platforms": ["linux-arm64", "linux-musl-arm64", "osx-arm64", "ios-arm64", "ios-sim-arm64", "android-arm64"]
+      "reason": "libfoo 4.0+ fails to compile on aarch64: <error text> (upstream #NNN) …",
+      "issue": 123,
+      "platforms": ["linux-arm64", "linux-musl-arm64", "win-arm64", "osx-arm64", "maccatalyst-arm64", "ios-arm64", "ios-sim-arm64", "android-arm64"]
     }
   }
 }
@@ -521,7 +523,7 @@ clone the wrong thing. `bash scripts/deps/ledger-validate.sh` checks the ledger'
     with no git remote (gmp, libmp3lame, libgsm, opencore-amr, vo-amrwbenc) via a custom datasource
     reading the upstream release listing, and commit pins (x264, amf) as git-refs digests against
     the branch recorded in `digestBranch`. Scoped to `defaults` only: it never edits an **override**,
-    which is where a deliberate platform hold like x265-on-ARM64 lives, and
+    which is where a deliberate per-platform hold lives, and
   - each **FFmpeg** line in the `.ffmpeg` list in `deps.json`, constrained to **its own major**
     — any newer release within the major, patch or minor alike (9.0.1 → 9.0.2 → 9.1.0), never a
     cross-major jump (9.x → 10.x).

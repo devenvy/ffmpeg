@@ -153,7 +153,7 @@
       "semanticCommits": "disabled"
     },
     {
-      "description": "Batch EVERY ledger update -- major, minor, patch and digest alike -- into ONE grouped PR per run. Majors used to be left ungrouped so each got individual scrutiny, but every one of these updates edits deps.json, so concurrent PRs conflict with each other and the conflict resolution costs more than the separate review buys. One PR means one deps.json to reason about and one CI run (build + docs-matrix) validating the whole set against every FFmpeg line. A major that needs to be held back can be split out by pinning it in .overrides with a tracking issue, the same as x265.",
+      "description": "Batch EVERY ledger update -- major, minor, patch and digest alike -- into ONE grouped PR per run. Majors used to be left ungrouped so each got individual scrutiny, but every one of these updates edits deps.json, so concurrent PRs conflict with each other and the conflict resolution costs more than the separate review buys. One PR means one deps.json to reason about and one CI run (build + docs-matrix) validating the whole set against every FFmpeg line. A major that needs to be held back can be split out by pinning it in .overrides with a tracking issue.",
       "matchManagers": [
         "custom.regex"
       ],

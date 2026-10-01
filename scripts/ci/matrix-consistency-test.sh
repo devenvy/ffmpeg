@@ -63,10 +63,10 @@ both = sorted(t & m)
 if both:
     fail.append("RIDs tested by BOTH workflows (duplicated runner cost): %s" % ", ".join(both))
 
-# Per-RID ledger holds must cover every RID they claim to. deps.json pins x265 3.6 on ARM64
-# because 4.0+ ships broken aarch64 NEON intrinsics, and lists the affected RIDs explicitly --
-# but win-arm64 and maccatalyst-arm64 were added to the repo AFTER that hold was written and
-# nobody backfilled them, so two ARM64 targets silently took the broken default for months.
+# Per-RID ledger holds must cover every RID they claim to. deps.json once held x265 at 3.6 on
+# ARM64 (issue #6, since removed) and listed the affected RIDs explicitly -- but win-arm64 and
+# maccatalyst-arm64 were added to the repo AFTER that hold was written and nobody backfilled
+# them, so two ARM64 targets silently took the default the hold was meant to keep them off.
 # Same shape as a RID missing from a test matrix: adding a RID means touching several places,
 # and every way of forgetting one is silent. Assert it instead of remembering it.
 import json as _json

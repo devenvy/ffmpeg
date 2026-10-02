@@ -123,10 +123,9 @@
       "datasource": "github-tags"
     },
     "fontconfig": {
-      "origin": "https://gitlab.freedesktop.org/fontconfig/fontconfig.git",
+      "origin": "https://github.com/fontconfig/fontconfig.git",
       "tag": "2.18.3",
-      "datasource": "gitlab-tags",
-      "registryUrl": "https://gitlab.freedesktop.org"
+      "datasource": "github-tags"
     },
     "libplacebo": {
       "origin": "https://github.com/haasn/libplacebo.git",
@@ -139,10 +138,9 @@
       "datasource": "github-tags"
     },
     "freetype": {
-      "origin": "https://gitlab.freedesktop.org/freetype/freetype.git",
+      "origin": "https://github.com/freetype/freetype.git",
       "tag": "VER-2-14-3",
-      "datasource": "gitlab-tags",
-      "registryUrl": "https://gitlab.freedesktop.org"
+      "datasource": "github-tags"
     },
     "amf": {
       "origin": "https://github.com/GPUOpen-LibrariesAndSDKs/AMF.git",

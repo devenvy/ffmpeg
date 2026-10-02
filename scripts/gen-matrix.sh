@@ -482,7 +482,7 @@ def render(version, conf, cid):
              f"drops Vulkan everywhere. Windows (SChannel) and macOS/iOS (SecureTransport) have "
              f"TLS in all four cells. Dropping Vulkan sends Whisper to the CPU only where the "
              f"Vulkan backend was in use: Apple targets use Metal in every cell, and `linux-armhf` "
-             f"and `win-arm64` are CPU in every cell. The per-RID columns below are "
+             f"is CPU in every cell. The per-RID columns below are "
              f"authoritative; this paragraph is the summary. Every cell ships DYNAMIC libraries "
              f"— iOS as a dynamic-framework `.xcframework`._\n")
     hdr = "| Feature | Version | " + " | ".join(SHORT[r] for r in RIDS) + " |"
@@ -551,7 +551,7 @@ idx.append("**Four cells per FFmpeg major** — `gplv3` · `gplv2` · `lgplv3` �
            "Android, Mac Catalyst); **v2** (App-Store-safe) uses GnuTLS (gpl) or **no TLS** (lgpl) "
            "on those platforms and drops Vulkan everywhere. Windows (SChannel) and macOS/iOS "
            "(SecureTransport) keep TLS in all four cells. Whisper falls back to CPU only where it "
-           "used Vulkan — Apple is Metal in every cell, `linux-armhf` and `win-arm64` are CPU "
+           "used Vulkan — Apple is Metal in every cell, `linux-armhf` is CPU "
            "in every cell. Every cell ships **dynamic** libraries, iOS as a dynamic-framework "
            "`.xcframework`. Open two cells side by side to see exactly what differs.\n")
 idx.append("## Matrices\n")

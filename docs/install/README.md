@@ -54,8 +54,8 @@ without fetching the manifest.
 - **Need software H.264/H.265 (x264/x265) encoding**, and the GPL is acceptable (internal tooling,
   GPL-compatible project) → a **`gpl`** cell.
 - **Want GPU (Vulkan) Whisper** → a **`v3`** cell, and one of `linux-x64`, `linux-arm64`,
-  `linux-musl-x64`, `linux-musl-arm64`, `win-x64`, `android-arm64` or `android-x64`. `v2` drops
-  Vulkan on every RID, and `linux-armhf` / `win-arm64` are CPU-only Whisper in every cell.
+  `linux-musl-x64`, `linux-musl-arm64`, `win-x64`, `win-arm64`, `android-arm64` or `android-x64`.
+  `v2` drops Vulkan on every RID, and `linux-armhf` is CPU-only Whisper in every cell.
   macOS/iOS/Catalyst use Metal regardless of cell.
 - **Want TLS (`https`/`tls`)** → note that only the `lgplv2` cell lacks it, and only on Linux,
   Android and Mac Catalyst. `gplv2` has GnuTLS, and Windows/macOS/iOS have their native backend
@@ -82,7 +82,7 @@ and FFmpeg's backend fails to compile), so Catalyst follows the Linux/Android la
 **Vulkan and the license cell.** The `v2` cells omit **Vulkan** everywhere, so Vulkan Whisper
 needs a `v3` cell — but a `v3` cell is not sufficient on its own. The Vulkan Whisper backend is
 built only for `linux-x64`, `linux-arm64`, `linux-musl-x64`, `linux-musl-arm64`, `win-x64`,
-`android-arm64` and `android-x64`; `linux-armhf` and `win-arm64` run Whisper on the CPU in every
+`win-arm64`, `android-arm64` and `android-x64`; `linux-armhf` runs Whisper on the CPU in every
 cell, and macOS/iOS/Catalyst use Metal either way.
 
 **System packages.** None are required. The glibc Linux builds are self-contained, and the

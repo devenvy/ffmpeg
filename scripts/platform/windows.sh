@@ -155,15 +155,15 @@ case "${RID}" in
     BUILD_LIBSVTAV1=0
     # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     BUILD_FONTCONFIG=0  # as win-x64: libass uses DirectWrite, drawtext uses fontfile=.
-    # Whisper runs on the CPU here, unlike win-x64. The reason this comment used to give -- that
-    # ggml-vulkan needs a dlltool-synthesised vulkan-1 import library written for x86 mingw -- is
-    # no longer true: that approach was REMOVED because it produced a hard vulkan-1.dll import
-    # that made the Windows v3 artifacts fail to start, and win-x64 now links the MIT
-    # Vulkan-Shim-Loader instead (deps/vulkan-shim.sh). What actually keeps Vulkan off here is
-    # simply that BUILD_VULKAN_SHIM is set for win-x64 only; whether to extend it is an open
-    # question, tracked in issue #28 rather than asserted as a blocker here.
+    # Whisper on ggml-vulkan, as win-x64, linked against the same static Vulkan-Shim-Loader
+    # (deps/vulkan-shim.sh) so vulkan-1.dll is resolved at runtime, never imported: a device
+    # with no Vulkan driver still starts ffmpeg.exe and whisper runs on the CPU (use_gpu=0
+    # forces that). Adreno driver quality on Windows-on-ARM is NOT validated -- CI has no such
+    # GPU (issue #28). The v2 cells drop Vulkan and fall back to CPU in 04_select_license.sh.
     # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
-    WHISPER_BACKEND="cpu"
+    WHISPER_BACKEND="vulkan"
+    # shellcheck disable=SC2034  # consumed by scripts/deps/vulkan-shim.sh
+    BUILD_VULKAN_SHIM=1
     # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     BUILD_TYPE_LABEL="Windows on ARM (cross-compiled from Linux, llvm-mingw)"
     ;;

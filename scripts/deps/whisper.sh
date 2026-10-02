@@ -73,7 +73,7 @@ case "${WHISPER_BACKEND}" in
     # and point ggml's find_package at them. The loader lib still comes from the
     # toolchain/system (mingw import-lib, NDK sysroot, or apk vulkan-loader-dev).
     case "${RID}" in
-      win-x64|android-arm64|android-x64|linux-musl-x64|linux-musl-arm64|linux-x64|linux-arm64)
+      win-x64|win-arm64|android-arm64|android-x64|linux-musl-x64|linux-musl-arm64|linux-x64|linux-arm64)
         [ -d "${DEPS_DIR}/include/vulkan" ] || {
           rm -rf "${WORK_DIR}/Vulkan-Headers-ggml"   # clone_dep git-clones into this dir; clear a stale one (retry/re-run) so the clone can't abort under set -e
           clone_dep vulkan-headers "${WORK_DIR}/Vulkan-Headers-ggml"
@@ -91,7 +91,7 @@ case "${WHISPER_BACKEND}" in
         ;;
     esac
     case "${RID}" in
-      win-x64)
+      win-x64|win-arm64)
         # mingw ships no Windows Vulkan loader import-lib. We used to synthesize one from the
         # headers with dlltool, which worked but made vulkan-1.dll a HARD import of the
         # resulting libavfilter -- so ffmpeg.exe would not start at all on a machine without
@@ -103,12 +103,17 @@ case "${WHISPER_BACKEND}" in
         # Verified with mingw locally: identical consumer object links to 1 vulkan import via
         # the dlltool lib and 0 via the shim, with LoadLibraryExA present instead.
         [ -n "${VULKAN_SHIM_LIB:-}" ] || {
-          echo "ERROR: win-x64 whisper needs the Vulkan shim, but vulkan-shim.sh did not build it." >&2
+          echo "ERROR: ${RID} whisper needs the Vulkan shim, but vulkan-shim.sh did not build it." >&2
           echo "  (BUILD_VULKAN_SHIM must be set for this RID; see scripts/platform/windows.sh)" >&2
           exit 1
         }
         WHISPER_CMAKE+=(-DVulkan_LIBRARY="${VULKAN_SHIM_LIB}")
-        WHISPER_SYS_LIBS="-l:$(basename "${VULKAN_SHIM_LIB}") -lstdc++ -lm"
+        # C++ runtime as in the cpu branch below: llvm-mingw (win-arm64) must take the static
+        # libc++ archive in CXX_RT_LIB, never a bare -lstdc++ (resolves to libc++.dll.a there).
+        case "${RID}" in
+          win-arm64) WHISPER_SYS_LIBS="-l:$(basename "${VULKAN_SHIM_LIB}") ${CXX_RT_LIB-} -lm" ;;
+          *)         WHISPER_SYS_LIBS="-l:$(basename "${VULKAN_SHIM_LIB}") -lstdc++ -lm" ;;
+        esac
         ;;
       android-arm64|android-x64)
         # NDK API-28 sysroot libvulkan.so exports the Vulkan 1.1 symbols ggml links directly.
@@ -142,7 +147,7 @@ case "${WHISPER_BACKEND}" in
           # ("whisper not found"). v2 drops Vulkan → Android takes THIS cpu fallback, so it
           # must use -lc++. Linux (glibc/musl) keeps libstdc++.
           case "${RID}" in
-            # win-arm64 lands here too (llvm-mingw, cpu backend). A bare -lstdc++ must NOT
+            # win-arm64 lands here on the v2 cells (llvm-mingw, cpu backend). A bare -lstdc++ must NOT
             # be added there: llvm-mingw resolves it to libc++.dll.a, which then collides
             # with the static libc++ from -static-libstdc++. CXX_RT_LIB carries the archive
             # this RID actually wants (-l:libc++.a). -lpthread is likewise omitted -- it does

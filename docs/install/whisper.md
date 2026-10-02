@@ -46,14 +46,15 @@ ffmpeg -i input.mp4 -vn \
 
 | Backend | RIDs |
 |---|---|
-| **Vulkan** (`v3` cells only) | `linux-x64`, `linux-arm64`, `linux-musl-x64`, `linux-musl-arm64`, `win-x64`, `android-arm64`, `android-x64` |
+| **Vulkan** (`v3` cells only) | `linux-x64`, `linux-arm64`, `linux-musl-x64`, `linux-musl-arm64`, `win-x64`, `win-arm64`, `android-arm64`, `android-x64` |
 | **Metal** (every cell) | `osx-x64`, `osx-arm64`, `ios-arm64`, `ios-sim-arm64`, `maccatalyst-arm64`, `maccatalyst-x64` |
-| **CPU** (every cell) | `linux-armhf`, `win-arm64` |
+| **CPU** (every cell) | `linux-armhf` |
 
 The **`v2`** cells carry no Vulkan, so the Vulkan RIDs above transcribe on the **CPU** there; the
 Metal and CPU rows are unaffected by the license cell. When no compatible GPU is present,
 transcription also falls back to the CPU automatically (`tiny`/`base` models are roughly
-real-time on CPU).
+real-time on CPU). Pass `use_gpu=0` to force the CPU even when a GPU is present — for example on
+`win-arm64`, where Vulkan Whisper on Adreno drivers has not been validated on real hardware.
 
 `linux-x64`, `linux-arm64`, `linux-musl-x64` and `linux-musl-arm64` **bundle** the Vulkan loader
 in the tarball, so they need nothing from the system. `linux-armhf` bundles none — it is CPU

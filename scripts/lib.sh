@@ -57,7 +57,7 @@ CURL_ATTEMPTS="${CURL_ATTEMPTS:-6}"
 curl() {
   local n=1 delay=4 rc
   while :; do
-    command curl --retry 8 --retry-connrefused --retry-max-time 300 "$@" && return 0
+    command curl --retry "${CURL_RETRY:-8}" --retry-connrefused --retry-max-time 300 "$@" && return 0
     rc=$?
     case "${rc}" in
       5|6|7|16|18|22|23|26|28|35|52|55|56|92) ;;      # transient — worth another attempt
@@ -71,6 +71,33 @@ curl() {
     sleep "${wait}"
     delay=$(( delay * 2 )); n=$(( n + 1 ))
   done
+}
+
+# ── fetch_tarball: one release tarball from an ordered list of mirrors ────
+# fetch_tarball <out-file> <url> [<fallback-url>...]
+# The tarball-only deps (libmp3lame, opencore-amr, vo-amrwbenc) download from SourceForge, which
+# has no git remote to fall back to. A SourceForge-wide outage (every mirror returning HTTP 522 for
+# 5+ hours on 2026-09-30) failed EVERY build cell of every PR at the same step, and the curl
+# wrapper's backoff can only outlast a blip. So try each URL in turn: earlier URLs get ONE
+# request and no retries (a dead host behind Cloudflare takes ~20s just to return 522, and the
+# fallback is byte-identical, so retrying it only adds minutes), the last one the normal
+# budget. The fallback is the Debian archive's .orig.tar.gz, verified byte-identical (SHA-256) to
+# the SourceForge originals for lame 4.0, opencore-amr 0.1.6 and vo-amrwbenc 0.1.3.
+fetch_tarball() {
+  local out="$1"; shift
+  local url i=0 total=$#
+  for url in "$@"; do
+    i=$(( i + 1 ))
+    rm -f "${out}"
+    if [[ "${i}" -lt "${total}" ]]; then
+      CURL_ATTEMPTS=1 CURL_RETRY=0 curl -fsSL --connect-timeout 30 "${url}" -o "${out}" && return 0
+      echo "  ${url} unavailable; trying the next mirror..." >&2
+    else
+      curl -fsSL --connect-timeout 30 "${url}" -o "${out}" && return 0
+    fi
+  done
+  echo "ERROR: could not fetch ${out} from any mirror: $*" >&2
+  return 1
 }
 
 # ── git wrapper: retry clones on transient network failures ───────────────

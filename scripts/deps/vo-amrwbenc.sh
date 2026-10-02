@@ -11,8 +11,9 @@ voamr_ver="$(dep_version vo-amrwbenc)"
 echo "Building vo-amrwbenc ${voamr_ver} (static)..."
 cd "${WORK_DIR}" || exit 1
 rm -rf "vo-amrwbenc-${voamr_ver}"
-curl -fsSL --connect-timeout 30 \
-  "https://downloads.sourceforge.net/opencore-amr/vo-amrwbenc-${voamr_ver}.tar.gz" -o vo-amrwbenc.tar.gz
+fetch_tarball vo-amrwbenc.tar.gz \
+  "https://downloads.sourceforge.net/opencore-amr/vo-amrwbenc-${voamr_ver}.tar.gz" \
+  "https://deb.debian.org/debian/pool/main/v/vo-amrwbenc/vo-amrwbenc_${voamr_ver}.orig.tar.gz"
 tar -xf vo-amrwbenc.tar.gz
 cd "vo-amrwbenc-${voamr_ver}" || exit 1
 

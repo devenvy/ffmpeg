@@ -61,19 +61,23 @@ a "no dependency change impacts nothing"            '.'                         
 echo "=== Part B: select-versions.sh (diff -> selection) ==="
 # Build a throwaway repo: base commit (base.json + a scripts/ recipe file), then a second
 # commit applying the change under test; echo the sorted selection for base..HEAD.
-select_for() { # <jq-mutation | ''=no deps change> <recipe-change yes|no> <tracked...>
+D1="sha256:$(printf '1%.0s' {1..64})"; D2="sha256:$(printf '2%.0s' {1..64})"
+select_for() { # <jq-mutation | ''=no deps change> <change: yes|no|image|wfother> <tracked...>
   local mut="$1" recipe="$2"; shift 2
   local repo; repo="$(mktemp -d "${TMPROOT}/repo.XXXXXX")"
   git -C "$repo" init -q
   git -C "$repo" config user.email t@t; git -C "$repo" config user.name t
   git -C "$repo" config commit.gpgsign false
-  mkdir -p "$repo/scripts"
+  mkdir -p "$repo/scripts" "$repo/.github/workflows"
   cp "${TMPROOT}/base.json" "$repo/deps.json"
   printf 'echo build\n' > "$repo/scripts/build.sh"
+  printf '# build\n    container: alpine:3.24.2@%s\n' "$D1" > "$repo/.github/workflows/build.yml"
   git -C "$repo" add -A; git -C "$repo" commit -qm base
   local base; base="$(git -C "$repo" rev-parse HEAD)"
   [ -n "$mut" ] && variant "$mut" > "$repo/deps.json"
   [ "$recipe" = yes ] && printf 'echo changed\n' > "$repo/scripts/build.sh"
+  [ "$recipe" = image ] && printf '# build\n    container: alpine:3.24.2@%s\n' "$D2" > "$repo/.github/workflows/build.yml"
+  [ "$recipe" = wfother ] && printf '# build, reworded\n    container: alpine:3.24.2@%s\n' "$D1" > "$repo/.github/workflows/build.yml"
   git -C "$repo" add -A; git -C "$repo" commit -qm change --allow-empty
   ( cd "$repo" && [ "$PWD" = "$repo" ] && bash "${SELECT}" "$base" "$@" | sort | paste -sd' ' - )
 }
@@ -92,6 +96,10 @@ check "combined: 9 point bump + a lib that 8 pins -> only 9 (8 not impacted)" \
   "$(select_for '.ffmpeg=["8.1.2","9.0.2"] | .defaults.libpinned.tag="2.1"' no 8.1.2 9.0.2)" "9.0.2"
 check "build-recipe change -> ALL lines" \
   "$(select_for '' yes 8.1.2 9.0.1)" "8.1.2 9.0.1"
+check "build image digest bump (issue #26) -> ALL lines" \
+  "$(select_for '' image 8.1.2 9.0.1)" "8.1.2 9.0.1"
+check "workflow edit not touching an image -> nothing" \
+  "$(select_for '' wfother 8.1.2 9.0.1)" ""
 check "no relevant change -> nothing" \
   "$(select_for '' no 8.1.2 9.0.1)" ""
 

@@ -29,6 +29,11 @@ WHISPER_CMAKE=(
   -DGGML_BUILD_TESTS=OFF
   -DGGML_BUILD_EXAMPLES=OFF
 )
+# DEBUG_SYMBOLS=1 (crash diagnostics only, issue #20): CMake's own Release flags plus -g, so the
+# code generated is the same as the shipping build and only DWARF is added. Unset = shipping.
+if [[ "${DEBUG_SYMBOLS:-0}" == "1" ]]; then
+  WHISPER_CMAKE+=(-DCMAKE_C_FLAGS_RELEASE="-O3 -DNDEBUG -g" -DCMAKE_CXX_FLAGS_RELEASE="-O3 -DNDEBUG -g")
+fi
 # musl links the C++ runtime STATICALLY rather than depending on it. A base Alpine image ships
 # no libstdc++.so.6/libgcc_s.so.1, so a dynamic link makes the artifact unable to start at all:
 #   Error loading shared library libstdc++.so.6: No such file or directory

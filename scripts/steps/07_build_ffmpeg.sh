@@ -184,13 +184,22 @@ case "${RID}" in
     ;;
 esac
 
+# DEBUG_SYMBOLS=1 (crash diagnostics only, issue #20): keep DWARF in the installed binaries so a
+# crash dump's module+offset frames can be symbolized. --enable-debug adds -g without changing the
+# optimisation level; --disable-stripping stops `make install` from removing it. Unset = shipping.
+if [[ "${DEBUG_SYMBOLS:-0}" == "1" ]]; then
+  DEBUG_FLAGS=(--enable-debug --disable-stripping)
+else
+  DEBUG_FLAGS=(--disable-debug)
+fi
+
 CONFIGURE_CMD=(
   ./configure
   --prefix="${PREFIX_DIR}"
   "${PROGRAM_FLAGS[@]}"
   "${LIB_MODE_FLAGS[@]}"
   --disable-doc
-  --disable-debug
+  "${DEBUG_FLAGS[@]}"
   "${THREAD_FLAG}"
   --disable-nonfree
   --disable-autodetect

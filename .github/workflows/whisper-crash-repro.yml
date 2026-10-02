@@ -1,0 +1,165 @@
+name: whisper crash repro (#20)
+
+# Diagnostics for issue #20: af_whisper segfaults (exit 139) intermittently on GitHub's
+# windows-latest runners, never reproduced locally (2,600+ local runs, incl. CI-like CPU contention
+# and no GPU). This builds the one cell it hit twice in a row (FFmpeg 8.1.3 win-x64 gplv3) WITH
+# debug info, then loops the exact exercise_whisper invocation on Windows runners with WER crash
+# dumps enabled, and prints the crashing stack from the dump. Re-run only the `repro` jobs to roll
+# again on new runners without rebuilding. Triggered only by pushes to the debug branch.
+on:
+  push:
+    branches: [debug/whisper-crash]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FFMPEG_VERSION: "8.1.3"
+  BUILD_RID: win-x64
+  BUILD_LICENSE: gpl
+  BUILD_LICENSE_VERSION: "3"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build win-x64 8.1.3 gplv3 with debug info
+        shell: bash
+        env:
+          DEBUG_SYMBOLS: "1"
+        run: |
+          set -euo pipefail
+          mkdir -p "artifacts/${BUILD_RID}/logs"
+          chmod +x scripts/build.sh
+          ./scripts/build.sh 2>&1 | tee "artifacts/${BUILD_RID}/logs/build.log"
+      - name: Build a deliberate crasher (proves dump capture works on the runner)
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf 'int main(void){volatile int *p = 0; *p = 1; return 0;}\n' > crashtest.c
+          x86_64-w64-mingw32-gcc -O0 -g crashtest.c -o "artifacts/${BUILD_RID}/native/crashtest.exe"
+      - name: Confirm the binaries kept their debug info
+        shell: bash
+        run: |
+          set -euo pipefail
+          for f in artifacts/${BUILD_RID}/native/avfilter-*.dll artifacts/${BUILD_RID}/native/ffmpeg.exe; do
+            n=$(x86_64-w64-mingw32-objdump -h "$f" | grep -c '\.debug_' || true)
+            echo "$f: ${n} .debug_* sections"
+            [ "$n" -gt 0 ] || { echo "::error::$f has no debug sections"; exit 1; }
+          done
+      - uses: actions/upload-artifact@v7
+        with:
+          name: win-x64-debug
+          path: artifacts/${{ env.BUILD_RID }}/native
+          retention-days: 14
+
+  repro:
+    needs: build
+    runs-on: windows-latest
+    timeout-minutes: 330
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: win-x64-debug
+          path: art
+      - name: Fetch Whisper model
+        shell: bash
+        run: |
+          set -euo pipefail
+          for a in 1 2 3 4 5 6; do
+            curl -fsSL --retry 2 --retry-all-errors -o ggml-tiny.en.bin \
+              https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.en.bin && break
+            sleep $(( a * 15 + RANDOM % 20 ))
+          done
+          [ "$(wc -c < ggml-tiny.en.bin)" -gt 70000000 ] || { echo "::error::model download failed"; exit 1; }
+      - name: Enable WER full crash dumps
+        shell: pwsh
+        run: |
+          $dumps = Join-Path $env:RUNNER_TEMP 'dumps'
+          New-Item -ItemType Directory -Force -Path $dumps | Out-Null
+          foreach ($exe in 'ffmpeg.exe', 'crashtest.exe') {
+            $k = "HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps\$exe"
+            New-Item -Path $k -Force | Out-Null
+            New-ItemProperty -Path $k -Name DumpFolder -PropertyType ExpandString -Value $dumps -Force | Out-Null
+            New-ItemProperty -Path $k -Name DumpType -PropertyType DWord -Value 2 -Force | Out-Null
+            New-ItemProperty -Path $k -Name DumpCount -PropertyType DWord -Value 10 -Force | Out-Null
+          }
+          "DUMPS=$dumps" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+          $cdb = Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10\Debuggers' -Recurse -Filter cdb.exe -ErrorAction SilentlyContinue |
+                 Where-Object { $_.FullName -match '\\x64\\' } | Select-Object -First 1
+          if ($cdb) { "CDB=$($cdb.FullName)" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV; "cdb: $($cdb.FullName)" }
+          else { "::warning::cdb.exe not found; dumps will be uploaded but not analysed in the log" }
+          Get-CimInstance Win32_Processor | Select-Object Name, NumberOfCores, NumberOfLogicalProcessors | Format-List
+      - name: Validate capture with a deliberate crash
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath art\crashtest.exe -Wait -PassThru -NoNewWindow
+          "crashtest exit code: $($p.ExitCode) (0xC0000005 = -1073741819 expected)"
+          $deadline = (Get-Date).AddSeconds(60)
+          while (-not (Get-ChildItem $env:DUMPS -Filter 'crashtest*.dmp' -ErrorAction SilentlyContinue) -and (Get-Date) -lt $deadline) { Start-Sleep 2 }
+          $d = Get-ChildItem $env:DUMPS -Filter 'crashtest*.dmp' -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $d) { "::error::WER wrote no dump for a deliberate crash - capture does not work on this runner"; exit 1 }
+          "dump captured: $($d.Name) ($($d.Length) bytes)"
+          if ($env:CDB) { & $env:CDB -z $d.FullName -c '.ecxr; kn 10; q' | Select-String -Pattern 'crashtest|main|ExceptionCode' | Select-Object -First 8 }
+          Remove-Item $d.FullName
+      - name: Loop af_whisper (exact exercise_whisper invocation) until it crashes
+        id: loop
+        shell: bash
+        run: |
+          # Same as scripts/test/lib.sh exercise_whisper: Git Bash, output captured via $(...),
+          # relative model and destination paths, both GPU modes (no GPU on the runner -> CPU).
+          # GitHub runs bash steps with -e: a crashing ffmpeg must be RECORDED, not abort the step.
+          set +e
+          N=200; crashes=0
+          for i in $(seq 1 "$N"); do
+            for gpu in 0 1; do
+              tmp="whisper-out.$$"; mkdir -p "$tmp"; rm -f "$tmp/out.txt"; s=$SECONDS
+              out="$(./art/ffmpeg.exe -hide_banner -v verbose -f lavfi -i "sine=frequency=220:duration=2" \
+                    -af "whisper=model=ggml-tiny.en.bin:language=en:use_gpu=${gpu}:destination=${tmp}/out.txt" \
+                    -f null - 2>&1)"
+              ec=$?
+              echo "iter $i gpu=$gpu exit=$ec secs=$((SECONDS-s))"
+              if [ "$ec" -ne 0 ]; then
+                crashes=$((crashes+1))
+                printf '%s\n' "$out" > "crash-stderr-$i-$gpu.txt"
+                echo "::error::af_whisper exit $ec on iteration $i (use_gpu=$gpu)"
+                tail -25 "crash-stderr-$i-$gpu.txt"
+                break 2
+              fi
+            done
+          done
+          echo "crashes=$crashes" >> "$GITHUB_OUTPUT"
+          echo "runs completed: iteration $i, crashes: $crashes"
+      - name: Analyse crash dump
+        if: steps.loop.outputs.crashes != '0'
+        shell: pwsh
+        run: |
+          Start-Sleep 10
+          Get-ChildItem $env:DUMPS | Format-Table Name, Length, LastWriteTime -AutoSize
+          $d = Get-ChildItem $env:DUMPS -Filter 'ffmpeg*.dmp' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          if (-not $d) { "::error::ffmpeg crashed but WER wrote no dump"; exit 1 }
+          if ($env:CDB) {
+            # Module+offset frames; symbolize offline against the uploaded debug binaries
+            # (addr2line -e avfilter-*.dll <offset + image base>).
+            & $env:CDB -z $d.FullName -c '!analyze -v; .ecxr; r; kn 60; ~*kn 30; lmv m avfilter*; lmv m avutil*; q' 2>&1 |
+              Out-File -Encoding utf8 cdb-analysis.txt
+            Get-Content cdb-analysis.txt | Select-Object -First 400
+          }
+          exit 1
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: repro-shard-${{ matrix.shard }}
+          path: |
+            ${{ env.DUMPS }}
+            crash-stderr-*.txt
+            cdb-analysis.txt
+          if-no-files-found: ignore
+          retention-days: 14

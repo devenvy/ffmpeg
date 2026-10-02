@@ -70,8 +70,22 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2]
+        # Attempt 2: 800 standalone runs UNDER cdb never crashed, while the real test job crashed in
+        # 2 of 2 attempts on the same cell. So, no debugger at all, and split by context:
+        #   harness    = the real `scripts/test.sh win-x64` suite in a loop (what actually crashed)
+        #   standalone = the bare exercise_whisper invocation in a loop
+        mode: [harness, standalone]
     steps:
+      - uses: actions/checkout@v7
+      - name: Runner Vulkan environment (ggml registers its Vulkan backend even with use_gpu=0)
+        shell: pwsh
+        run: |
+          foreach ($p in "$env:WINDIR\System32\vulkan-1.dll", "$env:WINDIR\SysWOW64\vulkan-1.dll") {
+            if (Test-Path $p) { "$p : $((Get-Item $p).VersionInfo.FileVersion)" } else { "$p : absent" } }
+          foreach ($k in 'HKLM:\SOFTWARE\Khronos\Vulkan\Drivers', 'HKLM:\SOFTWARE\Khronos\Vulkan\ImplicitLayers', 'HKLM:\SOFTWARE\Khronos\Vulkan\ExplicitLayers') {
+            if (Test-Path $k) { "$k :"; (Get-Item $k).Property | ForEach-Object { "   $_" } } else { "$k : absent" } }
+          Get-Command vulkaninfo -ErrorAction SilentlyContinue | ForEach-Object { & $_.Source --summary 2>&1 | Select-Object -First 30 }
+          Get-CimInstance Win32_VideoController | Select-Object Name, DriverVersion | Format-Table -AutoSize
       - name: Download the debug build (from this run, or REUSE_BUILD_RUN when build is skipped)
         shell: bash
         env:
@@ -148,37 +162,44 @@ jobs:
           # Same as scripts/test/lib.sh exercise_whisper: Git Bash, output captured via $(...),
           # relative model and destination paths, both GPU modes (no GPU on the runner -> CPU).
           # GitHub runs bash steps with -e: a crashing ffmpeg must be RECORDED, not abort the step.
+          # No debugger in this attempt (see the matrix comment): just find where it reproduces.
           set +e
-          N=200; crashes=0
-          for i in $(seq 1 "$N"); do
-            for gpu in 0 1; do
-              tmp="whisper-out.$$"; mkdir -p "$tmp"; rm -f "$tmp/out.txt"; s=$SECONDS
-              args=(-hide_banner -v verbose -f lavfi -i "sine=frequency=220:duration=2"
-                    -af "whisper=model=ggml-tiny.en.bin:language=en:use_gpu=${gpu}:destination=${tmp}/out.txt"
-                    -f null -)
-              if [ "${CAPTURE}" = cdb ]; then
-                # cdb only stops on the crash; on a clean exit -c never runs and no dump appears.
-                dmp="$(cygpath -w "${DUMPS}")\\ffmpeg-crash-$i-$gpu.dmp"
-                out="$("$(cygpath -u "${CDB}")" -hd -g -G \
-                      -c ".lines; .ecxr; r; kn 60; ~*kn 30; lmv m avfilter*; lmv m avutil*; .dump /ma ${dmp}; q" \
-                      ./art/ffmpeg.exe "${args[@]}" 2>&1)"
-                ec=0; [ -f "$(cygpath -u "${dmp}")" ] && ec=139
-              else
-                out="$(./art/ffmpeg.exe "${args[@]}" 2>&1)"
-                ec=$?
-              fi
-              echo "iter $i gpu=$gpu exit=$ec secs=$((SECONDS-s)) capture=${CAPTURE}"
-              if [ "$ec" -ne 0 ]; then
-                crashes=$((crashes+1))
-                printf '%s\n' "$out" > "crash-stderr-$i-$gpu.txt"
-                echo "::error::af_whisper exit $ec on iteration $i (use_gpu=$gpu)"
-                tail -25 "crash-stderr-$i-$gpu.txt"
-                break 2
+          crashes=0; i=0; budget=$(( 290 * 60 ))
+          if [ "${{ matrix.mode }}" = harness ]; then
+            export WHISPER_MODEL=ggml-tiny.en.bin
+            while [ "$SECONDS" -lt "$budget" ]; do
+              i=$((i+1)); s=$SECONDS
+              bash scripts/test.sh win-x64 art > suite.log 2>&1
+              w="$(grep -E '\[(PASS|FAIL)\] whisper inference' suite.log | sed 's/:.*//' | tr '\n' ' ')"
+              echo "suite $i secs=$((SECONDS-s)) whisper: ${w}"
+              if grep -qE '\[FAIL\] whisper inference.*exit 139' suite.log; then
+                crashes=$((crashes+1)); cp suite.log "crash-stderr-harness-$i.txt"
+                echo "::error::af_whisper exit 139 inside the real test suite (run $i)"
+                grep -E '\[FAIL\] whisper' suite.log | cut -c1-600
+                break
               fi
             done
-          done
+          else
+            while [ "$SECONDS" -lt "$budget" ]; do
+              i=$((i+1))
+              for gpu in 0 1; do
+                tmp="whisper-out.$$"; mkdir -p "$tmp"; rm -f "$tmp/out.txt"; s=$SECONDS
+                out="$(./art/ffmpeg.exe -hide_banner -v verbose -f lavfi -i "sine=frequency=220:duration=2" \
+                      -af "whisper=model=ggml-tiny.en.bin:language=en:use_gpu=${gpu}:destination=${tmp}/out.txt" \
+                      -f null - 2>&1)"
+                ec=$?
+                echo "iter $i gpu=$gpu exit=$ec secs=$((SECONDS-s))"
+                if [ "$ec" -ne 0 ]; then
+                  crashes=$((crashes+1)); printf '%s\n' "$out" > "crash-stderr-standalone-$i-$gpu.txt"
+                  echo "::error::af_whisper exit $ec standalone, iteration $i (use_gpu=$gpu)"
+                  tail -25 "crash-stderr-standalone-$i-$gpu.txt"
+                  break 2
+                fi
+              done
+            done
+          fi
           echo "crashes=$crashes" >> "$GITHUB_OUTPUT"
-          echo "runs completed: iteration $i, crashes: $crashes"
+          echo "mode=${{ matrix.mode }} rounds=$i crashes=$crashes"
       - name: Analyse crash dump
         if: steps.loop.outputs.crashes != '0'
         shell: pwsh
@@ -186,7 +207,7 @@ jobs:
           Start-Sleep 10
           Get-ChildItem $env:DUMPS | Format-Table Name, Length, LastWriteTime -AutoSize
           $d = Get-ChildItem $env:DUMPS -Filter 'ffmpeg*.dmp' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-          if (-not $d) { "::error::ffmpeg crashed but WER wrote no dump"; exit 1 }
+          if (-not $d) { "::error::crash REPRODUCED (see loop step) but no dump - WER is off on this image"; exit 1 }
           if ($env:CDB) {
             # Module+offset frames; symbolize offline against the uploaded debug binaries
             # (addr2line -e avfilter-*.dll <offset + image base>).
@@ -198,7 +219,7 @@ jobs:
       - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: repro-shard-${{ matrix.shard }}
+          name: repro-${{ matrix.mode }}
           path: |
             ${{ env.DUMPS }}
             crash-stderr-*.txt

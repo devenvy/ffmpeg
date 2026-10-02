@@ -13,6 +13,7 @@ on:
 
 permissions:
   contents: read
+  actions: read   # repro downloads the debug build from an earlier run (REUSE_BUILD_RUN)
 
 env:
   FFMPEG_VERSION: "8.1.3"
@@ -22,6 +23,9 @@ env:
 
 jobs:
   build:
+    # Run 37027298800 already built this cell with debug info (artifact kept 14 days), and the runner
+    # queue is long: skip rebuilding while REUSE_BUILD_RUN below points at it. Flip to true to rebuild.
+    if: ${{ false }}
     runs-on: ubuntu-latest
     timeout-minutes: 240
     steps:
@@ -58,17 +62,27 @@ jobs:
 
   repro:
     needs: build
+    if: ${{ !cancelled() && needs.build.result != 'failure' }}
     runs-on: windows-latest
+    env:
+      REUSE_BUILD_RUN: "37027298800"
     timeout-minutes: 330
     strategy:
       fail-fast: false
       matrix:
         shard: [1, 2]
     steps:
-      - uses: actions/download-artifact@v8
-        with:
-          name: win-x64-debug
-          path: art
+      - name: Download the debug build (from this run, or REUSE_BUILD_RUN when build is skipped)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          src="${{ github.run_id }}"
+          [ "${{ needs.build.result }}" = success ] || src="${REUSE_BUILD_RUN}"
+          echo "debug build from run ${src}"
+          gh run download "${src}" -R "${{ github.repository }}" -n win-x64-debug -D art
+          ls art | head
       - name: Fetch Whisper model
         shell: bash
         run: |
@@ -97,18 +111,36 @@ jobs:
           if ($cdb) { "CDB=$($cdb.FullName)" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV; "cdb: $($cdb.FullName)" }
           else { "::warning::cdb.exe not found; dumps will be uploaded but not analysed in the log" }
           Get-CimInstance Win32_Processor | Select-Object Name, NumberOfCores, NumberOfLogicalProcessors | Format-List
-      - name: Validate capture with a deliberate crash
+      - name: Validate capture with a deliberate crash (selects WER or cdb mode)
         shell: pwsh
         run: |
+          # Attempt 1 showed WER writes NO dump on the hosted image even with LocalDumps set (the
+          # crasher exited 0xC0000005, nothing appeared). Try to switch WER on; if it still writes
+          # nothing, fall back to launching under cdb, which breaks only on the crash.
+          $wer = 'HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting'
+          "WER before: Disabled=$((Get-ItemProperty $wer -ErrorAction SilentlyContinue).Disabled) WerSvc=$((Get-Service WerSvc -ErrorAction SilentlyContinue).Status)/$((Get-Service WerSvc -ErrorAction SilentlyContinue).StartType)"
+          New-ItemProperty -Path $wer -Name Disabled -PropertyType DWord -Value 0 -Force | Out-Null
+          New-ItemProperty -Path $wer -Name DontShowUI -PropertyType DWord -Value 1 -Force | Out-Null
+          try { Set-Service WerSvc -StartupType Manual -ErrorAction Stop; Start-Service WerSvc -ErrorAction Stop } catch { "WerSvc: $_" }
           $p = Start-Process -FilePath art\crashtest.exe -Wait -PassThru -NoNewWindow
           "crashtest exit code: $($p.ExitCode) (0xC0000005 = -1073741819 expected)"
-          $deadline = (Get-Date).AddSeconds(60)
+          $deadline = (Get-Date).AddSeconds(45)
           while (-not (Get-ChildItem $env:DUMPS -Filter 'crashtest*.dmp' -ErrorAction SilentlyContinue) -and (Get-Date) -lt $deadline) { Start-Sleep 2 }
           $d = Get-ChildItem $env:DUMPS -Filter 'crashtest*.dmp' -ErrorAction SilentlyContinue | Select-Object -First 1
-          if (-not $d) { "::error::WER wrote no dump for a deliberate crash - capture does not work on this runner"; exit 1 }
-          "dump captured: $($d.Name) ($($d.Length) bytes)"
-          if ($env:CDB) { & $env:CDB -z $d.FullName -c '.ecxr; kn 10; q' | Select-String -Pattern 'crashtest|main|ExceptionCode' | Select-Object -First 8 }
-          Remove-Item $d.FullName
+          if ($d) {
+            "WER works now: $($d.Name) ($($d.Length) bytes) -> loop runs ffmpeg undisturbed"
+            "CAPTURE=wer" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+            Remove-Item $d.FullName
+            exit 0
+          }
+          if (-not $env:CDB) { "::error::no WER dump and no cdb.exe - cannot capture a crash on this runner"; exit 1 }
+          "WER still writes nothing; validating cdb launch mode"
+          $out = & $env:CDB -hd -g -G -c ".ecxr; kn 10; .dump /ma $env:DUMPS\crashtest-cdb.dmp; q" art\crashtest.exe 2>&1 | Out-String
+          $out.Split("`n") | Select-String -Pattern 'c0000005|Access violation|crashtest!main|Dump successfully' | Select-Object -First 8
+          if (-not (Test-Path "$env:DUMPS\crashtest-cdb.dmp")) { "::error::cdb launch mode wrote no dump either"; exit 1 }
+          "cdb mode works -> loop runs ffmpeg under cdb (-hd: normal heap, breaks only on the crash)"
+          "CAPTURE=cdb" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+          Remove-Item "$env:DUMPS\crashtest-cdb.dmp"
       - name: Loop af_whisper (exact exercise_whisper invocation) until it crashes
         id: loop
         shell: bash
@@ -121,11 +153,21 @@ jobs:
           for i in $(seq 1 "$N"); do
             for gpu in 0 1; do
               tmp="whisper-out.$$"; mkdir -p "$tmp"; rm -f "$tmp/out.txt"; s=$SECONDS
-              out="$(./art/ffmpeg.exe -hide_banner -v verbose -f lavfi -i "sine=frequency=220:duration=2" \
-                    -af "whisper=model=ggml-tiny.en.bin:language=en:use_gpu=${gpu}:destination=${tmp}/out.txt" \
-                    -f null - 2>&1)"
-              ec=$?
-              echo "iter $i gpu=$gpu exit=$ec secs=$((SECONDS-s))"
+              args=(-hide_banner -v verbose -f lavfi -i "sine=frequency=220:duration=2"
+                    -af "whisper=model=ggml-tiny.en.bin:language=en:use_gpu=${gpu}:destination=${tmp}/out.txt"
+                    -f null -)
+              if [ "${CAPTURE}" = cdb ]; then
+                # cdb only stops on the crash; on a clean exit -c never runs and no dump appears.
+                dmp="$(cygpath -w "${DUMPS}")\\ffmpeg-crash-$i-$gpu.dmp"
+                out="$("$(cygpath -u "${CDB}")" -hd -g -G \
+                      -c ".lines; .ecxr; r; kn 60; ~*kn 30; lmv m avfilter*; lmv m avutil*; .dump /ma ${dmp}; q" \
+                      ./art/ffmpeg.exe "${args[@]}" 2>&1)"
+                ec=0; [ -f "$(cygpath -u "${dmp}")" ] && ec=139
+              else
+                out="$(./art/ffmpeg.exe "${args[@]}" 2>&1)"
+                ec=$?
+              fi
+              echo "iter $i gpu=$gpu exit=$ec secs=$((SECONDS-s)) capture=${CAPTURE}"
               if [ "$ec" -ne 0 ]; then
                 crashes=$((crashes+1))
                 printf '%s\n' "$out" > "crash-stderr-$i-$gpu.txt"

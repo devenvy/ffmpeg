@@ -57,10 +57,9 @@
       "datasource": "git-refs"
     },
     "x265": {
-      "origin": "https://bitbucket.org/multicoreware/x265_git.git",
-      "tag": "4.2",
-      "datasource": "bitbucket-tags",
-      "registryUrl": "https://bitbucket.org"
+      "origin": "https://github.com/Multicorewareinc/x265.git",
+      "tag": "4.3",
+      "datasource": "github-tags"
     },
     "moltenvk": {
       "origin": "https://github.com/KhronosGroup/MoltenVK.git",
@@ -325,46 +324,5 @@
       "datasource": "gitlab-tags"
     }
   },
-  "overrides": {
-    "8": {
-      "x265": {
-        "origin": "https://bitbucket.org/multicoreware/x265_git.git",
-        "tag": "3.6",
-        "datasource": "bitbucket-tags",
-        "registryUrl": "https://bitbucket.org",
-        "reason": "x265 4.0+ ships broken aarch64 NEON intrinsics in intrapred-prim.cpp (bitbucket #937, HandBrake #3652, vcpkg #46880); held at 3.6 on EVERY ARM64 target. win-arm64 and maccatalyst-arm64 were missing from this list until 2026-09-14 -- they were added to the repo after the hold was written and never backfilled, so they were silently taking the broken default. Other arches take the default. Remove when upstream fixes the aarch64 NEON build.",
-        "issue": 6,
-        "platforms": [
-          "linux-arm64",
-          "linux-musl-arm64",
-          "win-arm64",
-          "osx-arm64",
-          "maccatalyst-arm64",
-          "ios-arm64",
-          "ios-sim-arm64",
-          "android-arm64"
-        ]
-      }
-    },
-    "9": {
-      "x265": {
-        "origin": "https://bitbucket.org/multicoreware/x265_git.git",
-        "tag": "3.6",
-        "datasource": "bitbucket-tags",
-        "registryUrl": "https://bitbucket.org",
-        "reason": "x265 4.0+ ships broken aarch64 NEON intrinsics in intrapred-prim.cpp (bitbucket #937, HandBrake #3652, vcpkg #46880); held at 3.6 on EVERY ARM64 target. win-arm64 and maccatalyst-arm64 were missing from this list until 2026-09-14 -- they were added to the repo after the hold was written and never backfilled, so they were silently taking the broken default. Other arches take the default. Remove when upstream fixes the aarch64 NEON build.",
-        "issue": 6,
-        "platforms": [
-          "linux-arm64",
-          "linux-musl-arm64",
-          "win-arm64",
-          "osx-arm64",
-          "maccatalyst-arm64",
-          "ios-arm64",
-          "ios-sim-arm64",
-          "android-arm64"
-        ]
-      }
-    }
-  }
+  "overrides": {}
 }

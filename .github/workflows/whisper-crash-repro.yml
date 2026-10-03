@@ -79,8 +79,12 @@ jobs:
         #   harness    = the real `scripts/test.sh win-x64` suite in a loop (what actually crashed)
         #   standalone = the bare exercise_whisper invocation in a loop
         # gave 516 + 662 runs, 0 crashes -- all on the DEBUG build. Attempt 4: the release binary.
-        mode: [harness, standalone]
+        # Attempt 4: the RELEASE binary crashed on its FIRST standalone iteration (exit 139,
+        # use_gpu=0), where the debug build never did in ~2,000 runs. Attempt 5: release binary,
+        # standalone, once under cdb to capture it and once bare to measure the rate.
+        mode: [standalone]
         binary: [release]
+        capture: [cdb, none]
     steps:
       - uses: actions/checkout@v7
       - name: Runner Vulkan environment (ggml registers its Vulkan backend even with use_gpu=0)
@@ -198,15 +202,26 @@ jobs:
               i=$((i+1))
               for gpu in 0 1; do
                 tmp="whisper-out.$$"; mkdir -p "$tmp"; rm -f "$tmp/out.txt"; s=$SECONDS
-                out="$(./art/ffmpeg.exe -hide_banner -v verbose -f lavfi -i "sine=frequency=220:duration=2" \
-                      -af "whisper=model=ggml-tiny.en.bin:language=en:use_gpu=${gpu}:destination=${tmp}/out.txt" \
-                      -f null - 2>&1)"
-                ec=$?
-                echo "iter $i gpu=$gpu exit=$ec secs=$((SECONDS-s))"
+                args=(-hide_banner -v verbose -f lavfi -i "sine=frequency=220:duration=2"
+                      -af "whisper=model=ggml-tiny.en.bin:language=en:use_gpu=${gpu}:destination=${tmp}/out.txt"
+                      -f null -)
+                if [ "${{ matrix.capture }}" = cdb ]; then
+                  # cdb breaks only on the crash (-hd: normal heap); on a clean exit -c never runs.
+                  dmp="$(cygpath -w "${DUMPS}")\\ffmpeg-crash-$i-$gpu.dmp"
+                  out="$("$(cygpath -u "${CDB}")" -hd -g -G \
+                        -c ".ecxr; r; kn 80; ~*kn 40; lm; .dump /ma ${dmp}; q" \
+                        ./art/ffmpeg.exe "${args[@]}" 2>&1)"
+                  ec=0; [ -f "$(cygpath -u "${dmp}")" ] && ec=139
+                else
+                  out="$(./art/ffmpeg.exe "${args[@]}" 2>&1)"
+                  ec=$?
+                fi
+                echo "iter $i gpu=$gpu exit=$ec secs=$((SECONDS-s)) capture=${{ matrix.capture }}"
                 if [ "$ec" -ne 0 ]; then
                   crashes=$((crashes+1)); printf '%s\n' "$out" > "crash-stderr-standalone-$i-$gpu.txt"
-                  echo "::error::af_whisper exit $ec standalone, iteration $i (use_gpu=$gpu)"
-                  tail -25 "crash-stderr-standalone-$i-$gpu.txt"
+                  echo "::error::af_whisper exit $ec standalone, iteration $i (use_gpu=$gpu, capture=${{ matrix.capture }})"
+                  # Under cdb this holds the exception record, registers and every thread's stack.
+                  tail -250 "crash-stderr-standalone-$i-$gpu.txt"
                   break 2
                 fi
               done
@@ -221,7 +236,7 @@ jobs:
           Start-Sleep 10
           Get-ChildItem $env:DUMPS | Format-Table Name, Length, LastWriteTime -AutoSize
           $d = Get-ChildItem $env:DUMPS -Filter 'ffmpeg*.dmp' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-          if (-not $d) { "::error::crash REPRODUCED (see loop step) but no dump - WER is off on this image"; exit 1 }
+          if (-not $d) { "::error::crash REPRODUCED (see loop step) but no dump in this capture mode"; exit 1 }
           if ($env:CDB) {
             # Module+offset frames; symbolize offline against the uploaded debug binaries
             # (addr2line -e avfilter-*.dll <offset + image base>).
@@ -233,7 +248,7 @@ jobs:
       - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: repro-${{ matrix.mode }}-${{ matrix.binary }}
+          name: repro-${{ matrix.mode }}-${{ matrix.binary }}-${{ matrix.capture }}
           path: |
             ${{ env.DUMPS }}
             crash-stderr-*.txt

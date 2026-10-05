@@ -732,14 +732,14 @@ exercise_whisper() {
   # Windows .exe (unlike standalone path args). A relative path resolves against cwd on every OS.
   local tmp; tmp="whisper-out.$$"; mkdir -p "$tmp"
   # A short spoken-like signal isn't needed to prove execution; a tone drives the full graph.
-  # NOTE: on SOME Windows runner instances, af_whisper SIGSEGVs during process TEARDOWN *after* the
-  # inference completes successfully (verified: ffmpeg prints "Exiting with exit code 0" before the
-  # crash). It's an upstream ggml/whisper teardown fault — NOT our harness (af_whisper inference is
-  # synchronous, no thread we manage) and NOT the binary (0 crashes in ~300 local runs of the same
-  # artifact; some runners are 0/60, others hit it — a runner/CPU lottery). Exact faulting op not yet
-  # pinned (needs a debugger on a crashing runner — a later task). We run ONCE and FAIL LOUD on any
-  # nonzero exit — no retry, no masking — capturing exit code + stderr (exit 139 = SIGSEGV). Re-run
-  # the job if a bad runner trips it. (queue uses the 3s default — a DURATION; our clip is 2s.)
+  # NOTE (issue #20): on win-x64 GitHub runners af_whisper occasionally exits 139 (an access
+  # violation) after the 2 s clip has been consumed. Observed, not explained: ~1 crash in ~4,000
+  # runner runs and 0 in ~2,600 local runs of the same artifact, yet clustered in CI (2 of 2 attempts
+  # on one cell). Where it faults is UNKNOWN -- earlier notes calling it a teardown fault were never
+  # verified (whisper may transcribe at EOF, so "after the clip" is not "after inference"). We run
+  # ONCE and FAIL LOUD on any nonzero exit; on a win-x64 exit 139, _whisper_crash_evidence retries
+  # once under cdb purely to capture a stack + dump for #20. The failure stands either way.
+  # (queue uses the 3s default — a DURATION; our clip is 2s.)
   # Two runs, because they prove different things. use_gpu=0 is a forward pass on the CPU by
   # construction. The default (use_gpu=1) on a GPU backend build is what a user gets, and on these
   # GPU-less runners it proves the backend degrades to the CPU instead of failing -- the property
@@ -759,9 +759,57 @@ exercise_whisper() {
       pass "whisper inference ${label}: af_whisper ran a forward pass to completion"
     else
       fail "whisper inference ${label}: af_whisper did not complete (exit ${ec}; exit 139 is the known intermittent segfault, see issue #20 — re-run before investigating) — $(printf '%s' "$out" | tr '\n' ' ' | tail -c 400)"
+      [ "$ec" -eq 139 ] && _whisper_crash_evidence "$gpu" "$model" "$tmp" "$out"
     fi
   done
   rm -rf "$tmp"
+}
+
+# _whisper_crash_evidence <use_gpu> <model> <tmpdir> <first-run-output>
+# Issue #20 evidence capture. NEVER changes the verdict: the failing check above stands whatever this
+# finds. Native Windows x64 only (cdb is provisioned on the x64 image; the arm64 one is unverified),
+# and only with an empty RUNNER (not Wine). WER writes no dumps on the hosted image, so the one
+# validated capture route is launching under cdb: -hd keeps the normal heap, -g/-G skip the initial
+# and final breaks, so cdb stops ONLY on an exception and then writes the dump. Outcome is classified
+# from artifacts on disk, never from cdb's own exit status:
+#   new dump file              -> crash reproduced and captured (stack printed below)
+#   no dump, fresh out.txt     -> retry ran clean; nothing captured (the crash did not recur)
+#   neither                    -> inconclusive (debugger failed to start, timed out, ...)
+# Everything lands in WHISPER_CRASH_DIR, which test.yml uploads as an artifact.
+_whisper_crash_evidence() {
+  local gpu="$1" model="$2" tmp="$3" first="$4"
+  # ${RUNNER[*]:-} rather than ${#RUNNER[@]}: safe for an empty array under set -u on bash 3.2.
+  [[ "${OS:-}" == "Windows_NT" && "${RID:-}" == "win-x64" && -z "${RUNNER[*]:-}" ]] || return 0
+  local cdb="${CDB:-/c/Program Files (x86)/Windows Kits/10/Debuggers/x64/cdb.exe}"
+  local dir="${WHISPER_CRASH_DIR:-${RUNNER_TEMP:-$PWD}/whisper-crash}"
+  # RUNNER_TEMP is a Windows path (D:\a\_temp); normalise for bash when cygpath is there.
+  command -v cygpath >/dev/null 2>&1 && dir="$(cygpath -u "$dir")"
+  mkdir -p "$dir" || return 0
+  local tag; tag="gpu${gpu}-$(date +%H%M%S)"
+  printf '%s\n' "$first" > "${dir}/first-run-${tag}.log"
+  if [ ! -x "$cdb" ] || ! command -v cygpath >/dev/null 2>&1; then
+    info "whisper #20 evidence: no cdb/cygpath on this runner; first-run output saved to ${dir}"
+    return 0
+  fi
+  local dmp_w log="${dir}/cdb-retry-${tag}.log"
+  dmp_w="$(cygpath -w "${dir}")\\ffmpeg-${tag}.dmp"
+  rm -f "${tmp}/out.txt"
+  info "whisper #20 evidence: retrying use_gpu=${gpu} once under cdb to capture a stack (verdict unchanged)"
+  timeout 900 "$cdb" -hd -g -G \
+    -c ".echo WHISPER_CRASH_BEGIN; .ecxr; r; kn 80; ~*kn 40; lm; .dump /ma ${dmp_w}; .echo WHISPER_CRASH_END; q" \
+    "$(cygpath -w "$FFMPEG")" -hide_banner -v verbose -f lavfi -i "sine=frequency=220:duration=2" \
+    -af "whisper=model=${model}:language=en:use_gpu=${gpu}:destination=${tmp}/out.txt" \
+    -f null - > "$log" 2>&1
+  if [ -f "$(cygpath -u "${dmp_w}")" ]; then
+    info "whisper #20 evidence: CRASH REPRODUCED under cdb — dump + full log in ${dir} (uploaded by test.yml)"
+    sed -n '/WHISPER_CRASH_BEGIN/,/WHISPER_CRASH_END/p' "$log" | head -300
+    [ -n "${GITHUB_ACTIONS:-}" ] && echo "::warning::af_whisper crash captured under cdb (issue #20) — download the whisper-crash artifact for the dump"
+  elif [ -e "${tmp}/out.txt" ]; then
+    info "whisper #20 evidence: retry under cdb ran clean (no crash recurred); first-run output saved in ${dir}"
+  else
+    info "whisper #20 evidence: retry inconclusive (no dump and no transcript) — see ${log}"
+  fi
+  return 0
 }
 
 # --- hardware-accel classified probe ------------------------------------------

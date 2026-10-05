@@ -250,6 +250,18 @@ jobs:
             bash scripts/test.sh "${BUILD_RID}" "artifacts/${BUILD_RID}/native"
           fi
 
+      # Issue #20: when af_whisper exits 139 on win-x64, exercise_whisper (scripts/test/lib.sh)
+      # retries once under cdb and leaves the first-run output, the cdb log and (if the crash
+      # recurred) a full dump in RUNNER_TEMP/whisper-crash. Evidence only -- the test has already
+      # failed. Usually empty; nothing is uploaded then.
+      - uses: actions/upload-artifact@v7
+        if: always() && matrix.rid == 'win-x64'
+        with:
+          name: whisper-crash-${{ env.VARIANT }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/whisper-crash
+          if-no-files-found: ignore
+          retention-days: 30
+
 
   # Gate job — single required status check for branch protection.
   all-tests:

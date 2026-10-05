@@ -41,6 +41,48 @@ stage_pkgconfig() {   # $1 = libdir for the .pc, SINGLE-QUOTED by callers
   echo "Staged $(ls -1 "${dst}" 2>/dev/null | wc -l) pkg-config files."
 }
 
+# win-x64 debug symbols (issue #20). The build tree keeps UNSTRIPPED copies of what `make install`
+# strips: ffmpeg_g.exe / ffprobe_g.exe and the versioned DLLs under each lib*/ dir. Stage them in
+# artifacts/<rid>/symbols -- a sibling of native/, so they never ship -- for symbolizing a crash
+# dump's module+offset frames (x86_64-w64-mingw32-addr2line -f -C -i -e <dll> <address>). Asserted,
+# not assumed: shipped binaries carry no DWARF, the copies do, and real addresses resolve to source
+# both in FFmpeg and in the statically linked whisper/ggml code.
+stage_win_symbols() {
+  local sym="${ROOT_DIR}/artifacts/${RID}/symbols" f n addr src tool="${CROSS_PREFIX}"
+  rm -rf "${sym}"; mkdir -p "${sym}"
+  cp -a "${SRC_DIR}/ffmpeg_g.exe" "${SRC_DIR}/ffprobe_g.exe" "${sym}/"
+  for f in "${OUT_DIR}"/*.dll; do
+    n="$(basename "${f}")"                       # e.g. avfilter-11.dll, built in libavfilter/
+    cp -a "${SRC_DIR}/lib${n%%-*}/${n}" "${sym}/" \
+      || { echo "ERROR: no unstripped build-tree copy of ${n}" >&2; exit 1; }
+  done
+  # No early-exiting readers (grep -q, awk exit, head) in these pipelines: under pipefail the
+  # writer's SIGPIPE turns the pipeline into status 141, which aborted the build -- and inside an
+  # `if`, would have made the stripped check pass for a binary that DID carry DWARF.
+  local dbg
+  for f in "${OUT_DIR}"/*.dll "${OUT_DIR}"/*.exe; do
+    dbg="$("${tool}-objdump" -h "${f}" | grep -c '\.debug_' || true)"
+    if [ "${dbg}" -ne 0 ]; then
+      echo "ERROR: shipped $(basename "${f}") carries ${dbg} DWARF sections -- it must stay stripped" >&2; exit 1
+    fi
+  done
+  _sym_resolves() {   # <dll> <symbol> <expected source substring>
+    addr="$("${tool}-nm" "${sym}/$1" | awk -v s="$2" '!found && $3 == s && ($2 == "T" || $2 == "t") {print "0x"$1; found=1}')"
+    [ -n "${addr}" ] || { echo "ERROR: symbols: $2 not found in $1" >&2; exit 1; }
+    src="$("${tool}-addr2line" -f -C -i -e "${sym}/$1" "${addr}" | sed -n 2p)"
+    case "${src}" in
+      *"$3"*) echo "symbols: $1!$2 @ ${addr} -> ${src}" ;;
+      *) echo "ERROR: symbols: $1!$2 @ ${addr} resolved to '${src}', expected *$3*" >&2; exit 1 ;;
+    esac
+  }
+  n=""; for f in "${sym}"/avfilter-*.dll; do n="$(basename "${f}")"; done
+  [ -n "${n}" ] && [ -e "${sym}/${n}" ] || { echo "ERROR: no avfilter DLL in ${sym}" >&2; exit 1; }
+  _sym_resolves "${n}" avfilter_version "libavfilter/version.c"
+  # ggml is where af_whisper's inference runs; prove its frames will symbolize too.
+  _sym_resolves "${n}" ggml_init "ggml"
+  echo "Staged $(ls -1 "${sym}" | wc -l) win-x64 symbol files ($(du -sh "${sym}" | cut -f1)) in ${sym}"
+}
+
 
 case "${RID}" in
   win-*)
@@ -50,6 +92,7 @@ case "${RID}" in
     cp -a "${PREFIX_DIR}/bin/ffprobe.exe" "${OUT_DIR}/"
     cp -a "${PREFIX_DIR}/include/." "${OUT_DIR}/include/"
     stage_pkgconfig '${prefix}/lib'
+    [[ "${RID}" == "win-x64" ]] && stage_win_symbols
     # Generate MSVC-consumable COFF import libraries (.lib) from each DLL so a
     # consumer with no FFmpeg build tooling can link with MSVC. gendef dumps the
     # DLL export table to a .def; llvm-dlltool turns it into a Microsoft short

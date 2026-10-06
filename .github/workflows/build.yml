@@ -100,6 +100,8 @@ jobs:
     steps:
       - name: Bootstrap container (Alpine or Debian)
         if: matrix.container
+        # Package installs only: a stalled mirror must fail here, not consume the 6 h job limit.
+        timeout-minutes: 25
         # Was gated on `matrix.container` merely being SET and hardcoded apk, which broke the
         # moment a second container image appeared: linux-armhf now builds in debian:bookworm
         # (for its glibc floor) and died with "apk: not found". Pick the package manager from
@@ -109,11 +111,14 @@ jobs:
           if command -v apk >/dev/null 2>&1; then
             apk add --no-cache bash git file jq   # 'file' for the test script, 'jq' for the dep loader
           elif command -v apt-get >/dev/null 2>&1; then
-            apt-get update -qq
+            # Bounded waits: a stalled mirror must fail fast, not hold the job (see apt_get in
+            # scripts/lib.sh, which the build itself uses).
+            APT="-o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30"
+            apt-get $APT update -qq
             # python3-pip: Debian ships none, and 03_install_packages.sh needs pip to pull a meson
             # newer than the distro's (bookworm has 1.0.1; fontconfig 2.18+ wants >= 1.11). Without
             # it the job died on "No module named pip" after an otherwise clean apt run.
-            apt-get install -y -q --no-install-recommends bash git file jq ca-certificates curl sudo python3-pip
+            apt-get $APT install -y -q --no-install-recommends bash git file jq ca-certificates curl sudo python3-pip
           else
             echo "unsupported container image: no apk or apt-get" >&2; exit 1
           fi

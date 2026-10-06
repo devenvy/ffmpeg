@@ -61,4 +61,16 @@ if [ -n "${drift}" ]; then
   echo "  Use an unversioned origin (the release directory) so it cannot go stale." >&2
   exit 1
 fi
+# An optional "mirror" (clone_dep's fallback when the origin is down) must be an https git URL
+# distinct from the origin -- anything else would make the fallback a silent no-op or a downgrade.
+# Whether it still serves the pinned ref is a network question: scripts/ci/mirror-parity-test.sh.
+if ! badmir="$(jq -r '
+      [(.defaults // {}), ((.overrides // {}) | to_entries[] | .value)] | .[] | to_entries[]
+      | select(.value.mirror != null)
+      | select((.value.mirror | type) != "string" or (.value.mirror | test("^https://") | not)
+               or .value.mirror == .value.origin)
+      | .key' "${LEDGER}")"; then
+  echo "ledger-validate: mirror check errored (jq)" >&2; exit 1
+fi
+if [ -n "${badmir}" ]; then echo "ledger-validate: bad mirror (need an https URL different from origin): ${badmir}" >&2; exit 1; fi
 echo "ledger-validate: OK"

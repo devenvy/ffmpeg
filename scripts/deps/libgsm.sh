@@ -22,8 +22,11 @@ set -euo pipefail
 gsm_ver="$(dep_version libgsm)"
 echo "Building libgsm ${gsm_ver} (static)..."
 cd "${WORK_DIR}" || exit 1
-curl -fsSL --connect-timeout 30 \
-  "https://www.quut.com/gsm/gsm-${gsm_ver}.tar.gz" -o gsm.tar.gz
+# quut.com (a single personal host) first, then the Debian archive's .orig.tar.gz -- verified
+# SHA-256-identical for 1.0.24 (fetch_tarball, scripts/lib.sh).
+fetch_tarball gsm.tar.gz \
+  "https://www.quut.com/gsm/gsm-${gsm_ver}.tar.gz" \
+  "https://deb.debian.org/debian/pool/main/libg/libgsm/libgsm_${gsm_ver}.orig.tar.gz"
 # The tarball's top dir is NOT gsm-${ver} — libgsm names it by version+patchlevel
 # (gsm-1.0.22.tar.gz extracts to gsm-1.0-pl22/). Extract, then glob the one gsm-*/ dir.
 # (Avoid `tar -tzf | head` to find it: head closes the pipe early → tar gets SIGPIPE →

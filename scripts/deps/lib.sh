@@ -12,8 +12,10 @@ _ffmpeg_major() { printf '%s' "${FFMPEG_VERSION%%.*}"; }
 # platform-scoped override (one carrying a "platforms" list) applies ONLY when the
 # build's BUILD_RID is in that list; on any other RID it falls through to the default.
 # An override without "platforms" applies to every RID for that FFmpeg major.
-dep_source() {
-  local name="$1" ledger major rid entry origin reftype refval
+# _dep_entry <name> -> the resolved ledger entry as compact JSON (override or default, per the
+# precedence above). Shared by dep_source and dep_mirror so the two can never resolve differently.
+_dep_entry() {
+  local name="$1" ledger major rid entry
   ledger="$(_ledger_path)"; major="$(_ffmpeg_major)"; rid="${BUILD_RID:-}"
   command -v jq >/dev/null 2>&1 || { echo "dep_source: jq not found (build prerequisite)" >&2; return 2; }
   [ -f "${ledger}" ] || { echo "dep_source: ledger not found: ${ledger}" >&2; return 2; }
@@ -23,6 +25,12 @@ dep_source() {
                then $ov else .defaults[$n] end)
             // empty' "${ledger}")" || return 2
   [ -n "${entry}" ] || { echo "dep_source: '${name}' not in ledger (defaults or overrides.${major})" >&2; return 2; }
+  printf '%s\n' "${entry}"
+}
+
+dep_source() {
+  local name="$1" entry origin reftype refval
+  entry="$(_dep_entry "${name}")" || return $?
   local nrefs; nrefs="$(jq -r '[.tag,.branch,.commit]|map(select(.!=null))|length' <<<"${entry}")"
   [ "${nrefs}" = "1" ] || { echo "dep_source: '${name}' malformed (need exactly one of tag/branch/commit, found ${nrefs})" >&2; return 2; }
   origin="$(jq -r '.origin // empty' <<<"${entry}")"
@@ -33,17 +41,44 @@ dep_source() {
   printf '%s\t%s\t%s\n' "${origin}" "${reftype}" "${refval}"
 }
 
+# dep_mirror <name> -> the resolved entry's optional "mirror" URL (empty when it has none).
+# A mirror is a read-only copy of the SAME repository (e.g. github.com/videolan/dav1d for
+# code.videolan.org/videolan/dav1d), so the pinned tag/commit names identical content there --
+# scripts/ci/mirror-parity-test.sh checks that against the network.
+dep_mirror() {
+  local entry
+  entry="$(_dep_entry "$1")" || return $?
+  jq -r '.mirror // empty' <<<"${entry}"
+}
+
+# _clone_ref <url> <reftype> <refval> <destdir>
+_clone_ref() {
+  case "$2" in
+    tag|branch) git clone --depth 1 --branch "$3" "$1" "$4" ;;
+    commit)     git clone "$1" "$4" && git -C "$4" checkout --detach "$3" ;;
+    *)          echo "clone_dep: bad reftype '$2'" >&2; return 2 ;;
+  esac
+}
+
 # clone_dep <name> <destdir> -> shallow clone + checkout the resolved ref
+# With a "mirror" in the ledger entry, the origin gets a short retry budget and the mirror the
+# normal one: single-host outages (SourceForge, gitlab.freedesktop.org, ftp.gnu.org -- each down
+# for hours in one week) failed every PR's builds at the same step, and backoff can only outlast a
+# blip. A fallback to an identical copy survives the outage. Without a mirror, unchanged.
 clone_dep() {
-  local name="$1" dest="$2" origin reftype refval out
+  local name="$1" dest="$2" origin reftype refval out mirror
   out="$(dep_source "${name}")" || return $?
   IFS=$'\t' read -r origin reftype refval <<<"${out}"
+  mirror="$(dep_mirror "${name}")" || return $?
   echo "clone_dep: ${name} <- ${origin} @ ${reftype}:${refval}"
-  case "${reftype}" in
-    tag|branch) git clone --depth 1 --branch "${refval}" "${origin}" "${dest}" ;;
-    commit)     git clone "${origin}" "${dest}" && git -C "${dest}" checkout --detach "${refval}" ;;
-    *)          echo "clone_dep: bad reftype '${reftype}'" >&2; return 2 ;;
-  esac
+  if [ -z "${mirror}" ]; then
+    _clone_ref "${origin}" "${reftype}" "${refval}" "${dest}"
+    return
+  fi
+  GIT_CLONE_ATTEMPTS=2 _clone_ref "${origin}" "${reftype}" "${refval}" "${dest}" && return 0
+  echo "clone_dep: ${origin} unavailable; falling back to mirror ${mirror}" >&2
+  rm -rf "${dest}"
+  _clone_ref "${mirror}" "${reftype}" "${refval}" "${dest}"
 }
 
 # dep_version <name> -> prints the resolved ref value only (tag/branch/commit string)

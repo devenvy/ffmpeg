@@ -504,7 +504,15 @@ the x265 hold this example used to show was removed in issue #6 because its cite
 Each `scripts/deps/<name>.sh` calls the loader in [`scripts/deps/lib.sh`](scripts/deps/lib.sh)
 instead of hardcoding a clone:
 
-- `clone_dep <name> <dir>` — resolve, `git clone`, and checkout the ref.
+- `clone_dep <name> <dir>` — resolve, `git clone`, and checkout the ref. If the entry has a
+  `mirror` (an identical read-only copy, e.g. a project's official GitHub mirror) and the origin
+  is down, it falls back to the mirror. Single-host outages — SourceForge, gitlab.freedesktop.org,
+  ftp.gnu.org, each down for hours in one week — otherwise fail every PR at the same step.
+  Add a mirror only after `bash scripts/ci/mirror-parity-test.sh` shows it serving the pinned ref
+  at the same commit; re-run it after a version bump.
+- Tarball-only deps download through `fetch_tarball <out> <url>...` (scripts/lib.sh), which tries
+  each URL in order — e.g. SourceForge then Debian's byte-identical `.orig.tar.gz`, or kernel.org's
+  GNU mirror then ftp.gnu.org.
 - `dep_version <name>` — just the resolved ref string (used by the tarball deps and to stamp
   `.pc` files).
 

@@ -17,7 +17,7 @@
     },
     "harfbuzz": {
       "origin": "https://github.com/harfbuzz/harfbuzz.git",
-      "tag": "14.5.0",
+      "tag": "14.5.1",
       "datasource": "github-tags"
     },
     "kvazaar": {
@@ -134,7 +134,7 @@
     },
     "libpng": {
       "origin": "https://github.com/pnggroup/libpng.git",
-      "tag": "v1.6.58",
+      "tag": "v1.6.59",
       "datasource": "github-tags"
     },
     "freetype": {
@@ -221,7 +221,7 @@
     },
     "patchelf": {
       "origin": "https://github.com/NixOS/patchelf.git",
-      "tag": "0.19.1",
+      "tag": "0.19.2",
       "datasource": "github-tags"
     },
     "shaderc": {
@@ -256,17 +256,17 @@
     },
     "vulkan-headers": {
       "origin": "https://github.com/KhronosGroup/Vulkan-Headers.git",
-      "tag": "vulkan-sdk-1.4.357.0",
+      "tag": "vulkan-sdk-1.4.363.0",
       "datasource": "github-tags"
     },
     "vulkan-loader": {
       "origin": "https://github.com/KhronosGroup/Vulkan-Loader.git",
-      "tag": "vulkan-sdk-1.4.357.0",
+      "tag": "vulkan-sdk-1.4.363.0",
       "datasource": "github-tags"
     },
     "spirv-headers": {
       "origin": "https://github.com/KhronosGroup/SPIRV-Headers.git",
-      "tag": "vulkan-sdk-1.4.357.0",
+      "tag": "vulkan-sdk-1.4.363.0",
       "datasource": "github-tags"
     },
     "speex": {

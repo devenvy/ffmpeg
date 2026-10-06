@@ -77,7 +77,7 @@ _8 of 15 built._
 | FreeType — drawtext | VER-2-14-3 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | n/a | ✓ | ✓ |
 | libass — SSA/ASS subtitles | 0.17.5 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | n/a | ✓ | ✓ |
 | libfribidi — bidi text (drawtext) | v1.0.17 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | n/a | ✓ | ✓ |
-| libharfbuzz — text shaping | 14.5.0 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | n/a | ✓ | ✓ |
+| libharfbuzz — text shaping | 14.5.1 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | n/a | ✓ | ✓ |
 | libjxl — JPEG XL | v0.12.0 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | libwebp — WebP[^webp] | v1.6.0 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a | n/a |
 | OpenJPEG — JPEG 2000 | v2.5.4 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
@@ -162,7 +162,7 @@ _16 of 23 built._
 | V4L2-M2M |  | ✓ | ✓ | ✓ | — | ✓ | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
 | VAAPI | 2.24.1 | ✓ | ✓ | — | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
 | VideoToolbox |  | n/a | n/a | n/a | n/a | n/a | n/a | n/a | ✓ | ✓ | n/a | n/a | ✓ | ✓ | ✓ | ✓ |
-| Vulkan (FFmpeg filters; whisper GPU only where the backend is Vulkan) | vulkan-sdk-1.4.357.0 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | — | ✓ | ✓ |
+| Vulkan (FFmpeg filters; whisper GPU only where the backend is Vulkan) | vulkan-sdk-1.4.363.0 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | — | ✓ | ✓ |
 | CUDA (LLVM/NVVM) |  | — | — | — | — | — | — | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
 | D3D12VA[^d3d12] |  | n/a | n/a | n/a | n/a | n/a | — | — | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
 | MMAL (Raspberry Pi) |  | — | — | — | — | — | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |

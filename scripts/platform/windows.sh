@@ -20,8 +20,12 @@ case "${RID}" in
     export RANLIB="${CROSS_PREFIX}-ranlib"
     export NM="${CROSS_PREFIX}-nm"
     export STRIP="${CROSS_PREFIX}-strip"
+    # -g (issue #20): DWARF for the win-x64 symbols artifact. --disable-debug stays in configure,
+    # so FFmpeg's linker flags (its MinGW ASLR handling depends on the debug setting) are unchanged;
+    # GCC's -g does not change code generation; and `make install` strips the shipped binaries as
+    # before -- 08_stage_artifacts.sh collects the unstripped build-tree copies and asserts both.
     # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
-    EXTRA_CFLAGS="-static-libgcc -static-libstdc++ -O2 -pipe"
+    EXTRA_CFLAGS="-static-libgcc -static-libstdc++ -O2 -pipe -g"
     # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script
     EXTRA_CXXFLAGS="-static-libgcc -static-libstdc++ -O2 -pipe"
     # shellcheck disable=SC2034  # set here; consumed by a sourced sibling script

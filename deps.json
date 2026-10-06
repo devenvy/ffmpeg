@@ -8,7 +8,8 @@
       "origin": "https://code.videolan.org/videolan/dav1d.git",
       "tag": "1.5.4",
       "datasource": "gitlab-tags",
-      "registryUrl": "https://code.videolan.org"
+      "registryUrl": "https://code.videolan.org",
+      "mirror": "https://github.com/videolan/dav1d.git"
     },
     "fribidi": {
       "origin": "https://github.com/fribidi/fribidi.git",
@@ -17,7 +18,7 @@
     },
     "harfbuzz": {
       "origin": "https://github.com/harfbuzz/harfbuzz.git",
-      "tag": "14.5.0",
+      "tag": "14.5.1",
       "datasource": "github-tags"
     },
     "kvazaar": {
@@ -54,7 +55,8 @@
     "libvpx": {
       "origin": "https://chromium.googlesource.com/webm/libvpx.git",
       "tag": "v1.17.0",
-      "datasource": "git-refs"
+      "datasource": "git-refs",
+      "mirror": "https://github.com/webmproject/libvpx.git"
     },
     "x265": {
       "origin": "https://github.com/Multicorewareinc/x265.git",
@@ -134,7 +136,7 @@
     },
     "libpng": {
       "origin": "https://github.com/pnggroup/libpng.git",
-      "tag": "v1.6.58",
+      "tag": "v1.6.59",
       "datasource": "github-tags"
     },
     "freetype": {
@@ -167,7 +169,8 @@
     "libwebp": {
       "origin": "https://chromium.googlesource.com/webm/libwebp.git",
       "tag": "v1.6.0",
-      "datasource": "git-refs"
+      "datasource": "git-refs",
+      "mirror": "https://github.com/webmproject/libwebp.git"
     },
     "libxml2": {
       "origin": "https://github.com/GNOME/libxml2.git",
@@ -221,7 +224,7 @@
     },
     "patchelf": {
       "origin": "https://github.com/NixOS/patchelf.git",
-      "tag": "0.19.1",
+      "tag": "0.19.2",
       "datasource": "github-tags"
     },
     "shaderc": {
@@ -238,7 +241,8 @@
       "origin": "https://gitlab.com/AOMediaCodec/SVT-AV1.git",
       "tag": "v4.2.0",
       "datasource": "gitlab-tags",
-      "registryUrl": "https://gitlab.com"
+      "registryUrl": "https://gitlab.com",
+      "mirror": "https://github.com/AOMediaCodec/SVT-AV1.git"
     },
     "x264": {
       "origin": "https://code.videolan.org/videolan/x264.git",
@@ -256,17 +260,17 @@
     },
     "vulkan-headers": {
       "origin": "https://github.com/KhronosGroup/Vulkan-Headers.git",
-      "tag": "vulkan-sdk-1.4.357.0",
+      "tag": "vulkan-sdk-1.4.363.0",
       "datasource": "github-tags"
     },
     "vulkan-loader": {
       "origin": "https://github.com/KhronosGroup/Vulkan-Loader.git",
-      "tag": "vulkan-sdk-1.4.357.0",
+      "tag": "vulkan-sdk-1.4.363.0",
       "datasource": "github-tags"
     },
     "spirv-headers": {
       "origin": "https://github.com/KhronosGroup/SPIRV-Headers.git",
-      "tag": "vulkan-sdk-1.4.357.0",
+      "tag": "vulkan-sdk-1.4.363.0",
       "datasource": "github-tags"
     },
     "speex": {

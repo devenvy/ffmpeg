@@ -12,8 +12,10 @@ tasn1_ver="$(dep_version libtasn1)"
 echo "Building libtasn1 ${tasn1_ver} (static, GnuTLS chain)..."
 cd "${WORK_DIR}" || exit 1
 rm -rf "libtasn1-${tasn1_ver}"
-curl -fsSL --connect-timeout 30 \
-  "https://ftp.gnu.org/gnu/libtasn1/libtasn1-${tasn1_ver}.tar.gz" -o libtasn1.tar.gz
+# kernel.org's GNU mirror first, ftp.gnu.org as fallback -- see gmp.sh.
+fetch_tarball libtasn1.tar.gz \
+  "https://mirrors.kernel.org/gnu/libtasn1/libtasn1-${tasn1_ver}.tar.gz" \
+  "https://ftp.gnu.org/gnu/libtasn1/libtasn1-${tasn1_ver}.tar.gz"
 tar -xf libtasn1.tar.gz
 cd "libtasn1-${tasn1_ver}" || exit 1
 TASN1_ARGS=(--prefix="${DEPS_DIR}" --libdir="${DEPS_DIR}/lib"

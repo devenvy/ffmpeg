@@ -330,6 +330,18 @@ jobs:
           # days gives comfortable margin over the longest observed run; they're throwaway either way.
           retention-days: 5
 
+      # Issue #20: unstripped win-x64 binaries (ffmpeg_g.exe, ffprobe_g.exe, versioned DLLs) staged
+      # by 08_stage_artifacts.sh, for symbolizing a crash dump's module+offset frames. A separate
+      # artifact, never part of the shipped one; release.yml downloads build artifacts by exact name,
+      # so it cannot pick this up. Kept as long as GitHub allows, since it pairs with a release.
+      - uses: actions/upload-artifact@v7
+        if: matrix.rid == 'win-x64'
+        with:
+          name: symbols-${{ env.VARIANT }}
+          path: artifacts/${{ matrix.rid }}/symbols
+          if-no-files-found: error
+          retention-days: 90
+
       - uses: actions/upload-artifact@v7
         if: failure()
         with:

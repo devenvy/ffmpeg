@@ -11,8 +11,12 @@ gmp_ver="$(dep_version gmp)"
 echo "Building GMP ${gmp_ver} (static, GnuTLS chain)..."
 cd "${WORK_DIR}" || exit 1
 rm -rf "gmp-${gmp_ver}"
-curl -fsSL --connect-timeout 30 \
-  "https://ftp.gnu.org/gnu/gmp/gmp-${gmp_ver}.tar.xz" -o gmp.tar.xz
+# kernel.org's official GNU mirror first (same signed release files), ftp.gnu.org as fallback for a
+# release the mirror has not synced yet. ftp.gnu.org was unreachable for many hours on 2026-10-06,
+# failing every gplv2 cell (the only cells that build GnuTLS's gmp/nettle/libtasn1).
+fetch_tarball gmp.tar.xz \
+  "https://mirrors.kernel.org/gnu/gmp/gmp-${gmp_ver}.tar.xz" \
+  "https://ftp.gnu.org/gnu/gmp/gmp-${gmp_ver}.tar.xz"
 tar -xf gmp.tar.xz
 cd "gmp-${gmp_ver}" || exit 1
 GMP_ARGS=(--prefix="${DEPS_DIR}" --libdir="${DEPS_DIR}/lib"

@@ -80,5 +80,32 @@ JSON
 LEDGER="${FIX}/plat-empty.json" bash "${VALIDATE}" >/dev/null 2>&1
 check "empty platforms array fails" "$?" 1
 
+# Holds: a well-formed one passes (an overdue reviewAfter included -- the reminder handles it);
+# each malformed field, an extra key, and a hold placed in .overrides fail.
+hold_case() { # <label> <want> <hold-json> [override]
+  if [ "${4:-}" = override ]; then
+    printf '{ "defaults": {}, "overrides": { "9": { "foo": { "origin": "https://example.test/foo.git", "tag": "1.0", "reason": "x", "hold": %s } } } }\n' "$3" > "${FIX}/hold.json"
+  else
+    printf '{ "defaults": { "foo": { "origin": "https://example.test/foo.git", "tag": "1.0", "hold": %s } } }\n' "$3" > "${FIX}/hold.json"
+  fi
+  LEDGER="${FIX}/hold.json" bash "${VALIDATE}" >/dev/null 2>&1
+  check "$1" "$?" "$2"
+}
+H_OK='"allowedVersions": "<2.0.0", "issue": 7, "liftWhen": "upstream fixes it"'
+hold_case "well-formed hold passes"            0 "{ ${H_OK}, \"reviewAfter\": \"2027-04-07\" }"
+hold_case "overdue reviewAfter still passes"   0 "{ ${H_OK}, \"reviewAfter\": \"2020-01-01\" }"
+hold_case "hold that is not an object fails"   1 '"<2.0.0"'
+hold_case "hold missing allowedVersions fails" 1 '{ "issue": 7, "reviewAfter": "2027-04-07", "liftWhen": "x" }'
+hold_case "blank allowedVersions fails"        1 '{ "allowedVersions": " ", "issue": 7, "reviewAfter": "2027-04-07", "liftWhen": "x" }'
+hold_case "string issue fails"                 1 '{ "allowedVersions": "<2", "issue": "7", "reviewAfter": "2027-04-07", "liftWhen": "x" }'
+hold_case "zero issue fails"                   1 '{ "allowedVersions": "<2", "issue": 0, "reviewAfter": "2027-04-07", "liftWhen": "x" }'
+hold_case "fractional issue fails"             1 '{ "allowedVersions": "<2", "issue": 7.5, "reviewAfter": "2027-04-07", "liftWhen": "x" }'
+hold_case "non-ISO reviewAfter fails"          1 "{ ${H_OK}, \"reviewAfter\": \"04/07/2027\" }"
+hold_case "impossible date fails"              1 "{ ${H_OK}, \"reviewAfter\": \"2027-02-30\" }"
+hold_case "missing reviewAfter fails"          1 "{ ${H_OK} }"
+hold_case "blank liftWhen fails"               1 '{ "allowedVersions": "<2", "issue": 7, "reviewAfter": "2027-04-07", "liftWhen": "" }'
+hold_case "unknown hold key fails"             1 "{ ${H_OK}, \"reviewAfter\": \"2027-04-07\", \"owner\": \"me\" }"
+hold_case "hold in .overrides fails"           1 "{ ${H_OK}, \"reviewAfter\": \"2027-04-07\" }" override
+
 echo "Passed: ${pass}  Failed: ${fail}"
 [ "${fail}" -eq 0 ]

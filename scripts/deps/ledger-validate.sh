@@ -73,4 +73,28 @@ if ! badmir="$(jq -r '
   echo "ledger-validate: mirror check errored (jq)" >&2; exit 1
 fi
 if [ -n "${badmir}" ]; then echo "ledger-validate: bad mirror (need an https URL different from origin): ${badmir}" >&2; exit 1; fi
+# A "hold" records WHY a dep is capped below upstream and WHEN to revisit it; the cap itself is a
+# renovate.json allowedVersions rule (scripts/ci/holds-test.sh keeps the two in step, and
+# check-updates.yml raises the review on the issue). Shape only here. Holds live in .defaults:
+# overrides are never Renovate-managed, so a hold there would cap nothing. An overdue reviewAfter
+# stays VALID -- the reminder exists to handle it, and failing every PR on a date would not.
+if ! badhold="$(jq -r '
+      ( [ (.overrides // {}) | to_entries[] | .value | to_entries[] | select(.value.hold != null)
+          | "\(.key) (hold is only allowed in .defaults)" ] )
+    + ( [ (.defaults // {}) | to_entries[] | select(.value.hold != null)
+          | .key as $k | .value.hold as $h
+          | select(
+              ($h | type) != "object"
+              or (($h.allowedVersions | type) != "string") or ($h.allowedVersions | test("^\\s*$"))
+              or (($h.issue | type) != "number") or ($h.issue != ($h.issue | floor)) or ($h.issue < 1)
+              or (($h.reviewAfter | type) != "string")
+              or (($h.reviewAfter | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}$") | not)
+                  or ((try ($h.reviewAfter + "T00:00:00Z" | fromdateiso8601 | todate[0:10]) catch "") != $h.reviewAfter))
+              or (($h.liftWhen | type) != "string") or ($h.liftWhen | test("^\\s*$"))
+              or ($h | keys - ["allowedVersions","issue","reviewAfter","liftWhen"] | length > 0))
+          | "\($k) (need allowedVersions, positive integer issue, calendar-valid YYYY-MM-DD reviewAfter, liftWhen; no other keys)" ] )
+    | .[]' "${LEDGER}")"; then
+  echo "ledger-validate: hold check errored (jq)" >&2; exit 1
+fi
+if [ -n "${badhold}" ]; then echo "ledger-validate: bad hold: ${badhold}" >&2; exit 1; fi
 echo "ledger-validate: OK"

@@ -32,6 +32,11 @@ Windows needs no extra runtime install: the Vulkan loader (`vulkan-1.dll`) ships
 driver, and TLS uses the OS-native **SChannel** backend in every cell (unaffected by the v2/v3
 split — see the [runtime-dependency overview](./README.md#runtime-dependencies)).
 
+On `win-x64`, **NVIDIA (NVENC/NVDEC/CUDA)** needs driver **570 or newer** — the floor set by the
+NVIDIA Video Codec SDK 13.0 headers these builds use. On an older driver FFmpeg reports
+`Driver does not support the required nvenc API version` and the NVIDIA paths are unavailable;
+everything else is unaffected. The 580 series (the last for GTX 900/10-series cards) qualifies.
+
 ---
 
 Back to the [install hub](./README.md) · [Linux](./linux.md) · [macOS](./macos.md) ·

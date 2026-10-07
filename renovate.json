@@ -175,11 +175,19 @@
       "allowedVersions": "/^9\\./"
     },
     {
-      "description": "Hold mbedTLS on 3.x. FFmpeg's libavformat/tls_mbedtls.c includes <mbedtls/ctr_drbg.h> and <mbedtls/entropy.h> and calls mbedtls_ctr_drbg_seed/mbedtls_entropy_init/mbedtls_entropy_func unconditionally, with no version guard; mbedTLS 4.x removed those headers when that work moved to PSA Crypto, so 4.x cannot compile against any FFmpeg line we ship. Without this the grouped PR would be permanently red on an impossible bump, which is worse than not offering it. Remove once FFmpeg's mbedTLS backend supports 4.x. Tracked in issue #18.",
+      "description": "Hold mbedTLS on 3.x. mbedTLS 4.x removed <mbedtls/ctr_drbg.h> and <mbedtls/entropy.h> when that work moved to PSA Crypto (the TF-PSA-Crypto split). Its consumers here are SRT and librist -- FFmpeg's own TLS layer uses OpenSSL/GnuTLS/SChannel in this build -- so the hold lifts when the SRT and librist versions we ship support 4.x. Without this the grouped PR would carry a bump nothing has validated. The rationale, tracking issue (#18) and review date live in deps.json (.defaults.mbedtls.hold); scripts/ci/holds-test.sh keeps this rule and that record in step.",
       "matchPackageNames": [
         "https://github.com/Mbed-TLS/mbedtls.git"
       ],
       "allowedVersions": "<4.0.0"
+    },
+    {
+      "description": "Hold nv-codec-headers on the SDK 13.0 line: sdk/13.1 raises the minimum NVIDIA driver to 610, which Maxwell/Pascal/Volta cards (last driver: 580) can never run, and FFmpeg's NVENC refuses to open on an older driver. 13.0.x patch releases still flow. The rationale, tracking issue and review date live in deps.json (.defaults[\"nv-codec\"].hold) -- metadata keys here would make Renovate refuse to start (see renovate-config-test.sh) -- and scripts/ci/holds-test.sh keeps this rule and that record in step. versioning: tags are n<major>.<minor>.<patch>.<build>, and the default semver-coerced scheme drops the fourth component, so n13.0.19.1 -> n13.0.19.2 would never compare as newer.",
+      "matchPackageNames": [
+        "https://github.com/FFmpeg/nv-codec-headers.git"
+      ],
+      "versioning": "regex:^n(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)\\.(?<build>\\d+)$",
+      "allowedVersions": "/^n13\\.0\\./"
     }
   ],
   "customDatasources": {

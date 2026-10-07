@@ -14,8 +14,10 @@ nettle_ver="$(dep_version nettle)"
 echo "Building nettle ${nettle_ver} (static, GnuTLS chain)..."
 cd "${WORK_DIR}" || exit 1
 rm -rf "nettle-${nettle_ver}"
-curl -fsSL --connect-timeout 30 \
-  "https://ftp.gnu.org/gnu/nettle/nettle-${nettle_ver}.tar.gz" -o nettle.tar.gz
+# kernel.org's GNU mirror first, ftp.gnu.org as fallback -- see gmp.sh.
+fetch_tarball nettle.tar.gz \
+  "https://mirrors.kernel.org/gnu/nettle/nettle-${nettle_ver}.tar.gz" \
+  "https://ftp.gnu.org/gnu/nettle/nettle-${nettle_ver}.tar.gz"
 tar -xf nettle.tar.gz
 cd "nettle-${nettle_ver}" || exit 1
 # Finds GMP (built just before) via CPPFLAGS/LDFLAGS. nettle 4.0 dropped the older

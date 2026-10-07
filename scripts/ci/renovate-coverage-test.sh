@@ -1,82 +1,105 @@
 #!/usr/bin/env bash
 # Assert every dependency in deps.json's .defaults is tracked by exactly one Renovate
-# custom manager.
+# custom manager, by running the SAME JSONata queries Renovate runs.
 #
-# Why this exists: the managers match deps.json with regexes that require the ledger's
-# fields to stay contiguous and in order (origin, tag, releasesUrl, releasesStyle, or
-# origin, commit, digestBranch). Reordering keys or inserting a field between them is
-# harmless JSON and passes every other gate, but it silently drops the dep out of
-# Renovate — the exact failure that left libmp3lame on 3.100 and libgsm on 1.0.22 while
-# newer releases shipped. Adding a dep without wiring it up fails here too.
+# Why this exists: a dep that no manager claims silently stops getting updates -- the exact
+# failure that once left libmp3lame on 3.100 and libgsm on 1.0.22 while newer releases
+# shipped. Adding a dep without the key that opts it in (`datasource` for a tag pin,
+# `releasesUrl` for a tarball, `digestBranch` for a commit pin) fails here. The queries are
+# read FROM renovate.json rather than duplicated, so this tests the config that actually ships,
+# and they are evaluated with the jsonata library Renovate itself uses.
 #
-# The regexes are read FROM renovate.json rather than duplicated, so this tests the
-# config that actually ships.
+# History: the managers used to be regexes over the ledger TEXT, which required each entry's
+# keys to stay contiguous and in order; this test then mirrored Renovate's recursive regex
+# strategy. With JSONata managers that whole class of failure is gone (the query sees the parsed
+# document), so the test is now about coverage and result shape, not key order.
 set -uo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/../.." || exit 1
 
-# shellcheck source=scripts/lib.sh  # wrappers + resolve_python; nothing runs on source
-. "$(pwd)/scripts/lib.sh"
-PYBIN="$(resolve_python)" || exit 1
+if ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
+  echo "renovate-coverage-test: node/npm not available — skipping (install Node to run this locally)" >&2
+  exit 0
+fi
 
-"${PYBIN}" - <<'PY'
-import json, re, sys
+# jsonata is installed into a scratch prefix, never into the repo: a node_modules/ here would
+# be a stray untracked tree, and `npx -p` puts the package on PATH but not on require's search
+# path. Renovate 44 depends on jsonata ^2.x; pin the major so the test runs the same engine.
+tmp="$(mktemp -d)"
+trap 'rm -rf "${tmp}"' EXIT
+if ! npm install --prefix "${tmp}" --no-save --no-audit --no-fund --silent jsonata@2 >/dev/null 2>&1; then
+  echo "renovate-coverage-test: could not install jsonata@2 (offline?) — cannot evaluate the managers" >&2
+  exit 1
+fi
 
-deps_raw = open("deps.json", encoding="utf-8").read()
-deps = json.loads(deps_raw)
-cfg  = json.load(open("renovate.json", encoding="utf-8"))
+NODE_PATH="${tmp}/node_modules" node - <<'JS'
+const fs = require("node:fs");
+const jsonata = require("jsonata");
 
-defaults = deps["defaults"]
-managers = [m for m in cfg.get("customManagers", []) if m.get("customType") == "regex"]
+const deps = JSON.parse(fs.readFileSync("deps.json", "utf8"));
+const cfg = JSON.parse(fs.readFileSync("renovate.json", "utf8"));
+const defaults = deps.defaults;
 
-# Renovate's "recursive" strategy: apply matchStrings[0], then run the next expression
-# against what it captured. Mirror that so the scoping (defaults only, never overrides)
-# is exercised here the same way Renovate exercises it.
-def matches(manager):
-    ms = manager.get("matchStrings", [])
-    if not ms:
-        return []
-    scopes = [deps_raw]
-    for i, pat in enumerate(ms):
-        rx = re.compile(pat.replace("(?<", "(?P<"))
-        nxt = []
-        for s in scopes:
-            for m in rx.finditer(s):
-                nxt.append(m.group(1) if (i < len(ms) - 1 and m.groups()) else m.group(0))
-        scopes = nxt
-    return scopes
+const problems = [];
+const owner = {};          // depName -> [manager label]
+let ffmpegSeen = 0;
 
-owner = {}
-problems = []
-for man in managers:
-    if man.get("depNameTemplate") == "FFmpeg":
-        continue                      # tracks the .ffmpeg array, not a defaults entry
-    for hit in matches(man):
-        m = re.search(r'"(?P<dep>[A-Za-z0-9._-]+)"\s*:\s*\{', hit)
-        name = m.group("dep") if m else None
-        if name is None:
-            m = re.search(r'"origin"\s*:\s*"(?P<o>[^"]+)"', hit)
-            if m:
-                name = next((k for k, v in defaults.items() if v.get("origin") == m.group("o")), None)
-        if name is None:
-            problems.append(f"manager matched text it could not attribute to a dep: {hit[:80]!r}")
-            continue
-        owner.setdefault(name, []).append(man.get("datasourceTemplate", "?"))
+const managers = (cfg.customManagers || []).filter((m) => m.customType === "jsonata");
+if (managers.length === 0) problems.push("renovate.json has no customType=jsonata managers at all");
 
-untracked = sorted(set(defaults) - set(owner))
-multi     = sorted(k for k, v in owner.items() if len(v) > 1)
-foreign   = sorted(set(owner) - set(defaults))
+// Renovate's jsonata manager ALSO accepts the regex managers' file pattern shape; make sure
+// every JSONata manager here is aimed at the ledger, since that is what this test is about.
+for (const m of managers) {
+  const pats = m.managerFilePatterns || [];
+  if (!pats.some((p) => /deps\\\.json/.test(p))) {
+    problems.push(`jsonata manager "${(m.description || "").slice(0, 40)}..." does not target deps.json`);
+  }
+  if (m.fileFormat !== "json") problems.push(`jsonata manager targeting deps.json must have fileFormat json, has ${m.fileFormat}`);
+}
 
-if untracked:
-    problems.append("NOT tracked by any Renovate manager: " + ", ".join(untracked))
-for k in multi:
-    problems.append(f"{k} matched by {len(owner[k])} managers ({', '.join(owner[k])}) — it would be proposed twice")
-if foreign:
-    problems.append("matched outside .defaults (overrides must never be touched): " + ", ".join(foreign))
+(async () => {
+  for (const m of managers) {
+    const label = m.datasourceTemplate || "?";
+    for (const q of m.matchStrings || []) {
+      let result;
+      try {
+        result = await jsonata(q).evaluate(deps);
+      } catch (e) {
+        problems.push(`query failed to evaluate (${label}): ${e.message}`);
+        continue;
+      }
+      const items = result === undefined ? [] : Array.isArray(result) ? result : [result];
+      for (const r of items) {
+        if (r === undefined || r === null) continue;
+        // The fields Renovate requires of a jsonata result, allowing for *Template fallbacks.
+        const name = r.depName ?? r.packageName ?? m.depNameTemplate ?? m.packageNameTemplate;
+        if (!name) { problems.push(`(${label}) result has no depName/packageName: ${JSON.stringify(r)}`); continue; }
+        if (!(r.datasource || m.datasourceTemplate)) problems.push(`(${label}) ${name}: no datasource`);
+        if (r.currentValue === undefined && r.currentDigest === undefined) problems.push(`(${label}) ${name}: neither currentValue nor currentDigest`);
+        if (m.depNameTemplate === "FFmpeg") { ffmpegSeen++; continue; }   // tracks .ffmpeg, not a defaults entry
+        if (!(name in defaults)) { problems.push(`(${label}) matched "${name}", which is not a .defaults entry (overrides must never be touched)`); continue; }
+        // Tarball deps: an entry the $lookup table does not know yields no extractVersion, and
+        // Renovate would then take EVERY link on the listing as a candidate version.
+        if (label === "custom.tarball-listing") {
+          if (!r.extractVersion) problems.push(`${name}: tarball dep has no extractVersion — add it to the $lookup table in renovate.json`);
+          if (!r.registryUrl) problems.push(`${name}: tarball dep has no registryUrl`);
+        }
+        // Commit pins must carry both halves or the git-refs datasource cannot bump the digest.
+        if (label === "git-refs" && !(r.currentDigest && r.currentValue)) problems.push(`${name}: commit pin needs currentDigest (commit) AND currentValue (digestBranch)`);
+        (owner[name] ||= []).push(label);
+      }
+    }
+  }
 
-if problems:
-    for p in problems:
-        print("renovate-coverage: " + p, file=sys.stderr)
-    sys.exit(1)
+  const untracked = Object.keys(defaults).filter((k) => !(k in owner)).sort();
+  const multi = Object.keys(owner).filter((k) => owner[k].length > 1).sort();
+  if (untracked.length) problems.push("NOT tracked by any Renovate manager: " + untracked.join(", "));
+  for (const k of multi) problems.push(`${k} matched by ${owner[k].length} managers (${owner[k].join(", ")}) — it would be proposed twice`);
+  if (ffmpegSeen !== (deps.ffmpeg || []).length) problems.push(`FFmpeg manager yielded ${ffmpegSeen} entries for ${(deps.ffmpeg || []).length} tracked lines`);
 
-print(f"ok: all {len(defaults)} ledger deps tracked by exactly one Renovate manager")
-PY
+  if (problems.length) {
+    for (const p of problems) console.error("renovate-coverage: " + p);
+    process.exit(1);
+  }
+  console.log(`ok: all ${Object.keys(defaults).length} ledger deps tracked by exactly one Renovate manager (jsonata), plus ${ffmpegSeen} FFmpeg line(s)`);
+})();
+JS

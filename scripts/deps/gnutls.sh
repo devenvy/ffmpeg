@@ -18,8 +18,12 @@ gnutls_ver="$(dep_version gnutls)"
 echo "Building GnuTLS ${gnutls_ver} (static)..."
 cd "${WORK_DIR}" || exit 1
 rm -rf "gnutls-${gnutls_ver}"
-curl -fsSL --connect-timeout 30 \
-  "https://www.gnupg.org/ftp/gcrypt/gnutls/v3.8/gnutls-${gnutls_ver}.tar.xz" -o gnutls.tar.xz
+# gnupg.org first, then two GnuPG FTP mirrors (verified SHA-256-identical for 3.8.13) so a gnupg.org
+# outage does not fail every gplv2 cell (fetch_tarball, scripts/lib.sh).
+fetch_tarball gnutls.tar.xz \
+  "https://www.gnupg.org/ftp/gcrypt/gnutls/v3.8/gnutls-${gnutls_ver}.tar.xz" \
+  "https://mirrors.dotsrc.org/gcrypt/gnutls/v3.8/gnutls-${gnutls_ver}.tar.xz" \
+  "https://www.mirrorservice.org/sites/ftp.gnupg.org/gcrypt/gnutls/v3.8/gnutls-${gnutls_ver}.tar.xz"
 tar -xf gnutls.tar.xz
 cd "gnutls-${gnutls_ver}" || exit 1
 # nettle/hogweed/libtasn1 are found via pkg-config (PKG_CONFIG_PATH=${DEPS_DIR}/lib/

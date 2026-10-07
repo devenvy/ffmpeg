@@ -18,7 +18,8 @@
 # because a reminder that silently does nothing is the failure this exists to prevent.
 #
 # Env: GH_TOKEN, GH_REPO (owner/name) -- required unless DRY_RUN=1, which prints the actions
-# instead of taking them. TODAY (YYYY-MM-DD) overrides the date for testing.
+# instead of taking them. TODAY (YYYY-MM-DD) overrides the date for testing; under DRY_RUN,
+# DRY_RUN_LABELLED lists the issue numbers to treat as already carrying the label.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/../.." || exit 1
 LEDGER="${LEDGER:-deps.json}"
@@ -39,20 +40,24 @@ run() { # print in dry-run, execute otherwise
 
 # dep, issue, reviewAfter, allowedVersions, tag, liftWhen -- joined on US (0x1f), not @tsv: @tsv
 # escapes backslashes, which would double every one in a regex cap like /^n13\.0\./.
-mapfile -t HOLDS < <(jq -r '.defaults | to_entries[] | select(.value.hold != null)
+# Captured in a checked substitution first: inside `mapfile < <(jq ...)` a missing or malformed
+# ledger would read as "no holds" and exit 0, the silent no-op this script exists to prevent.
+rows="$(jq -r '.defaults | to_entries[] | select(.value.hold != null)
   | [.key, .value.hold.issue, .value.hold.reviewAfter, .value.hold.allowedVersions, (.value.tag // "-"), .value.hold.liftWhen]
-  | map(tostring) | join("\u001f")' "${LEDGER}")
-[ "${#HOLDS[@]}" -gt 0 ] || { echo "review-holds: no holds in ${LEDGER}"; echo "No dependency holds." | summ; exit 0; }
+  | map(tostring) | join("\u001f")' "${LEDGER}")" \
+  || { echo "review-holds: could not read holds from ${LEDGER}" >&2; exit 1; }
+HOLDS=()
+[ -z "${rows}" ] || mapfile -t HOLDS <<<"${rows}"
 
 if [ "${DRY_RUN}" != 1 ]; then
   run gh label create "${LABEL}" --color D93F0B \
     --description "A dependency hold in deps.json is past its reviewAfter date" --force >/dev/null
 fi
 
-# Issues with at least one due hold: the label is per issue, so it is only removed from an issue
-# when NONE of the holds that point at it are due.
+# Issues with at least one due hold. The label is per issue, so it comes off an issue only when
+# NONE of the holds pointing at it are due -- including when no hold points at it any more.
 declare -A DUE_ISSUE=()
-for row in "${HOLDS[@]}"; do
+for row in ${HOLDS[@]+"${HOLDS[@]}"}; do
   IFS=$'\x1f' read -r _ issue review _ _ _ <<<"${row}"
   [[ "${TODAY}" < "${review}" ]] || DUE_ISSUE[${issue}]=1
 done
@@ -60,12 +65,16 @@ done
 {
   echo "### Dependency holds (${TODAY})"
   echo
-  echo "| dep | pinned | cap | issue | review after | status |"
-  echo "|---|---|---|---|---|---|"
+  if [ "${#HOLDS[@]}" -eq 0 ]; then
+    echo "No dependency holds."
+  else
+    echo "| dep | pinned | cap | issue | review after | status |"
+    echo "|---|---|---|---|---|---|"
+  fi
 } | summ
 
 overdue=0
-for row in "${HOLDS[@]}"; do
+for row in ${HOLDS[@]+"${HOLDS[@]}"}; do
   IFS=$'\x1f' read -r dep issue review allowed tag lift <<<"${row}"
 
   if [ "${DRY_RUN}" = 1 ]; then
@@ -82,9 +91,6 @@ for row in "${HOLDS[@]}"; do
 
   if [[ "${TODAY}" < "${review}" ]]; then
     status="ok"
-    if [ -z "${DUE_ISSUE[${issue}]:-}" ] && grep -qxF "${LABEL}" <<<"${labels}"; then
-      run gh issue edit "${issue}" --remove-label "${LABEL}"
-    fi
   else
     status="**review due**"; overdue=$((overdue+1))
     marker="<!-- hold-review:${dep}:${review} -->"
@@ -106,5 +112,17 @@ The \`${LABEL}\` label stays until one of those lands. Nothing is changed automa
     echo "::warning::dependency hold on ${dep} is past its review date (${review}) -- see issue #${issue}"
   fi
   echo "| ${dep} | \`${tag}\` | \`${allowed}\` | #${issue} | ${review} | ${status} |" | summ
+done
+
+# Clear the label from every issue (open or closed) that carries it but has no due hold: a hold
+# whose date was moved, and one that was lifted -- whose issue no remaining hold points at, so
+# the loop above never visits it.
+if [ "${DRY_RUN}" = 1 ]; then
+  labelled="${DRY_RUN_LABELLED:-}"
+else
+  labelled="$(gh issue list --label "${LABEL}" --state all --limit 1000 --json number --jq '.[].number')"
+fi
+for n in ${labelled}; do
+  [ -n "${DUE_ISSUE[${n}]:-}" ] || run gh issue edit "${n}" --remove-label "${LABEL}"
 done
 echo "review-holds: ${#HOLDS[@]} hold(s), ${overdue} due for review"

@@ -9,7 +9,7 @@ RID="${1:?usage: ios-run.sh <rid> <artifact-native-dir>}"
 DIR="${2:?usage: ios-run.sh <rid> <artifact-native-dir>}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "${HERE}/lib.sh"
-[ "$RID" = "ios-sim-arm64" ] || { echo "ios-run.sh: only the ios-sim-arm64 slice runs on the simulator"; exit 0; }
+[ "$RID" = "ios-sim-arm64" ] || { echo "ios-run.sh: only the ios-sim-arm64 slice runs on the simulator"; exit_without_results 0; }
 command -v xcrun >/dev/null 2>&1 || { echo "ios-run.sh: xcrun not found (macOS only)" >&2; exit 2; }
 FWDIR="${DIR}/frameworks"
 # ABSOLUTE frameworks path: the baked -rpath must resolve at RUNTIME under `simctl spawn`, whose
@@ -34,7 +34,7 @@ check_smoke_link "${CC} -arch arm64 -mios-simulator-version-min=13.0 -isysroot $
   -framework VideoToolbox -framework AudioToolbox -framework CoreMedia \
   -framework CoreVideo -framework CoreFoundation -framework CoreServices \
   -framework Security -framework Foundation -framework Metal -framework MetalKit \
-  -framework Accelerate -framework QuartzCore -framework IOSurface -framework UIKit || finish
+  -framework Accelerate -framework QuartzCore -framework IOSurface -framework UIKit || { finish; exit; }   # no binary to run: report and stop here
 
 # If this cell advertises Vulkan, REQUIRE the probe in smoke.c to produce a real device.
 # iOS links MoltenVK statically, and MoltenVK runs over Metal, which an Apple-Silicon

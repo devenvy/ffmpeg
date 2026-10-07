@@ -6,3 +6,4 @@
 
 # Explicitly binary
 *.tar.gz binary
+*.mp4 binary

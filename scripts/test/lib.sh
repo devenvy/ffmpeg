@@ -23,10 +23,33 @@ SUMMARY_TITLE="${SUMMARY_TITLE:-${VARIANT:-test} results}"
 # Each check prints a [PASS]/[FAIL]/[SKIP] line (visible in the raw log) AND accumulates a
 # row for the Step Summary. fail() additionally emits a GitHub ::error:: annotation so a
 # failure surfaces at the TOP of the run + inline, without opening the log.
-pass() { echo "[PASS] $*"; PASS=$((PASS+1)); SUMMARY_EMOJI+=("✅"); SUMMARY_MSG+=("$*"); }
-fail() { echo "[FAIL] $*"; FAIL=$((FAIL+1)); SUMMARY_EMOJI+=("❌"); SUMMARY_MSG+=("$*"); [ -n "${GITHUB_ACTIONS:-}" ] && echo "::error::${SUMMARY_TITLE}: $*" || true; }
-info() { echo "[INFO] $*"; }
-skip() { echo "[SKIP] $*"; SKIP=$((SKIP+1)); SUMMARY_EMOJI+=("⏭️"); SUMMARY_MSG+=("$*"); }
+pass() { _LIB_DONE=0; echo "[PASS] $*"; PASS=$((PASS+1)); SUMMARY_EMOJI+=("✅"); SUMMARY_MSG+=("$*"); }
+fail() { _LIB_DONE=0; echo "[FAIL] $*"; FAIL=$((FAIL+1)); SUMMARY_EMOJI+=("❌"); SUMMARY_MSG+=("$*"); [ -n "${GITHUB_ACTIONS:-}" ] && echo "::error::${SUMMARY_TITLE}: $*" || true; }
+info() { _LIB_DONE=0; echo "[INFO] $*"; }
+# note: an outcome that is neither pass nor fail but must still be SEEN -- e.g. a hardware probe that
+# reached its runtime on a runner with no device. Unlike info, it lands in the summary table.
+note() { _LIB_DONE=0; echo "[NOTE] $*"; SUMMARY_EMOJI+=("ℹ️"); SUMMARY_MSG+=("$*"); }
+skip() { _LIB_DONE=0; echo "[SKIP] $*"; SKIP=$((SKIP+1)); SUMMARY_EMOJI+=("⏭️"); SUMMARY_MSG+=("$*"); }
+
+# Abort guard. macOS runs these scripts under /bin/bash 3.2, which on a `set -u` "unbound
+# variable" error inside a function EXITS 0: the macOS suite died at check_core_symbols on every
+# run since the pipeline was created and every macOS test job still went green, with no
+# functional test, Vulkan assert or capability check ever executed. So a run must END in finish()
+# to count: exiting 0 without having just finished is an abort, and becomes exit 1. A nonzero
+# status is left alone. Any result logged after finish() clears the flag again, so only the LAST
+# finish() counts; mid-script `|| { finish; exit; }` (ios-run.sh, android-run.sh) stops right there,
+# so nothing can run unguarded after it. A deliberate early exit uses exit_without_results.
+_LIB_DONE=0
+_lib_exit_guard() {
+  local rc=$?
+  if [ "$rc" -eq 0 ] && [ "${_LIB_DONE}" != 1 ]; then
+    echo "[FAIL] FATAL: test script exited before finish() -- it aborted (e.g. a bash 3.2 'unbound variable'), its results are incomplete" >&2
+    [ -n "${GITHUB_ACTIONS:-}" ] && echo "::error::${SUMMARY_TITLE:-tests}: test script aborted before finish() -- see the last lines of the log"
+    exit 1
+  fi
+}
+trap _lib_exit_guard EXIT
+exit_without_results() { _LIB_DONE=1; exit "${1:-0}"; }
 
 finish() {
   echo
@@ -45,6 +68,7 @@ finish() {
       done
     } >> "$GITHUB_STEP_SUMMARY"
   fi
+  _LIB_DONE=1
   [ "${FAIL}" -eq 0 ]
 }
 
@@ -236,14 +260,11 @@ check_pe_export() {
 # The libav* version symbols every good build must export.
 check_core_symbols() {
   local dir="$1" ext="$2"
-  local -A map=( [avcodec]=avcodec_version [avformat]=avformat_version
-                 [avutil]=avutil_version [avfilter]=avfilter_version
-                 [swscale]=swscale_version [swresample]=swresample_version )
-  local base
-  for base in "${!map[@]}"; do
-    local lib
+  # Plain list, not an associative array: macOS runs this under /bin/bash 3.2 (see the abort guard).
+  local base lib
+  for base in avcodec avformat avutil avfilter swscale swresample; do
     lib="$(ls "${dir}"/lib${base}.${ext}* 2>/dev/null | head -1)"
-    [ -n "$lib" ] && check_symbol "$lib" "${map[$base]}"
+    [ -n "$lib" ] && check_symbol "$lib" "${base}_version"
   done
 }
 
@@ -448,7 +469,7 @@ check_smoke_link() {
 # expensive. With it, the cost is one invocation per distinct option no matter how many rows use
 # it, so the table can grow freely.
 # shellcheck disable=SC2086  # deliberate word splitting; see above
-_enum_raw() { "${RUNNER[@]}" "$FFMPEG" -hide_banner $1 2>/dev/null || true; }
+_enum_raw() { ${RUNNER[@]+"${RUNNER[@]}"} "$FFMPEG" -hide_banner $1 2>/dev/null || true; }
 _enum() {
   local key; key="_enumcache_$(tr -c '[:alnum:]' '_' <<<"$1")"
   if [ -z "${!key+x}" ]; then printf -v "${key}" '%s' "$(_enum_raw "$1")"; fi
@@ -694,7 +715,7 @@ exercise_tls() {
   # and bytes were transferred. We only truly fail if the https protocol is missing entirely.
   local url="https://raw.githubusercontent.com/FFmpeg/FFmpeg/master/RELEASE" out
   local rc=0
-  out="$("${RUNNER[@]}" "$FFMPEG" -hide_banner -v error -i "$url" -f null - 2>&1)" || rc=$?
+  out="$(${RUNNER[@]+"${RUNNER[@]}"} "$FFMPEG" -hide_banner -v error -i "$url" -f null - 2>&1)" || rc=$?
   # Positive evidence only. The resource is a TEXT file, so a working handshake ALWAYS ends in a
   # demux complaint -- that message is the proof bytes arrived. Empty output used to count as a
   # pass on its own; it cannot, because it is also what a silently-dead ffmpeg produces. Empty is
@@ -813,30 +834,51 @@ _whisper_crash_evidence() {
 }
 
 # --- hardware-accel classified probe ------------------------------------------
-# The trichotomy that avoids "assume failure == no HW": run a hwaccel and CLASSIFY ffmpeg's
-# own error. exit 0 → ran on real hardware (pass). A driver/device error → the code path was
-# EXERCISED (loaded the runtime, enumerated devices) but no device on CI (probe-pass — a real
-# positive signal). An "Unknown encoder / not compiled" error → the BUILD is broken (fail).
-# probe_hwaccel <label> <exercised-regex> <ffmpeg-args...>
+# GitHub runners have no GPU, so most of these cannot RUN on a device here; what they can do is prove
+# the build is not broken and report honestly what was reached (issue #27). Each probe declares what
+# a clean exit proves -- encoder (frames went through the hardware encoder), device (-init_hw_device
+# succeeded), filter (a hardware filter ran on a device) -- and is then classified:
+#   exit 0                        -> PASS, worded as exactly that proof
+#   crash (signal exit) / timeout -> FAIL: a crash is a defect wherever it happens
+#   not built / not registered    -> FAIL: the artifact silently dropped the component
+#   runtime reached, no device    -> NOTE (in the summary): the runtime-specific signature matched
+#   anything else                 -> NOTE: inconclusive, with the error text
+# Generic words ("failed", "No such", "not found") are deliberately NOT evidence: they used to turn a
+# missing runtime -- or a stub that does nothing -- into "path exercised" / "ran on a real device".
+# probe_hwaccel <label> <encoder|device|filter|decode> <runtime-regex> <ffmpeg-args...>
 probe_hwaccel() {
-  local label="$1" exercised="$2"; shift 2
-  local out rc
-  out="$("${RUNNER[@]}" "$FFMPEG" -hide_banner -v error "$@" -f null - 2>&1)"; rc=$?
+  local label="$1" kind="$2" runtime="$3"; shift 3
+  local out rc to=() to_on=0
+  command -v timeout >/dev/null 2>&1 && { to=(timeout 300); to_on=1; }   # macOS has no timeout(1): unbounded there
+  out="$(${to[@]+"${to[@]}"} ${RUNNER[@]+"${RUNNER[@]}"} "$FFMPEG" -hide_banner -v verbose "$@" -f null - 2>&1)"; rc=$?
+  local snip; snip="$(tr '\n' ' ' <<<"$out" | tail -c 200)"
   if [ "$rc" -eq 0 ]; then
-    pass "hwaccel ${label}: ran on a real device"
-  # 'No such filter' MUST be a hard failure, not a tolerated "no device here". It means the
-  # filter is not in the binary at all -- the build silently dropped it -- which is a defect
-  # in the artifact, not a property of the CI host. Without it, an FFmpeg 8.1.2 build whose
-  # Vulkan filters were all disabled reported 'path exercised' and passed: the DEV_ERR
-  # pattern below matches the bare 'No such', so a missing filter looked like a missing GPU.
-  # That is precisely how every 8.1.2 cell shipped with zero Vulkan filters through a green
-  # matrix. Ordered before the 'exercised' branch so it wins.
-  elif grep -qiE 'No such filter|Unknown filter|Unknown (encoder|decoder)|not compiled|Cannot find a matching|is not supported|Unrecognized' <<<"$out"; then
-    fail "hwaccel ${label}: NOT built/registered — $(tr '\n' ' ' <<<"$out" | cut -c1-140)"
-  elif grep -qiE "$exercised" <<<"$out"; then
-    pass "hwaccel ${label}: path exercised (driver loaded + device enumeration ran; no device on CI)"
+    case "$kind" in
+      encoder) pass "hwaccel ${label}: hardware encoder ran to completion" ;;
+      device)  pass "hwaccel ${label}: hardware device initialised" ;;
+      filter)  pass "hwaccel ${label}: hardware filter ran on a device" ;;
+      decode)  pass "hwaccel ${label}: decode completed with hardware-API frames (physical HW use not separately verified)" ;;
+      *)       pass "hwaccel ${label}: completed" ;;
+    esac
+  elif [ "$rc" -eq 124 ] && [ "$to_on" = 1 ]; then
+    fail "hwaccel ${label}: TIMED OUT after 300 s — ${snip}"
+  # Only real signal exits count as a crash: SIGSEGV 139 (also how Git Bash reports a Windows access
+  # violation), SIGABRT 134, SIGILL 132, SIGFPE 136, SIGBUS 135. A bare ">= 128" misread FFmpeg's own
+  # error exits on Windows (negative AVERROR codes truncated to a byte, e.g. 171) as crashes.
+  elif [ "$rc" -eq 139 ] || [ "$rc" -eq 134 ] || [ "$rc" -eq 132 ] || [ "$rc" -eq 136 ] || [ "$rc" -eq 135 ]; then
+    fail "hwaccel ${label}: CRASHED (exit ${rc}) — ${snip}"
+  # 'No such filter' MUST be a hard failure, not a tolerated "no device here": the filter is not in
+  # the binary at all. That is how every 8.1.2 cell once shipped with zero Vulkan filters through a
+  # green matrix. Only unambiguous not-built signatures here -- a bare "is not supported" can be a
+  # device/format limitation, not a missing component.
+  elif grep -qiE 'No such filter|Unknown filter|Unknown (encoder|decoder)|Encoder not found|Decoder not found|not compiled|Unrecognized option' <<<"$out"; then
+    fail "hwaccel ${label}: NOT built/registered — ${snip}"
+  elif grep -qiE "$runtime" <<<"$out"; then
+    local why; why="$(grep -iE "$runtime" <<<"$out" | grep -iE "driver|minimum|cannot|not support|no capable|unsupported|error" | head -1)"
+    [ -n "$why" ] || why="$(grep -iE "$runtime" <<<"$out" | tail -1)"
+    note "hwaccel ${label}: no usable device or runtime on this runner — $(cut -c1-160 <<<"$why") (registration is checked separately)"
   else
-    info "hwaccel ${label}: inconclusive — $(tr '\n' ' ' <<<"$out" | cut -c1-140)"
+    note "hwaccel ${label}: inconclusive (exit ${rc}) — ${snip}"
   fi
 }
 
@@ -847,7 +889,7 @@ probe_hwaccel() {
 # initialise here, consumers cannot either, and we want a red build rather than a green one.
 assert_vulkan_device() {
   local out rc
-  out="$("${RUNNER[@]}" "$FFMPEG" -hide_banner -v error \
+  out="$(${RUNNER[@]+"${RUNNER[@]}"} "$FFMPEG" -hide_banner -v error \
           -init_hw_device "vulkan=vk" -f lavfi -i "testsrc=size=320x240:rate=25:duration=1" \
           -vf "format=nv12,hwupload,scale_vulkan=160:120,hwdownload,format=nv12" \
           -f null - 2>&1)"; rc=$?
@@ -869,7 +911,7 @@ run_functional() {
   # hint which library was absent. On Windows a failed module load prints nothing at all, so the
   # exit status carries the diagnosis (0xC0000135 / 3221225781 = STATUS_DLL_NOT_FOUND).
   local vout vrc prc pout
-  vout="$("${RUNNER[@]}" "$FFMPEG" -hide_banner -version 2>&1)"; vrc=$?
+  vout="$(${RUNNER[@]+"${RUNNER[@]}"} "$FFMPEG" -hide_banner -version 2>&1)"; vrc=$?
   if [ "$vrc" -eq 0 ]; then
     pass "ffmpeg runs ($(head -1 <<<"$vout"))"
   else
@@ -882,7 +924,7 @@ run_functional() {
   # threw it away. A check that cannot say why it failed is the pattern this branch exists to
   # remove; it should not survive inside the suite that enforces it.
   prc=0
-  pout="$("${RUNNER[@]}" "$FFPROBE" -hide_banner -version 2>&1)" || prc=$?
+  pout="$(${RUNNER[@]+"${RUNNER[@]}"} "$FFPROBE" -hide_banner -version 2>&1)" || prc=$?
   if [ "${prc}" -eq 0 ]; then
     pass "ffprobe runs ($(head -1 <<<"$pout"))"
   else
@@ -895,11 +937,11 @@ run_functional() {
   # makes grep close the pipe on first match, ffmpeg takes SIGPIPE, and
   # `set -o pipefail` then reports a false failure. Capturing avoids the pipe.
   local filters decoders d
-  filters="$("${RUNNER[@]}" "$FFMPEG" -hide_banner -filters 2>/dev/null || true)"
+  filters="$(${RUNNER[@]+"${RUNNER[@]}"} "$FFMPEG" -hide_banner -filters 2>/dev/null || true)"
   grep -qw whisper <<<"$filters" \
     && pass "whisper filter listed" || fail "whisper filter not listed"
 
-  decoders="$("${RUNNER[@]}" "$FFMPEG" -hide_banner -decoders 2>/dev/null || true)"
+  decoders="$(${RUNNER[@]+"${RUNNER[@]}"} "$FFMPEG" -hide_banner -decoders 2>/dev/null || true)"
   for d in h264 hevc; do
     grep -qw "$d" <<<"$decoders" && pass "$d decoder present" || fail "$d decoder missing"
   done
@@ -908,7 +950,7 @@ run_functional() {
   # lgplv2 (which drops TLS — no LGPLv2.1-compatible backend) must NOT — and we verify the
   # absence rather than skipping, so a stray TLS backend can't sneak into an lgplv2 artifact.
   local protocols p
-  protocols="$("${RUNNER[@]}" "$FFMPEG" -hide_banner -protocols 2>/dev/null || true)"
+  protocols="$(${RUNNER[@]+"${RUNNER[@]}"} "$FFMPEG" -hide_banner -protocols 2>/dev/null || true)"
   if build_has_tls; then
     for p in https tls; do
       grep -qw "$p" <<<"$protocols" && pass "$p protocol present" || fail "$p protocol missing (TLS backend configured)"
@@ -920,9 +962,9 @@ run_functional() {
     done
   fi
 
-  if "${RUNNER[@]}" "$FFMPEG" -hide_banner -y -f lavfi -i testsrc=size=320x240:rate=25:duration=1 \
+  if ${RUNNER[@]+"${RUNNER[@]}"} "$FFMPEG" -hide_banner -y -f lavfi -i testsrc=size=320x240:rate=25:duration=1 \
         -c:v mpeg4 "$tmp/out.mp4" >/dev/null 2>&1 \
-     && "${RUNNER[@]}" "$FFMPEG" -hide_banner -v error -i "$tmp/out.mp4" -f null - >/dev/null 2>&1; then
+     && ${RUNNER[@]+"${RUNNER[@]}"} "$FFMPEG" -hide_banner -v error -i "$tmp/out.mp4" -f null - >/dev/null 2>&1; then
     pass "encode + decode round-trip"
   else
     fail "encode + decode round-trip"
@@ -955,39 +997,49 @@ run_functional() {
   exercise_tls
   exercise_whisper
 
-  # Hardware-accel: probe each backend this build configured, CLASSIFYING the result so a
-  # GPU-less runner proves the code path loads without false-failing. Gate only the unambiguous
-  # "not built" case. Driven by the embedded config so we only probe what was enabled.
+  # Hardware-accel: probe each backend this build configured (driven by the embedded config, so we
+  # only probe what was enabled). See probe_hwaccel for what each outcome does and does not prove.
   case " ${CONFIG_STR} " in
-    *" --enable-nvenc "*)  probe_hwaccel "NVENC (h264_nvenc)" 'cannot load|libcuda|nvcuda|nvEncodeAPI|no NVENC|OpenEncodeSession|does not support|Cannot load nvcuda|Driver' \
+    *" --enable-nvenc "*)  probe_hwaccel "NVENC (h264_nvenc)" encoder 'nvcuda|libcuda|nvEncodeAPI|NVENC|CUDA_ERROR|cuInit|No capable devices|OpenEncodeSession' \
                              -f lavfi -i "testsrc=size=320x240:rate=25:duration=1" -c:v h264_nvenc ;;
   esac
-  # DEV_ERR = the common failure signature for a `-init_hw_device` with no device present.
-  local DEV_ERR='Device creation failed|init_hw_device|Generic error in an external library|Cannot (load|open|create)|No such|not (found|available|supported)|failed'
   case " ${CONFIG_STR} " in
-    *" --enable-vaapi "*)  probe_hwaccel "VAAPI" "Failed to initialise VAAPI|No VA display|/dev/dri|vaInitialize|${DEV_ERR}" \
+    *" --enable-vaapi "*)  probe_hwaccel "VAAPI" device 'VAAPI|vaInitialize|VA display|/dev/dri|libva' \
                              -init_hw_device "vaapi=va" -f lavfi -i "nullsrc=duration=0.1" ;;
   esac
   case " ${CONFIG_STR} " in
-    *" --enable-libvpl "*|*" --enable-libmfx "*)  probe_hwaccel "QSV" "MFX|libmfx|libvpl|${DEV_ERR}" \
+    *" --enable-libvpl "*|*" --enable-libmfx "*)  probe_hwaccel "QSV" device 'MFX|libmfx|libvpl|oneVPL|QSV' \
                              -init_hw_device "qsv=qsv" -f lavfi -i "nullsrc=duration=0.1" ;;
   esac
   case " ${CONFIG_STR} " in
-    *" --enable-amf "*)    probe_hwaccel "AMF (h264_amf)" "amfrt|AMF|DLL .*failed|CreateContext|No suitable|${DEV_ERR}" \
+    *" --enable-amf "*)    probe_hwaccel "AMF (h264_amf)" encoder 'amfrt|AMF|CreateContext|No suitable' \
                              -f lavfi -i "testsrc=size=320x240:rate=25:duration=1" -c:v h264_amf ;;
   esac
   case " ${CONFIG_STR} " in
-    *" --enable-vulkan "*) probe_hwaccel "Vulkan (scale_vulkan)" "Vulkan|VkInstance|no such device|No hardware|ICD|libvulkan|MoltenVK|${DEV_ERR}" \
+    *" --enable-vulkan "*) probe_hwaccel "Vulkan (scale_vulkan)" filter 'Vulkan|VkInstance|VK_ERROR|ICD|libvulkan|vulkan-1|MoltenVK' \
                              -init_hw_device "vulkan=vk" -f lavfi -i "testsrc=size=320x240:rate=25:duration=1" \
                              -vf "format=nv12,hwupload,scale_vulkan=160:120,hwdownload,format=nv12" ;;
   esac
-  # VideoToolbox (Apple) genuinely runs on the macOS runner's real GPU — a decode probe. On the
-  # iOS simulator it's software-backed; the classifier turns a no-device result into probe-pass.
+  # VideoToolbox (issue #27). The old probe decoded an mpeg4 clip with a plain `-hwaccel
+  # videotoolbox`, which silently falls back to software, so exit 0 proved nothing. Now:
+  #   encode: h264_videotoolbox with -allow_sw 0 (its default, spelled out) requires a hardware
+  #           encoder session -- exit 0 means hardware encoding ran.
+  #   decode: a committed, independently made H.264 clip (scripts/test/fixtures, libx264 Main) with
+  #           -hwaccel_output_format videotoolbox_vld + hwdownload, so frames MUST come back through
+  #           VideoToolbox -- no software fallback. FFmpeg can create a VT decode session without
+  #           hardware, so this proves the VT decode path, not physical hardware decoding.
+  # Whether GitHub's macOS VMs expose VT hardware is unknown: absence is a NOTE, not pass or fail.
   case " ${CONFIG_STR} " in
     *" --enable-videotoolbox "*)
-      "${RUNNER[@]}" "$FFMPEG" -hide_banner -v error -f lavfi -i "testsrc=size=320x240:rate=25:duration=1" \
-        -c:v mpeg4 "$tmp/vt.mp4" >/dev/null 2>&1 || true
-      probe_hwaccel "VideoToolbox decode" 'VideoToolbox|hwaccel|Cannot load|not available|Failed' \
-        -hwaccel videotoolbox -i "$tmp/vt.mp4" ;;
+      local vt_rt='VideoToolbox|VTCompressionSession|VTDecompressionSession|compression session|decompression session|-1290[0-9]|-1291[0-9]|allow_sw'
+      probe_hwaccel "VideoToolbox encode (h264_videotoolbox, -allow_sw 0)" encoder "$vt_rt" \
+        -f lavfi -i "testsrc=size=320x240:rate=25" -frames:v 10 -pix_fmt nv12 -c:v h264_videotoolbox -allow_sw 0
+      local vt_clip; vt_clip="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/fixtures/h264-320x240-10f.mp4"
+      if [ -f "$vt_clip" ]; then
+        probe_hwaccel "VideoToolbox decode (forced VT frames)" decode "$vt_rt" \
+          -hwaccel videotoolbox -hwaccel_output_format videotoolbox_vld -i "$vt_clip" -vf "hwdownload,format=nv12"
+      else
+        fail "hwaccel VideoToolbox decode: fixture missing (${vt_clip})"
+      fi ;;
   esac
 }

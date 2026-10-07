@@ -131,7 +131,19 @@ jobs:
           # is shared with the calling workflow, so every cell builds exactly one tree.
           ref: ${{ inputs.ref || github.sha }}
 
+      # One retry after a pause: artifact transfer has none of its own (see build.yml's upload).
       - name: Download build artifact
+        id: dl
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ env.VARIANT }}
+          path: artifacts/${{ matrix.rid }}/native
+      - name: Wait before retrying the artifact download
+        if: ${{ !cancelled() && steps.dl.outcome == 'failure' }}
+        run: sleep 45
+      - name: Download build artifact (retry)
+        if: ${{ !cancelled() && steps.dl.outcome == 'failure' }}
         uses: actions/download-artifact@v8
         with:
           name: ${{ env.VARIANT }}

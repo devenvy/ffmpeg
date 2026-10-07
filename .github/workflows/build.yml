@@ -323,7 +323,14 @@ jobs:
       # Tests run in the separate test.yml workflow (chained after this one), which
       # downloads the artifact uploaded below and runs the per-platform checks —
       # keeping build and test decoupled so tests can grow / re-run independently.
-      - uses: actions/upload-artifact@v7
+      # Artifact transfer has no retry of its own: an upload that died mid-transfer to blob storage
+      # (no error message, after 8 MiB) failed a release cell whose build had already succeeded, and
+      # the only recovery was re-running the whole build. So one retry after a pause: attempt 1
+      # tolerates failure; attempt 2 replaces whatever attempt 1 left (overwrite) and is the verdict.
+      # Same NAME on both -- release.yml and test.yml download by exact name.
+      - id: upload
+        continue-on-error: true
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ env.VARIANT }}
           path: artifacts/${{ matrix.rid }}/native
@@ -334,18 +341,44 @@ jobs:
           # ios-sim slice) expired before publish could download them → "Artifact not found". Five
           # days gives comfortable margin over the longest observed run; they're throwaway either way.
           retention-days: 5
+      - name: Wait before retrying the artifact upload
+        if: ${{ !cancelled() && steps.upload.outcome == 'failure' }}
+        run: sleep 45
+      - name: Upload build artifact (retry)
+        if: ${{ !cancelled() && steps.upload.outcome == 'failure' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ env.VARIANT }}
+          path: artifacts/${{ matrix.rid }}/native
+          if-no-files-found: error
+          retention-days: 5
+          overwrite: true
 
       # Issue #20: unstripped win-x64 binaries (ffmpeg_g.exe, ffprobe_g.exe, versioned DLLs) staged
       # by 08_stage_artifacts.sh, for symbolizing a crash dump's module+offset frames. A separate
       # artifact, never part of the shipped one; release.yml downloads build artifacts by exact name,
       # so it cannot pick this up. Kept as long as GitHub allows, since it pairs with a release.
-      - uses: actions/upload-artifact@v7
+      - id: upload_symbols
         if: matrix.rid == 'win-x64'
+        continue-on-error: true
+        uses: actions/upload-artifact@v7
         with:
           name: symbols-${{ env.VARIANT }}
           path: artifacts/${{ matrix.rid }}/symbols
           if-no-files-found: error
           retention-days: 90
+      - name: Wait before retrying the symbols upload
+        if: ${{ !cancelled() && steps.upload_symbols.outcome == 'failure' }}
+        run: sleep 45
+      - name: Upload symbols (retry)
+        if: ${{ !cancelled() && steps.upload_symbols.outcome == 'failure' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: symbols-${{ env.VARIANT }}
+          path: artifacts/${{ matrix.rid }}/symbols
+          if-no-files-found: error
+          retention-days: 90
+          overwrite: true
 
       - uses: actions/upload-artifact@v7
         if: failure()

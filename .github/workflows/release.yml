@@ -31,6 +31,12 @@ on:
 concurrency:
   group: release
   cancel-in-progress: false  # never cancel a release mid-flight
+  # Queue every pending release instead of keeping one. With the default (queue: single) a run that
+  # arrives while another is PENDING cancels and replaces it, so merging three release-triggering
+  # PRs during a long release silently dropped the middle one -- and its version selection
+  # (select-versions.sh diffs only its own push) was never built by anything. max keeps up to 100
+  # pending and runs them in order. Not combinable with cancel-in-progress: true.
+  queue: max
 
 jobs:
   # Decide which version lines to (re)build this run, and compute each one's
@@ -260,7 +266,22 @@ jobs:
         license: [lgpl, gpl]
         license_version: [3, 2]   # → license token {license}v{series}: lgplv3/gplv3/lgplv2/gplv2
     steps:
-      - uses: actions/download-artifact@v8
+      # Artifact transfer has no retry of its own, and a storage blip here failed a whole release
+      # after every build had succeeded. One retry after a pause, inline rather than a local
+      # composite action: this job has no checkout, and adding one to ~90 publish cells would be a
+      # new failure point of the same kind. Attempt 1 tolerates failure; attempt 2 is the verdict.
+      - id: dl
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ matrix.build.version }}-${{ matrix.rid }}-${{ matrix.license }}v${{ matrix.license_version }}
+          path: artifacts/${{ matrix.rid }}-${{ matrix.license }}v${{ matrix.license_version }}
+      - name: Wait before retrying the artifact download
+        if: ${{ !cancelled() && steps.dl.outcome == 'failure' }}
+        run: sleep 45
+      - name: Download build artifact (retry)
+        if: ${{ !cancelled() && steps.dl.outcome == 'failure' }}
+        uses: actions/download-artifact@v8
         with:
           name: ${{ matrix.build.version }}-${{ matrix.rid }}-${{ matrix.license }}v${{ matrix.license_version }}
           path: artifacts/${{ matrix.rid }}-${{ matrix.license }}v${{ matrix.license_version }}
@@ -417,11 +438,10 @@ jobs:
         run: |
           VERSION="${{ matrix.build.version }}"
           VARIANT="${{ matrix.rid }}-${{ matrix.license }}v${{ matrix.license_version }}"
-          # Asset upload is a mutable network operation against the API and had no retry, while every
-          # other network call in this repo now has one -- and this is the worst place to lack one: the
-          # release is already PUBLIC by the time these run, so a blip leaves a published release missing
-          # an artifact. --clobber makes the retry idempotent: a partially-uploaded asset is replaced,
-          # not duplicated.
+          # Asset upload is a mutable network operation against the API. The release is still a draft
+          # here (finalize publishes it), so a failure cannot expose an incomplete release -- but it
+          # does fail the whole release run over a blip. --clobber makes the retry idempotent: a
+          # partially-uploaded asset is replaced, not duplicated.
           upload_retry() { # <file>
             local f="$1" try delay=4 wait
             for try in 1 2 3 4 5 6; do
@@ -452,19 +472,56 @@ jobs:
         license: [lgpl, gpl]
         license_version: [3, 2]   # ios v2 = LGPLv2.1/GPLv2 (App-Store-safe): no version3
     steps:
-      - uses: actions/download-artifact@v8
+      # Same one-retry pattern as publish (no checkout here either): four first attempts that
+      # tolerate failure, one shared pause if any failed, then a verdict attempt for each that did.
+      - id: dl_ios
+        continue-on-error: true
+        uses: actions/download-artifact@v8
         with:
           name: ${{ matrix.build.version }}-ios-arm64-${{ matrix.license }}v${{ matrix.license_version }}
           path: artifacts/ios-arm64
-      - uses: actions/download-artifact@v8
+      - id: dl_sim
+        continue-on-error: true
+        uses: actions/download-artifact@v8
         with:
           name: ${{ matrix.build.version }}-ios-sim-arm64-${{ matrix.license }}v${{ matrix.license_version }}
           path: artifacts/ios-sim-arm64
-      - uses: actions/download-artifact@v8
+      - id: dl_cat_arm
+        continue-on-error: true
+        uses: actions/download-artifact@v8
         with:
           name: ${{ matrix.build.version }}-maccatalyst-arm64-${{ matrix.license }}v${{ matrix.license_version }}
           path: artifacts/maccatalyst-arm64
-      - uses: actions/download-artifact@v8
+      - id: dl_cat_x64
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ matrix.build.version }}-maccatalyst-x64-${{ matrix.license }}v${{ matrix.license_version }}
+          path: artifacts/maccatalyst-x64
+      - name: Wait before retrying artifact downloads
+        if: ${{ !cancelled() && (steps.dl_ios.outcome == 'failure' || steps.dl_sim.outcome == 'failure' || steps.dl_cat_arm.outcome == 'failure' || steps.dl_cat_x64.outcome == 'failure') }}
+        run: sleep 45
+      - name: Download ios-arm64 (retry)
+        if: ${{ !cancelled() && steps.dl_ios.outcome == 'failure' }}
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ matrix.build.version }}-ios-arm64-${{ matrix.license }}v${{ matrix.license_version }}
+          path: artifacts/ios-arm64
+      - name: Download ios-sim-arm64 (retry)
+        if: ${{ !cancelled() && steps.dl_sim.outcome == 'failure' }}
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ matrix.build.version }}-ios-sim-arm64-${{ matrix.license }}v${{ matrix.license_version }}
+          path: artifacts/ios-sim-arm64
+      - name: Download maccatalyst-arm64 (retry)
+        if: ${{ !cancelled() && steps.dl_cat_arm.outcome == 'failure' }}
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ matrix.build.version }}-maccatalyst-arm64-${{ matrix.license }}v${{ matrix.license_version }}
+          path: artifacts/maccatalyst-arm64
+      - name: Download maccatalyst-x64 (retry)
+        if: ${{ !cancelled() && steps.dl_cat_x64.outcome == 'failure' }}
+        uses: actions/download-artifact@v8
         with:
           name: ${{ matrix.build.version }}-maccatalyst-x64-${{ matrix.license }}v${{ matrix.license_version }}
           path: artifacts/maccatalyst-x64
@@ -543,10 +600,19 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release upload "${{ matrix.build.tag }}" \
-            "ffmpeg-${{ matrix.build.version }}-ios-${{ matrix.license }}v${{ matrix.license_version }}.tar.gz" \
-            --clobber \
-            --repo "${{ github.repository }}"
+          # Same bounded retry as the desktop publish upload; --clobber keeps it idempotent.
+          f="ffmpeg-${{ matrix.build.version }}-ios-${{ matrix.license }}v${{ matrix.license_version }}.tar.gz"
+          delay=4
+          for try in 1 2 3 4 5 6; do
+            gh release upload "${{ matrix.build.tag }}" "${f}" --clobber \
+              --repo "${{ github.repository }}" && exit 0
+            [ "${try}" -eq 6 ] && break
+            wait=$(( delay + (RANDOM % 5) ))
+            echo "  upload of ${f} failed (attempt ${try}/6) - retrying in ${wait}s..." >&2
+            sleep "${wait}"; delay=$(( delay * 2 ))
+          done
+          echo "ERROR: gh release upload ${f} failed after 6 attempts" >&2
+          exit 1
 
   # Aggregate checksum manifest — one file covering every asset, so a downstream packager or
   # mirror verifies once instead of making an API call per asset.
@@ -611,20 +677,33 @@ jobs:
           TAG: ${{ matrix.build.tag }}
           REPO: ${{ github.repository }}
         run: |
-          set -euo pipefail
-          bash scripts/ci/gen-manifest.sh "$TAG" "$REPO" > SHA256SUMS
-          echo "--- SHA256SUMS ($(wc -l < SHA256SUMS) entries) ---"
-          cat SHA256SUMS
-          gh release upload "$TAG" SHA256SUMS \
-            --clobber --repo "$REPO"
+          set -uo pipefail
+          # Generation fetches every asset and the upload is an API write, so retry the pair:
+          # regeneration is repeatable (gen-manifest.sh excludes SHA256SUMS itself) and --clobber
+          # replaces a partial upload.
+          delay=4
+          for try in 1 2 3 4 5 6; do
+            if bash scripts/ci/gen-manifest.sh "$TAG" "$REPO" > SHA256SUMS \
+               && gh release upload "$TAG" SHA256SUMS --clobber --repo "$REPO"; then
+              echo "--- SHA256SUMS ($(wc -l < SHA256SUMS) entries) ---"
+              cat SHA256SUMS
+              exit 0
+            fi
+            [ "${try}" -eq 6 ] && break
+            wait=$(( delay + (RANDOM % 5) ))
+            echo "  SHA256SUMS generation/upload failed (attempt ${try}/6) - retrying in ${wait}s..." >&2
+            sleep "${wait}"; delay=$(( delay * 2 ))
+          done
+          echo "ERROR: SHA256SUMS generation/upload failed after 6 attempts" >&2
+          exit 1
 
-      # This job runs after the release is public and nothing gates on it, so a silent failure
-      # would leave a release whose docs promise a SHA256SUMS that isn't there. Surface it.
+      # finalize gates on this job, so a failure leaves the release a DRAFT rather than a public
+      # release missing its checksums. Say so, and how to recover.
       - name: Report manifest failure
         if: failure()
         run: |
           echo "### SHA256SUMS generation FAILED for \`${{ matrix.build.tag }}\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "The release is published but has no checksum manifest. Re-run this job, or generate it locally with \`bash scripts/ci/gen-manifest.sh <tag> <repo>\` and upload it." >> "$GITHUB_STEP_SUMMARY"
+          echo "The release stays a DRAFT (finalize gates on this job). Re-run the failed jobs, or generate it locally with \`bash scripts/ci/gen-manifest.sh <tag> <repo>\` and upload it." >> "$GITHUB_STEP_SUMMARY"
 
   # The release is created as a DRAFT by `release` and becomes visible only here -- after every
   # asset (publish, publish-ios) and the SHA256SUMS manifest are attached. Before this job existed

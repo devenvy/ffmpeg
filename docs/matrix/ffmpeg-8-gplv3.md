@@ -153,7 +153,7 @@ _16 of 23 built._
 | CUVID (NVIDIA decode) |  | ✓ | ✓ | — | ✓ | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
 | D3D11VA |  | n/a | n/a | n/a | n/a | n/a | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
 | DXVA2 |  | n/a | n/a | n/a | n/a | n/a | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
-| ffnvcodec headers | n13.1.15.0 | ✓ | ✓ | — | ✓ | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
+| ffnvcodec headers | n13.0.19.1 | ✓ | ✓ | — | ✓ | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
 | libdrm | libdrm-2.4.134 | ✓ | ✓ | — | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
 | MediaFoundation |  | n/a | n/a | n/a | n/a | n/a | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
 | NVDEC (NVIDIA decode) |  | ✓ | ✓ | — | ✓ | ✓ | ✓ | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |

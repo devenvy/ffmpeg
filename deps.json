@@ -209,8 +209,15 @@
     },
     "nv-codec": {
       "origin": "https://github.com/FFmpeg/nv-codec-headers.git",
-      "tag": "n13.1.15.0",
-      "datasource": "github-tags"
+      "tag": "n13.0.19.1",
+      "datasource": "github-tags",
+      "reason": "Pinned to the SDK 13.0 line for driver compatibility. Each nv-codec-headers SDK line sets a minimum NVIDIA driver, and FFmpeg's NVENC refuses to open on anything older ('Driver does not support the required nvenc API version'): sdk/13.0 needs 570+, sdk/13.1 needs 610+. NVIDIA's 580 branch is the LAST driver for Maxwell/Pascal/Volta (GTX 900/10-series), so 13.1 headers would break NVENC on those cards permanently, and on any machine not yet on 610 (measured: RTX 3080 on Windows driver 591.86). Both FFmpeg lines accept ffnvcodec >= 12.1.14.0, and the 13.1-only features (newer counting fields, AV1 hierarchical refs) sit behind version guards with fallbacks, so 13.0 loses optional features, not builds. See hold.",
+      "hold": {
+        "allowedVersions": "/^n13\\.0\\./",
+        "issue": 54,
+        "reviewAfter": "2027-04-07",
+        "liftWhen": "Review, never lift automatically, when: an FFmpeg line we ship requires ffnvcodec >= 13.1 (consider a per-line override rather than raising every line's floor); NVIDIA ends the 580 branch (lifting still retires NVENC on Maxwell/Pascal/Volta -- that is a policy decision, not a consequence); or a 13.1+ NVENC feature is worth raising the driver floor to 610. Re-run a real NVENC encode on the oldest driver the new floor claims."
+      }
     },
     "opus": {
       "origin": "https://github.com/xiph/opus.git",
@@ -313,7 +320,13 @@
       "origin": "https://github.com/Mbed-TLS/mbedtls.git",
       "tag": "v3.6.7",
       "datasource": "github-tags",
-      "reason": "Renovate tracks the git tag (git-tags on origin), but mbedtls.sh downloads the matching release tarball (mbedtls-<ver>.tar.bz2, v stripped) instead of cloning — the tarball bundles the 'framework' submodule in-tree, avoiding a submodule init. Pin the 3.6 LTS line (4.x is the TF-PSA-Crypto split, not yet consumed by FFmpeg/SRT/librist). Held at 3.x by a renovate.json allowedVersions rule: FFmpeg's tls_mbedtls.c uses mbedtls_ctr_drbg_*/mbedtls_entropy_* unconditionally and mbedTLS 4 removed those headers (moved to PSA Crypto); FFmpeg master has not migrated either. Tracked in issue #18."
+      "reason": "Renovate tracks the git tag (git-tags on origin), but mbedtls.sh downloads the matching release tarball (mbedtls-<ver>.tar.bz2, v stripped) instead of cloning — the tarball bundles the 'framework' submodule in-tree, avoiding a submodule init. Pin the 3.6 LTS line (4.x is the TF-PSA-Crypto split, not yet consumed by FFmpeg/SRT/librist). Held at 3.x by a renovate.json allowedVersions rule (see hold): mbedTLS 4 removed ctr_drbg.h/entropy.h (moved to PSA Crypto). The consumers here are SRT and librist, not FFmpeg's TLS layer (OpenSSL/GnuTLS/SChannel), so the hold lifts on THEIR mbedTLS 4 support. Tracked in issue #18.",
+      "hold": {
+        "allowedVersions": "<4.0.0",
+        "issue": 18,
+        "reviewAfter": "2027-04-07",
+        "liftWhen": "Review when the SRT and librist versions we ship build and link against mbedTLS 4 (its TF-PSA-Crypto split) through this repo's mbedtls.sh recipe -- those transports, not FFmpeg's TLS layer (OpenSSL/GnuTLS/SChannel here), are what consume it. Verify encrypted SRT and RIST transport before lifting."
+      }
     },
     "srt": {
       "origin": "https://github.com/Haivision/srt.git",

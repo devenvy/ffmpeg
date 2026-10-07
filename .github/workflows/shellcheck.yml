@@ -67,6 +67,7 @@ jobs:
           bash scripts/ci/image-pins-test.sh
           bash scripts/ci/matrix-consistency-test.sh
           bash scripts/ci/renovate-config-test.sh
+          bash scripts/ci/holds-test.sh
 
       # Our dep scripts are SOURCED by build.sh and share its environment, so many variables
       # are assigned by the parent, not the script itself; -x follows sourced files so

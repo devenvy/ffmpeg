@@ -1,4 +1,4 @@
-name: Check for a new FFmpeg major line
+name: Check for a new FFmpeg major line and due dependency-hold reviews
 
 on:
   schedule:
@@ -152,3 +152,24 @@ jobs:
           fi
 
           echo "Done."
+
+  # Dependency holds (deps.json .defaults.<dep>.hold) never expire on their own, so each one
+  # carries a reviewAfter date and a tracking issue; scripts/ci/review-holds.sh raises the review
+  # there once the date passes and reopens the issue if it was closed while the hold is live.
+  # Its own job: it needs issue write access, which is a GITHUB_TOKEN permission -- the job above
+  # runs on UPDATE_PR_TOKEN, whose scopes this repo cannot see -- and a failure here must not
+  # stop the new-major check (or the reverse). Read-only on contents.
+  review-holds:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Review dependency holds
+        run: bash scripts/ci/review-holds.sh

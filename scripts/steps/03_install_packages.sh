@@ -91,16 +91,16 @@ case "${RID}" in
       # building the pinned shaderc glslc that can. Probe capability, not presence.
     else
       # Building on a normal glibc host (e.g. local Ubuntu) — use apt like the others.
-      ${SUDO} apt-get update
-      ${SUDO} apt-get install -y --no-install-recommends "${PKGS[@]}" jq
+      apt_get update
+      apt_get install -y --no-install-recommends "${PKGS[@]}" jq
       # meson >= 1.11 for fontconfig 2.18+ (apt meson is older) — see the note in *) below.
       ${SUDO} python3 -m pip install --break-system-packages --upgrade meson ninja \
         || ${SUDO} python3 -m pip install --upgrade meson ninja
     fi
     ;;
   *)
-    ${SUDO} apt-get update
-    ${SUDO} apt-get install -y --no-install-recommends "${PKGS[@]}" jq
+    apt_get update
+    apt_get install -y --no-install-recommends "${PKGS[@]}" jq
     # fontconfig 2.18+ (and other newer Meson projects) require meson >= 1.11; the distro's
     # apt meson is older (Ubuntu 24.04 ships 1.3.2). Pull a current meson/ninja from PyPI —
     # same approach the manylinux path uses. PEP-668 marks the system env externally-managed
@@ -205,23 +205,10 @@ if ! _glslc_supports_target_env; then
   trap 'rm -rf "${_shaderc_dir}"' RETURN
   SHADERC_TAG="$(dep_version shaderc)"
   git clone --depth 1 --branch "${SHADERC_TAG}" https://github.com/google/shaderc "${_shaderc_dir}"
-  # git-sync-deps is a PYTHON child process, so the retrying git() wrapper in
-  # scripts/lib.sh cannot reach it -- shell functions are not exported to child
-  # processes. It clones glslang/SPIRV-Tools/SPIRV-Headers over the network, so it has
-  # the same exposure to a DNS or TLS blip as any other clone and had no protection at
-  # all. Retry the whole invocation with the same jittered exponential backoff.
-  _sync_delay=4
-  for _sync_try in 1 2 3 4 5 6; do
-    ( cd "${_shaderc_dir}" && ./utils/git-sync-deps ) && break
-    if [ "${_sync_try}" -eq 6 ]; then
-      echo "ERROR: shaderc git-sync-deps failed after ${_sync_try} attempts" >&2
-      exit 1
-    fi
-    _sync_wait=$(( _sync_delay + (RANDOM % 5) ))
-    echo "  git-sync-deps failed (attempt ${_sync_try}/6) - retrying in ${_sync_wait}s..." >&2
-    sleep "${_sync_wait}"
-    _sync_delay=$(( _sync_delay * 2 ))
-  done
+  # git-sync-deps fetches glslang/SPIRV-Tools/SPIRV-Headers/... over the network and can exit 0
+  # with a clone missing (its worker threads swallow errors); shaderc_sync_deps (scripts/lib.sh)
+  # retries until every DEPS entry is verified at its pinned revision.
+  shaderc_sync_deps "${_shaderc_dir}" || exit 1
   # glslc is a BUILD-HOST tool: FFmpeg's configure executes it ON THE RUNNER to compile
   # shaders. But 02_configure.sh has already exported the TARGET cross toolchain by this point
   # -- CC=x86_64-w64-mingw32-gcc-win32 for win-x64, the NDK clang for Android, an -isysroot

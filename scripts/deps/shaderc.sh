@@ -16,8 +16,9 @@ rm -rf shaderc
 clone_dep shaderc "${WORK_DIR}/shaderc"
 cd shaderc || exit 1
 # Fetch shaderc's pinned third-party sources (glslang / SPIRV-Tools / SPIRV-Headers /
-# abseil / re2). Needs python3 + git, both present in the build environment.
-python3 ./utils/git-sync-deps
+# abseil / re2 / ...), verified at their pinned revisions and retried on a partial sync --
+# git-sync-deps alone can exit 0 with a clone missing (see shaderc_sync_deps, scripts/lib.sh).
+shaderc_sync_deps "${WORK_DIR}/shaderc"
 cmake -B build -G Ninja \
   -DCMAKE_INSTALL_PREFIX="${DEPS_DIR}" \
   -DCMAKE_INSTALL_LIBDIR=lib \

@@ -60,7 +60,9 @@ _patchdir="$(mktemp -d)"
 # available, fail loudly rather than silently pushing unpatched libs that will hit
 # the exact "libc++_shared.so not found" transitive-dep error we're solving.
 if ! command -v patchelf >/dev/null 2>&1; then
-  sudo apt-get update -qq && sudo apt-get install -y -q patchelf
+  # Bounded waits: a stalled mirror must fail fast, not hold the job (see apt_get, scripts/lib.sh).
+  _apt=(-o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30)
+  sudo timeout 1200 apt-get "${_apt[@]}" update -qq && sudo timeout 1200 apt-get "${_apt[@]}" install -y -q patchelf
 fi
 command -v patchelf >/dev/null 2>&1 || { echo "android-run.sh: patchelf unavailable; cannot set per-lib rpath" >&2; exit 2; }
 for so in "${LIBDIR}"/*.so; do

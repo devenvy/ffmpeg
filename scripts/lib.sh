@@ -162,6 +162,64 @@ resolve_python() {
   return 1
 }
 
+# ── apt_get: apt-get with bounded waits ───────────────────────────────────
+# A stalled Ubuntu mirror once held `apt-get update` for a job's full 6-hour limit: apt's
+# defaults wait on a silent connection indefinitely. Bound each network wait (30 s), retry a
+# failed fetch (5x), and cap the whole command (APT_TIMEOUT, default 20 min) so a dead mirror
+# fails fast instead of eating the job. Per-command options, not /etc/apt config, so running
+# the build locally never changes the developer's machine. ${SUDO-sudo}: 03_install_packages.sh
+# sets SUDO (empty when already root); standalone callers get sudo.
+apt_get() {
+  ${SUDO-sudo} timeout "${APT_TIMEOUT:-1200}" apt-get \
+    -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 "$@"
+}
+
+# ── shaderc_sync_deps: fetch shaderc's pinned third_party sources, VERIFIED ──
+# shaderc_sync_deps <shaderc-source-dir>
+# shaderc's utils/git-sync-deps clones its DEPS (abseil, effcee, googletest, glslang, re2,
+# SPIRV-Headers, SPIRV-Tools) in worker THREADS whose exceptions are never propagated, so a clone
+# that dies on a GitHub 504 still lets the script exit 0. Retrying on the exit status therefore
+# retried nothing: CI failed later in CMake with "SPIRV-Headers was not found" (both the host glslc
+# build in 03_install_packages.sh and deps/shaderc.sh, which had no retry at all). Success is now
+# decided by checking every DEPS entry on disk -- a git checkout whose HEAD is the pinned
+# revision -- the same way git-sync-deps itself parses DEPS. Failed entries are removed and the
+# sync retried with backoff; the git wrapper above does not reach git-sync-deps (a child process).
+shaderc_sync_deps() {
+  local dir="$1" py n=1 delay=4 bad d
+  py="$(resolve_python)" || return 1
+  while :; do
+    # GIT_TERMINAL_PROMPT=0: a moved/deleted repo makes GitHub ask for credentials; never block on it.
+    ( cd "${dir}" && GIT_TERMINAL_PROMPT=0 "${py}" ./utils/git-sync-deps ) || true
+    bad="$( cd "${dir}" && "${py}" - <<'PY'
+import os, subprocess
+# Evaluate DEPS the way git-sync-deps does: it is Python, with Var() resolving from vars.
+g = {}
+exec(compile(open("DEPS").read(), "DEPS", "exec"), {"Var": lambda k: g["vars"][k]}, g)
+for rel, spec in sorted(g.get("deps", {}).items()):
+    url, _, rev = spec.partition("@")
+    ok = False
+    if os.path.isdir(os.path.join(rel, ".git")) or os.path.isfile(os.path.join(rel, ".git")):
+        r = subprocess.run(["git", "-C", rel, "rev-parse", "HEAD"], capture_output=True, text=True)
+        ok = r.returncode == 0 and r.stdout.strip() == rev
+    if not ok:
+        print(rel)
+PY
+    )" || bad="DEPS-unreadable"
+    if [ -z "${bad}" ]; then
+      echo "shaderc third_party sources verified at their pinned revisions."
+      return 0
+    fi
+    if [ "${n}" -ge "${GIT_CLONE_ATTEMPTS}" ]; then
+      echo "ERROR: shaderc third_party not synced after ${n} attempts: $(echo ${bad})" >&2
+      return 1
+    fi
+    echo "  shaderc git-sync-deps incomplete (attempt ${n}/${GIT_CLONE_ATTEMPTS}): $(echo ${bad}) -- retrying" >&2
+    for d in ${bad}; do [ "${d}" = DEPS-unreadable ] || rm -rf "${dir:?}/${d}"; done
+    sleep $(( delay + (RANDOM % 5) ))
+    delay=$(( delay * 2 )); n=$(( n + 1 ))
+  done
+}
+
 
 # ── Helper: build a CMake-based static dependency ─────────────────────────
 

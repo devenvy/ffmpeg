@@ -35,7 +35,8 @@ echo /opt/ffmpeg > /etc/ld.so.conf.d/ffmpeg.conf && ldconfig     # to link again
 Nothing needs installing. `linux-x64` and `linux-arm64` run on glibc 2.28 and later (RHEL/Alma 8+, Debian 10+, Ubuntu
 18.10+), `linux-armhf` on glibc 2.36 and later (Debian 12, Raspberry Pi OS Bookworm); a distroless image also needs
 `libstdc++.so.6` and `libgcc_s.so.1`. The `linux-musl-*` builds run on a bare `alpine` image: the C++ runtime is linked
-in. Hardware acceleration (VAAPI, QSV, Vulkan) and GPU Whisper only need the GPU driver (e.g. `mesa-va-drivers`,
+in. NVIDIA encoding (NVENC) needs driver 570 or later, on Linux and Windows. Hardware acceleration (VAAPI, QSV, Vulkan)
+and GPU Whisper only need the GPU driver (e.g. `mesa-va-drivers`,
 `mesa-vulkan-drivers`); without one, FFmpeg runs on the CPU. `linux-armhf` ships no Vulkan loader: its Vulkan filters
 use the system's (`libvulkan1`).
 

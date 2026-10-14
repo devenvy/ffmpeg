@@ -4,6 +4,11 @@
 # lists what a target gets and where each entry comes from.
 # say when an FFmpeg major newer than every target's series is out (update-lock's PR and run summary)
 notify: { new-ffmpeg: true }
+# NVIDIA's encoder headers stay on SDK 13.0 (driver 570+): 13.1 needs driver 610+, which NVIDIA's 580 branch never
+# reaches, and that branch is the last for Maxwell, Pascal and Volta (GTX 900/10-series). FFmpeg's NVENC refuses to open
+# on an older driver. 13.0.x patch releases still arrive. Tracking issue: #54.
+pin:
+  nvenc: '13.0'
 bases:
   common:
     with: [openh264, dav1d, openjpeg, jxl, zimg, vmaf, lcms2, vorbis, mp3lame, speex, gsm, soxr, chromaprint,

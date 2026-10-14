@@ -1,43 +1,16 @@
-# Security Policy
+# Security
 
-## What this repository is
-
-This repository is a **build system** for stock upstream FFmpeg and its supporting
-libraries (x264, x265, kvazaar, dav1d, SVT-AV1, OpenSSL, GnuTLS, and others — the TLS
-backend varies by license cell). It does **not** vendor or fork that upstream source — each
-library is fetched from its official upstream at a pinned release tag and built at CI time,
-into a git-ignored, ephemeral `.build/` tree. A small number of targeted build-time patches
-are applied in the open, in `scripts/`, to make a source compile for a target it does not yet
-support (for example skipping FFmpeg's videotoolbox symbols that the Mac Catalyst SDK marks
-unavailable); none add functionality, and each is visible in the script that applies it. The only source original to this
-repository is the build tooling (shell scripts and GitHub Actions workflows) plus a
-small compile/runtime smoke test (`scripts/test/smoke.c`).
-
-## Scope
-
-**In scope** — report here:
-
-- Vulnerabilities in our build tooling (shell scripts, workflows) — e.g. command
-  injection, unsafe download/verification, secret handling.
-- Supply-chain concerns in how we fetch or pin upstream sources.
-
-**Out of scope** — please report upstream instead:
-
-- Vulnerabilities in FFmpeg or any bundled library's own source code. Those belong to
-  the respective upstream projects; we track and adopt fixed upstream releases through
-  our version-update process. They are not defects in this repository.
-
-## How we scan
-
-- **CodeQL** — the C we own (`scripts/test/`) and our GitHub Actions workflows.
-- **ShellCheck** — our shell scripts.
-
-Both run on pull requests and pushes to `main`, with results in the Security tab.
-Upstream library source is never checked out into an analyzed path, so upstream CVEs
-are not attributed to this repository.
+This repository holds a build definition only: [`ffmpeg-build.yml`](ffmpeg-build.yml), its lock and the workflows
+that build and publish the releases. The builds themselves are made by
+[ffmpeg-build](https://github.com/devenvy/ffmpeg-build), from each library's upstream source, pinned by commit or
+checksum in [`ffmpeg.lock`](ffmpeg.lock).
 
 ## Reporting a vulnerability
 
-Please open a private report via the repository's **Security → Report a vulnerability**
-page (GitHub private vulnerability reporting), or contact the maintainers directly. We
-aim to acknowledge within a few business days.
+Please report privately, through **Security → Report a vulnerability** on this repository; don't open a public issue.
+
+- **The builds or how they are made** (what is downloaded and how it's checked, the toolchains, the workflows): report
+  it to [ffmpeg-build](https://github.com/devenvy/ffmpeg-build/security).
+- **FFmpeg or a bundled library's own code:** report it upstream. Fixed upstream releases reach these builds through
+  the daily lock update.
+- **Anything about this repository's configuration or releases:** here.

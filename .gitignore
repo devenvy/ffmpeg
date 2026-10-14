@@ -1,27 +1,15 @@
-# Build artifacts
-.build/
-artifacts/
-# Host build tools cached across CI runs (the glslc built by 03_install_packages.sh)
-.tools/
+# ffmpeg-build output and work folders
+dist/
+build/
 
-# Stray build/config logs (e.g. an FFmpeg config.log copied out for debugging)
-*.log
-
-# Editor / IDE
-*.swp
-*.swo
-*~
-.vs/
+# editors and OS files
 .vscode/
-*.user
-
-# OS junk
-Thumbs.db
-Desktop.ini
+.idea/
+*.swp
 .DS_Store
-# Planning / spec scratch from assisted sessions. These are working artifacts, not
-# documentation: they went stale the moment the code moved on (39 factual defects at the
-# point they were removed -- stale cell counts, pre-Catalyst assumptions, sample commands
-# that no longer run). Keeping them in-tree meant they read as authoritative.
+Thumbs.db
+
+# AI assistant state and working notes
+.claude/
 .superpowers/
 docs/superpowers/

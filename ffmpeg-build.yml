@@ -143,15 +143,13 @@ targets:
     license: gplv3
     ffmpeg: "9"
     base: [common, ios, gplv3]
-    with: [x264, x265]
-    without: [placebo]
+    with: [vulkan, placebo, x264, x265]
   ios-arm64-gplv3-ffmpeg8:
     platform: ios-arm64
     license: gplv3
     ffmpeg: "8"
     base: [common, ios, gplv3]
-    with: [x264, x265]
-    without: [placebo, shaderc]
+    with: [vulkan, placebo, shaderc, x264, x265]
   ios-arm64-lgplv2:
     platform: ios-arm64
     license: lgplv2
@@ -169,15 +167,13 @@ targets:
     license: lgplv3
     ffmpeg: "9"
     base: [common, ios, lgplv3]
-    with: [kvazaar]
-    without: [placebo]
+    with: [vulkan, placebo, kvazaar]
   ios-arm64-lgplv3-ffmpeg8:
     platform: ios-arm64
     license: lgplv3
     ffmpeg: "8"
     base: [common, ios, lgplv3]
-    with: [kvazaar]
-    without: [placebo, shaderc]
+    with: [vulkan, placebo, shaderc, kvazaar]
   ios-sim-arm64-gplv2:
     platform: ios-sim-arm64
     license: gplv2
@@ -491,15 +487,13 @@ targets:
     license: gplv3
     ffmpeg: "9"
     base: [common, maccatalyst, gplv3]
-    with: [openssl, x264, x265]
-    without: [placebo]
+    with: [openssl, vulkan, placebo, x264, x265]
   maccatalyst-arm64-gplv3-ffmpeg8:
     platform: maccatalyst-arm64
     license: gplv3
     ffmpeg: "8"
     base: [common, maccatalyst, gplv3]
-    with: [openssl, x264, x265]
-    without: [placebo, shaderc]
+    with: [openssl, vulkan, placebo, shaderc, x264, x265]
   maccatalyst-arm64-lgplv2:
     platform: maccatalyst-arm64
     license: lgplv2
@@ -517,15 +511,13 @@ targets:
     license: lgplv3
     ffmpeg: "9"
     base: [common, maccatalyst, lgplv3]
-    with: [openssl, kvazaar]
-    without: [placebo]
+    with: [openssl, vulkan, placebo, kvazaar]
   maccatalyst-arm64-lgplv3-ffmpeg8:
     platform: maccatalyst-arm64
     license: lgplv3
     ffmpeg: "8"
     base: [common, maccatalyst, lgplv3]
-    with: [openssl, kvazaar]
-    without: [placebo, shaderc]
+    with: [openssl, vulkan, placebo, shaderc, kvazaar]
   maccatalyst-x64-gplv2:
     platform: maccatalyst-x64
     license: gplv2
@@ -543,15 +535,13 @@ targets:
     license: gplv3
     ffmpeg: "9"
     base: [common, maccatalyst, gplv3]
-    with: [openssl, x264, x265]
-    without: [placebo]
+    with: [openssl, vulkan, placebo, x264, x265]
   maccatalyst-x64-gplv3-ffmpeg8:
     platform: maccatalyst-x64
     license: gplv3
     ffmpeg: "8"
     base: [common, maccatalyst, gplv3]
-    with: [openssl, x264, x265]
-    without: [placebo, shaderc]
+    with: [openssl, vulkan, placebo, shaderc, x264, x265]
   maccatalyst-x64-lgplv2:
     platform: maccatalyst-x64
     license: lgplv2
@@ -569,15 +559,13 @@ targets:
     license: lgplv3
     ffmpeg: "9"
     base: [common, maccatalyst, lgplv3]
-    with: [openssl, kvazaar]
-    without: [placebo]
+    with: [openssl, vulkan, placebo, kvazaar]
   maccatalyst-x64-lgplv3-ffmpeg8:
     platform: maccatalyst-x64
     license: lgplv3
     ffmpeg: "8"
     base: [common, maccatalyst, lgplv3]
-    with: [openssl, kvazaar]
-    without: [placebo, shaderc]
+    with: [openssl, vulkan, placebo, shaderc, kvazaar]
   osx-arm64-gplv2:
     platform: osx-arm64
     license: gplv2
@@ -595,15 +583,13 @@ targets:
     license: gplv3
     ffmpeg: "9"
     base: [common, osx, gplv3]
-    with: [x264, x265]
-    without: [vulkan, placebo]
+    with: [vulkan, placebo, x264, x265]
   osx-arm64-gplv3-ffmpeg8:
     platform: osx-arm64
     license: gplv3
     ffmpeg: "8"
     base: [common, osx, gplv3]
-    with: [x264, x265]
-    without: [vulkan, placebo, shaderc]
+    with: [vulkan, placebo, shaderc, x264, x265]
   osx-arm64-lgplv2:
     platform: osx-arm64
     license: lgplv2
@@ -621,15 +607,13 @@ targets:
     license: lgplv3
     ffmpeg: "9"
     base: [common, osx, lgplv3]
-    with: [kvazaar]
-    without: [vulkan, placebo]
+    with: [vulkan, placebo, kvazaar]
   osx-arm64-lgplv3-ffmpeg8:
     platform: osx-arm64
     license: lgplv3
     ffmpeg: "8"
     base: [common, osx, lgplv3]
-    with: [kvazaar]
-    without: [vulkan, placebo, shaderc]
+    with: [vulkan, placebo, shaderc, kvazaar]
   osx-x64-gplv2:
     platform: osx-x64
     license: gplv2
@@ -647,15 +631,13 @@ targets:
     license: gplv3
     ffmpeg: "9"
     base: [common, osx, gplv3]
-    with: [x264, x265]
-    without: [vulkan, placebo]
+    with: [vulkan, placebo, x264, x265]
   osx-x64-gplv3-ffmpeg8:
     platform: osx-x64
     license: gplv3
     ffmpeg: "8"
     base: [common, osx, gplv3]
-    with: [x264, x265]
-    without: [vulkan, placebo, shaderc]
+    with: [vulkan, placebo, shaderc, x264, x265]
   osx-x64-lgplv2:
     platform: osx-x64
     license: lgplv2
@@ -673,15 +655,13 @@ targets:
     license: lgplv3
     ffmpeg: "9"
     base: [common, osx, lgplv3]
-    with: [kvazaar]
-    without: [vulkan, placebo]
+    with: [vulkan, placebo, kvazaar]
   osx-x64-lgplv3-ffmpeg8:
     platform: osx-x64
     license: lgplv3
     ffmpeg: "8"
     base: [common, osx, lgplv3]
-    with: [kvazaar]
-    without: [vulkan, placebo, shaderc]
+    with: [vulkan, placebo, shaderc, kvazaar]
   win-arm64-gplv2:
     platform: win-arm64
     license: gplv2

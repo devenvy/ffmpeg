@@ -38,6 +38,7 @@ libraries:
   libwebp: { version: 1.6.0, commit: 4fa21912338357f89e4fd51cf2368325b59e9bd9 }
   libxml2: { version: 2.15.4, commit: 96498992efa48d52b0e8b83058bd88dbdaf153c1 }
   mbedtls: { version: 3.6.7, sha256: a7e8bcbec0e6f761b4af24f25677626b35f762f68eef79c08677a363212d11f6 }
+  moltenvk: { version: 1.4.2, commit: db66022459ffb663aa2b50f6b018bc2e124f5edf }
   nettle: { version: 4.0, sha256: 3addbc00da01846b232fb3bc453538ea5468da43033f21bb345cb1e9073f5094 }
   nv-codec: { version: 13.1.15.0, commit: 0a6fba9a2820628b8103464f4c8753ee05838baa }
   opencore-amr: { version: 0.1.6, sha256: 483eb4061088e2b34b358e47540b5d495a96cd468e361050fae615b1809dc4a1 }

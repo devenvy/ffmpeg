@@ -1,7 +1,6 @@
-# A consumer's daily release train (copy into .github/workflows/): publishes every release whose builds changed since
-# it was last published. Back-to-back merges cost one release; a failed day is retried the next.
+# The daily release: publishes every release whose builds changed since it was last published (a merged lock update,
+# a new FFmpeg release, a new engine). Back-to-back merges cost one release; a failed day is retried the next.
 #
-# Repository setting: none.
 # Permissions: contents: write (below), to create the GitHub releases.
 name: release
 on:
@@ -9,11 +8,12 @@ on:
     - cron: '17 7 * * *'
   workflow_dispatch:
 
-permissions:
-  contents: write
+permissions: {}
 
 jobs:
   release:
     uses: devenvy/ffmpeg-build/.github/workflows/build.yml@v0
+    permissions:
+      contents: write # the GitHub releases
     with:
       publish: changed-only

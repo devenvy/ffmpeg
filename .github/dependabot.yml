@@ -1,14 +1,18 @@
-# A consumer's .github/dependabot.yml: the actions its workflows use, one grouped PR a week. (ffmpeg.lock is kept
-# current by ffmpeg-build update, not Dependabot.)
+# The actions the workflows use (ffmpeg.lock is kept current by update-lock.yml, not Dependabot): one grouped PR a week,
+# each release a week old first, merged by ci.yml once it passes.
 version: 2
 updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
-    # a release waits a week before it is proposed, so a compromised one is usually caught first
+      day: monday
+    labels: [dependencies]
+    commit-message:
+      prefix: ci
     cooldown:
       default-days: 7
+      exclude: ['devenvy/*'] # the engine's workflows arrive without delay
     groups:
       actions:
         patterns: ['*']

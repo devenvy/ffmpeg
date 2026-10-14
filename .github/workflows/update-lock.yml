@@ -1,11 +1,8 @@
-# A consumer's lock updates (copy into .github/workflows/): one PR with the update summary (newer libraries, FFmpeg
-# releases and the newest engine of the lock's major), merged when CI passes (ci.yml's last job, automerge.yml). No
-# token is needed: the workflow dispatches your CI (ci-workflow, which needs workflow_dispatch:) on the PR's branch,
-# since GITHUB_TOKEN's pushes start none. UPDATE_TOKEN is optional: a fine-grained token with contents and
-# pull-requests write, whose pushes start CI by themselves.
+# The daily lock update: one PR with newer library versions, FFmpeg releases of the same majors and the newest 0.x
+# engine, opened as devenvy-bot (so it starts CI and code scanning like any PR) and merged by ci.yml once it passes.
+# A new FFmpeg major is reported in the PR and the run summary (ffmpeg-build.yml's notify); adding its targets is a
+# person's change.
 #
-# Repository setting: Settings, Actions, General, "Allow GitHub Actions to create and approve pull requests" (or the
-# UPDATE_TOKEN secret), so the workflow can open the PR.
 # Permissions: actions: write, contents: write and pull-requests: write (below).
 name: update-lock
 on:
@@ -13,16 +10,18 @@ on:
     - cron: '41 5 * * *'
   workflow_dispatch:
 
-permissions:
-  actions: write # to dispatch the PR's CI
-  contents: write
-  pull-requests: write
+permissions: {}
 
 jobs:
   update:
     uses: devenvy/ffmpeg-build/.github/workflows/update-lock.yml@v0
+    permissions:
+      actions: write
+      contents: write
+      pull-requests: write
     with:
       automerge: true
-      ci-workflow: ci.yml # your CI workflow's file name (examples/workflows/ci.yml)
+      ci-workflow: ci.yml
+      app-client-id: ${{ vars.DEVENVY_BOT_CLIENT_ID }}
     secrets:
-      token: ${{ secrets.UPDATE_TOKEN }}
+      app-private-key: ${{ secrets.DEVENVY_BOT_PRIVATE_KEY }}

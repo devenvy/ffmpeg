@@ -1,11 +1,9 @@
-# A consumer's pull-request check (copy into .github/workflows/): builds and tests the releases that changed since
-# they were last published (`due: true`; remove it to build every release on every pull request), publishes nothing,
-# and merges ffmpeg-build's own PRs (update-lock.yml or update-pin.yml with automerge: true) once the build passes.
+# The pull-request check: builds and tests the releases a change touches (`due: true`), publishes nothing, and merges
+# the lock updates (update-lock.yml) and Dependabot's action bumps once they pass. `result` is the check the main
+# ruleset requires.
 #
-# Repository setting: none for this workflow. (update-lock.yml needs "Allow GitHub Actions to create and approve pull
-# requests" to open the PRs it checks.)
-# Permissions: contents: write and pull-requests: write (below), for the automerge job and because GitHub checks the
-# called workflow's release job against them even though it is skipped.
+# Permissions: contents: write and pull-requests: write (below), for the merges and because GitHub checks the called
+# workflow's release job against them even though it is skipped.
 name: ci
 on:
   pull_request:
@@ -18,17 +16,55 @@ concurrency:
 
 # contents: write although nothing is published: GitHub refuses to start a run whose called workflow has a job (here
 # the skipped release job) asking for more than the caller grants. Pull requests from forks get a read-only token anyway.
-permissions:
-  contents: write
-  pull-requests: write
+permissions: {}
 
 jobs:
   build:
     uses: devenvy/ffmpeg-build/.github/workflows/build.yml@v0
+    # contents: write although nothing is published: GitHub checks the called workflow's (skipped) release job against it
+    permissions:
+      contents: write
     with:
       publish: never
       due: true
       # tests: build-runner   # no Windows test runners (a private repository pays twice the Linux rate for them)
-  merge:
+  # one check for a branch ruleset to require, whatever the build ran
+  result:
     needs: build
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: the build passed
+        env:
+          BUILD: ${{ needs.build.result }}
+        run: test "${BUILD}" = success
+  merge:
+    needs: result
     uses: devenvy/ffmpeg-build/.github/workflows/automerge.yml@v0
+    permissions:
+      contents: write
+      pull-requests: write
+
+  # Dependabot's PRs merge themselves once the required check passes, as devenvy-bot (org variable
+  # DEVENVY_BOT_CLIENT_ID, org secret DEVENVY_BOT_PRIVATE_KEY, both also Dependabot secrets).
+  dependabot-auto-merge:
+    if: github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.DEVENVY_BOT_CLIENT_ID }}
+          private-key: ${{ secrets.DEVENVY_BOT_PRIVATE_KEY }}
+          # enabling auto-merge
+          permission-contents: write
+          permission-pull-requests: write
+      - name: Enable auto-merge
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: gh pr merge "$PR_URL" --auto --squash

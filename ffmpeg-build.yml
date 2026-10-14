@@ -2,6 +2,8 @@
 # ffmpeg-build.yml: made by `ffmpeg-build init` from the shipped devenvy targets. Each target is one build
 # (one platform, one license, one FFmpeg series); bases hold what targets share. `ffmpeg-build show <target>`
 # lists what a target gets and where each entry comes from.
+# say when an FFmpeg major newer than every target's series is out (update-lock's PR and run summary)
+notify: { new-ffmpeg: true }
 bases:
   common:
     with: [openh264, dav1d, openjpeg, jxl, zimg, vmaf, lcms2, vorbis, mp3lame, speex, gsm, soxr, chromaprint,

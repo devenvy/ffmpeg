@@ -20,7 +20,7 @@ permissions: {}
 
 jobs:
   build:
-    uses: devenvy/ffmpeg-build/.github/workflows/build.yml@b5b2ebf7d50e9529b85bf7ae4e02acd7a04aada7 # v0.0.2
+    uses: devenvy/ffmpeg-build/.github/workflows/build.yml@c0028ba10c1ed72d491b46c2ad1710ce9666c6a1 # v0.0.3
     # contents: write although nothing is published: GitHub checks the called workflow's (skipped) release job against it
     permissions:
       contents: write
@@ -42,7 +42,7 @@ jobs:
         run: test "${BUILD}" = success
   merge:
     needs: result
-    uses: devenvy/ffmpeg-build/.github/workflows/automerge.yml@b5b2ebf7d50e9529b85bf7ae4e02acd7a04aada7 # v0.0.2
+    uses: devenvy/ffmpeg-build/.github/workflows/automerge.yml@c0028ba10c1ed72d491b46c2ad1710ce9666c6a1 # v0.0.3
     permissions:
       contents: write
       pull-requests: write

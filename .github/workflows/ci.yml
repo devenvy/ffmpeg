@@ -1,229 +1,61 @@
+# The pull-request check: is ffmpeg-build.yml valid, does ffmpeg.lock cover it, can every target be planned? It builds
+# nothing (the daily release builds and tests every target before it publishes, and keeps a release that fails a
+# draft), so it takes a minute. It merges the lock updates (update-lock.yml) and Dependabot's PRs once it passes.
+# `result` is the check the main ruleset requires.
 name: CI
-
-permissions:
-  contents: read
-
 on:
   pull_request:
-    branches:
-      - main
+  workflow_dispatch: # update-lock.yml starts it on its PR's branch (GITHUB_TOKEN's pushes start nothing)
 
+# a newer push to the same branch replaces the run under way
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+permissions: {}
+
 jobs:
-  # Build/test only the versions this PR actually affects, so a PR doesn't rebuild
-  # every tracked FFmpeg version. Same diff logic as release.yml's prepare, so CI and
-  # release agree on what a change touches:
-  #   - a build-recipe change (scripts/, except tests) → ALL tracked versions
-  #   - only deps.json's .ffmpeg list → just the added/changed lines (an add-9 PR → only 9)
-  #   - anything else (docs, etc.) → nothing
-  resolve:
-    runs-on: ubuntu-latest
-    outputs:
-      versions: ${{ steps.v.outputs.versions }}
-      any: ${{ steps.v.outputs.any }}
+  check:
+    uses: devenvy/ffmpeg-build/.github/workflows/check.yml@52201a1204772caf79156ced0954c25407f6b433 # v0.0.5
+    permissions:
+      contents: read
+  # one check for the main ruleset to require, whatever ran
+  result:
+    needs: check
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
     steps:
-      # actions/checkout has no retry input; its internal helper makes 3 attempts with a RANDOM
-      # 10-20s sleep between them, so roughly 20-40s of cover. A DNS or TLS blip longer than that
-      # kills the job before any of our code runs:
-      #   fatal: unable to access 'https://github.com/...': Could not resolve host: github.com
-      # The action cannot be wrapped: a local composite action needs the repo ALREADY checked out,
-      # and retry actions only wrap `run:` steps, not `uses:` steps. So wait for the host to be
-      # reachable BEFORE checkout, with the same exponential-with-jitter backoff the build scripts
-      # use (4, 8, 16, 32, 64s + jitter), and do NOT sleep after the final attempt -- nothing probes
-      # again afterwards. Worst case is ~2 minutes of sleep plus the probe timeouts.
-      # This never fails the job. If the host is still unreachable it warns and lets checkout run, so
-      # the real error is reported by the action rather than masked here.
-      - name: Wait for github.com to be reachable
-        shell: bash
-        run: |
-          command -v curl >/dev/null 2>&1 || { echo "curl unavailable - skipping reachability wait"; exit 0; }
-          delay=4
-          for i in 1 2 3 4 5 6; do
-            if curl -sSf -o /dev/null --max-time 10 "${GITHUB_SERVER_URL:-https://github.com}"; then
-              if [ "$i" -gt 1 ]; then echo "github.com reachable after attempt ${i}"; fi
-              exit 0
-            fi
-            if [ "$i" -eq 6 ]; then break; fi
-            s=$(( delay + (RANDOM % 5) ))
-            echo "github.com not reachable (attempt ${i}/6) - retrying in ${s}s" >&2
-            sleep "$s"
-            delay=$(( delay * 2 ))
-          done
-          echo "::warning::github.com still unreachable after 6 attempts; letting checkout try anyway"
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0   # need the base commit to diff the PR against
-      - id: v
+      - name: the check passed
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: |
-          set -euo pipefail
-          mapfile -t TRACKED < <(jq -r '.ffmpeg[]' deps.json)
-          echo "Changed vs base:"; git diff --name-only "${BASE_SHA}" HEAD || true
-          # Which lines this PR affects (shared with release.yml via select-versions.sh):
-          #   build-recipe change (scripts/**, non-test) -> all lines
-          #   deps.json bump -> only lines whose RESOLVED deps changed (a line that whole-line-
-          #                     pins the bumped dep is skipped — it wasn't affected)
-          #   deps.json's .ffmpeg list   -> the added/changed version lines
-          mapfile -t SEL < <(bash scripts/ci/select-versions.sh "${BASE_SHA}" "${TRACKED[@]}")
-          echo "Selected versions: ${SEL[*]:-none}"
+          CHECK: ${{ needs.check.result }}
+        run: test "${CHECK}" = success
+  merge:
+    needs: result
+    uses: devenvy/ffmpeg-build/.github/workflows/automerge.yml@52201a1204772caf79156ced0954c25407f6b433 # v0.0.5
+    permissions:
+      contents: write
+      pull-requests: write
 
-          VERSIONS='[]'
-          for v in "${SEL[@]:-}"; do
-            [[ -z "$v" ]] && continue
-            VERSIONS=$(jq -c --arg v "$v" '. + [$v]' <<< "$VERSIONS")
-          done
-          ANY=$([[ "$(jq 'length' <<< "$VERSIONS")" -gt 0 ]] && echo true || echo false)
-          {
-            echo "versions=${VERSIONS}"
-            echo "any=${ANY}"
-          } >> "$GITHUB_OUTPUT"
-          echo "Building: ${VERSIONS}"
-
-  # Keep the committed build-coverage matrices (docs/matrix/) in lockstep with what we
-  # actually build. They are generated from FFmpeg's configure + the build scripts + the
-  # dependency ledger (deps.json), so a DEP BUMP, a deps.json's .ffmpeg list change, or a build-script
-  # edit must regenerate them — not just an FFmpeg change. This job regenerates and fails if
-  # the committed files drifted; the fix is `bash scripts/gen-matrix.sh` + commit. Cheap
-  # (~1 min), so it runs on every PR. SELECT THIS as a required check alongside build/test.
-  docs-matrix:
-    runs-on: ubuntu-latest   # ANDROID_NDK_LATEST_HOME is preinstalled here (the android sim needs it)
+  # Dependabot's PRs merge themselves once the required check passes, as devenvy-bot (org variable
+  # DEVENVY_BOT_CLIENT_ID, org secret DEVENVY_BOT_PRIVATE_KEY, both also Dependabot secrets).
+  dependabot-auto-merge:
+    if: github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
     steps:
-      # actions/checkout has no retry input; its internal helper makes 3 attempts with a RANDOM
-      # 10-20s sleep between them, so roughly 20-40s of cover. A DNS or TLS blip longer than that
-      # kills the job before any of our code runs:
-      #   fatal: unable to access 'https://github.com/...': Could not resolve host: github.com
-      # The action cannot be wrapped: a local composite action needs the repo ALREADY checked out,
-      # and retry actions only wrap `run:` steps, not `uses:` steps. So wait for the host to be
-      # reachable BEFORE checkout, with the same exponential-with-jitter backoff the build scripts
-      # use (4, 8, 16, 32, 64s + jitter), and do NOT sleep after the final attempt -- nothing probes
-      # again afterwards. Worst case is ~2 minutes of sleep plus the probe timeouts.
-      # This never fails the job. If the host is still unreachable it warns and lets checkout run, so
-      # the real error is reported by the action rather than masked here.
-      - name: Wait for github.com to be reachable
-        shell: bash
-        run: |
-          command -v curl >/dev/null 2>&1 || { echo "curl unavailable - skipping reachability wait"; exit 0; }
-          delay=4
-          for i in 1 2 3 4 5 6; do
-            if curl -sSf -o /dev/null --max-time 10 "${GITHUB_SERVER_URL:-https://github.com}"; then
-              if [ "$i" -gt 1 ]; then echo "github.com reachable after attempt ${i}"; fi
-              exit 0
-            fi
-            if [ "$i" -eq 6 ]; then break; fi
-            s=$(( delay + (RANDOM % 5) ))
-            echo "github.com not reachable (attempt ${i}/6) - retrying in ${s}s" >&2
-            sleep "$s"
-            delay=$(( delay * 2 ))
-          done
-          echo "::warning::github.com still unreachable after 6 attempts; letting checkout try anyway"
-      - uses: actions/checkout@v7
-      - name: Regenerate coverage matrices and fail on drift
-        run: |
-          set -euo pipefail
-          bash scripts/gen-matrix.sh
-          if ! git diff --quiet -- docs/matrix; then
-            echo "::error::docs/matrix is stale — run 'bash scripts/gen-matrix.sh' and commit the result (a dependency bump in deps.json changes these files too)."
-            git diff --stat -- docs/matrix
-            git --no-pager diff -- docs/matrix | head -300
-            exit 1
-          fi
-          echo "Coverage matrices are up to date."
-
-  # The matrix-caller jobs (one reusable-workflow call, fanned out per version × RID ×
-  # license). Their individual matrix checks surface as "build-matrix / …", "test-matrix / …"
-  # — you do NOT select those in branch protection; select the aggregate `build`/`test` gates
-  # below, which reflect the whole matrix in one check each.
-  build-matrix:
-    # docs-matrix is ~1 minute and build-matrix is hours; gating on it means a stale
-    # coverage matrix fails fast instead of after the whole fan-out has run.
-    needs: [resolve, docs-matrix]
-    if: needs.resolve.outputs.any == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        version: ${{ fromJson(needs.resolve.outputs.versions) }}
-    uses: ./.github/workflows/build.yml
-    with:
-      ffmpeg_version: ${{ matrix.version }}
-      fail_fast: false
-
-  # Tests run separately, after the build, against its uploaded artifacts. Desktop and
-  # mobile are split so mobile's slow emulator/simulator setup doesn't gate or
-  # destabilise the fast desktop execution checks.
-  test-matrix:
-    needs: [resolve, build-matrix]
-    if: needs.resolve.outputs.any == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        version: ${{ fromJson(needs.resolve.outputs.versions) }}
-    uses: ./.github/workflows/test.yml
-    with:
-      ffmpeg_version: ${{ matrix.version }}
-      fail_fast: false
-
-  test-mobile-matrix:
-    needs: [resolve, build-matrix]
-    if: needs.resolve.outputs.any == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        version: ${{ fromJson(needs.resolve.outputs.versions) }}
-    uses: ./.github/workflows/test-mobile.yml
-    with:
-      ffmpeg_version: ${{ matrix.version }}
-      fail_fast: false
-
-  # ── Aggregate required status checks ──────────────────────────────────────
-  # SELECT THESE TWO ("build" and "test") as the required checks in the branch ruleset —
-  # NOT the ~100 individual matrix jobs. Each reflects its whole matrix: green when every
-  # matrix job passed OR was skipped (a docs-only PR builds/tests nothing), red on any real
-  # failure/cancellation. `test` covers both desktop AND mobile. Select BOTH: `test` is
-  # green-when-skipped, so if a build fails, `build` (also required) is what blocks the merge.
-  build:
-    if: always()
-    needs: [resolve, build-matrix]
-    runs-on: ubuntu-latest
-    steps:
-      - run: |
-          r="${{ needs.build-matrix.result }}"
-          if [[ "$r" == "failure" || "$r" == "cancelled" ]]; then
-            echo "build failed (matrix result: $r)"; exit 1
-          fi
-          # A skip has two very different causes and only one of them deserves a green:
-          #   resolve said any=false          -> nothing to build, correctly passes
-          #   a NEEDED job failed (docs-matrix) -> GitHub skips this matrix whatever its `if:` says
-          # Without this branch the second case printed "build passed (matrix result: skipped)"
-          # over a fan-out that never ran -- observed on PR #31, which reported build green with
-          # zero artifacts built. Safe today only because docs-matrix is itself a required check;
-          # this makes the roll-up true on its own terms rather than by depending on that.
-          if [[ "$r" == "skipped" && "${{ needs.resolve.outputs.any }}" == "true" ]]; then
-            echo "build-matrix was SKIPPED even though resolve selected versions" \
-                 "${{ needs.resolve.outputs.versions }} - an upstream job it needs must have failed." \
-                 "Nothing was built, so this cannot pass."; exit 1
-          fi
-          echo "build passed (matrix result: $r)"
-
-  test:
-    if: always()
-    needs: [resolve, test-matrix, test-mobile-matrix]
-    runs-on: ubuntu-latest
-    steps:
-      - run: |
-          for r in "${{ needs.test-matrix.result }}" "${{ needs.test-mobile-matrix.result }}"; do
-            if [[ "$r" == "failure" || "$r" == "cancelled" ]]; then
-              echo "test failed (a desktop/mobile test matrix did not pass: $r)"; exit 1
-            fi
-            # Same reasoning as the build roll-up: skipped-because-nothing-to-do passes,
-            # skipped-because-an-upstream-job-failed must not.
-            if [[ "$r" == "skipped" && "${{ needs.resolve.outputs.any }}" == "true" ]]; then
-              echo "a test matrix was SKIPPED even though resolve selected versions" \
-                   "${{ needs.resolve.outputs.versions }} - an upstream job it needs must have" \
-                   "failed. Nothing was tested, so this cannot pass."; exit 1
-            fi
-          done
-          echo "test passed (desktop + mobile)"
+      - id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.DEVENVY_BOT_CLIENT_ID }}
+          private-key: ${{ secrets.DEVENVY_BOT_PRIVATE_KEY }}
+          # enabling auto-merge
+          permission-contents: write
+          permission-pull-requests: write
+      - name: Enable auto-merge
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: gh pr merge "$PR_URL" --auto --squash

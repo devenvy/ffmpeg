@@ -1,0 +1,27 @@
+# The daily lock update: one PR with newer library versions, FFmpeg releases of the same majors and the newest 0.x
+# engine, opened as devenvy-bot (so it starts CI and code scanning like any PR) and merged by ci.yml once it passes.
+# A new FFmpeg major is reported in the PR and the run summary (ffmpeg-build.yml's notify); adding its targets is a
+# person's change.
+#
+# Permissions: actions: write, contents: write and pull-requests: write (below).
+name: Update lock
+on:
+  schedule:
+    - cron: '41 5 * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  update:
+    uses: devenvy/ffmpeg-build/.github/workflows/update-lock.yml@52201a1204772caf79156ced0954c25407f6b433 # v0.0.5
+    permissions:
+      actions: write
+      contents: write
+      pull-requests: write
+    with:
+      automerge: true
+      ci-workflow: ci.yml
+      app-client-id: ${{ vars.DEVENVY_BOT_CLIENT_ID }}
+    secrets:
+      app-private-key: ${{ secrets.DEVENVY_BOT_PRIVATE_KEY }}

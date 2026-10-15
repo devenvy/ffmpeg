@@ -1,21 +1,18 @@
-# Dependabot handles GitHub Actions version updates (SHAs/tags in .github/workflows/).
-# The build DEPENDENCIES (codec/util libraries) are handled separately by Renovate,
-# which is scoped to deps.json only — see renovate.json + .github/workflows/renovate.yml.
-# Keeping this config in-repo (rather than the repo-settings UI) makes the policy visible
-# and reviewable.
+# The actions the workflows use (ffmpeg.lock is kept current by update-lock.yml, not Dependabot): one grouped PR a week,
+# each release a week old first, merged by ci.yml once it passes.
 version: 2
 updates:
-  - package-ecosystem: "github-actions"
-    directory: "/"                     # scans all workflows under .github/workflows/
+  - package-ecosystem: github-actions
+    directory: /
     schedule:
-      interval: "weekly"
-      day: "monday"
-    labels:
-      - "dependencies"
-      - "github-actions"
+      interval: weekly
+      day: monday
+    labels: [dependencies]
     commit-message:
-      prefix: "chore(actions)"
+      prefix: ci
+    cooldown:
+      default-days: 7
+      exclude: ['devenvy/*'] # the engine's workflows arrive without delay
     groups:
-      github-actions:                  # one grouped PR for all action bumps, not one per action
-        patterns:
-          - "*"
+      actions:
+        patterns: ['*']

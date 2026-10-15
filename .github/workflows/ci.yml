@@ -1,7 +1,7 @@
 # The pull-request check: is ffmpeg-build.yml valid, does ffmpeg.lock cover it, can every target be planned? It builds
 # nothing (the daily release builds and tests every target before it publishes, and keeps a release that fails a
 # draft), so it takes a minute. It merges the lock updates (update-lock.yml) and Dependabot's PRs once it passes.
-# `result` is the check the main ruleset requires.
+# The lint job checks the workflows (actionlint, zizmor). `result` is the check the main ruleset requires.
 name: CI
 on:
   pull_request:
@@ -19,18 +19,35 @@ jobs:
     uses: devenvy/ffmpeg-build/.github/workflows/check.yml@52201a1204772caf79156ced0954c25407f6b433 # v0.0.5
     permissions:
       contents: read
+  # the workflows: actionlint (mistakes) and zizmor (GitHub Actions security)
+  lint:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: actionlint
+        uses: raven-actions/actionlint@3d39aea434753780c3b3d4a1a31c854b4dbf49d7 # v2.2.0
+      - name: zizmor
+        uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482 # v0.6.4
+        with:
+          advanced-security: false # fail the job on findings instead of uploading SARIF
   # one check for the main ruleset to require, whatever ran
   result:
-    needs: check
+    needs: [check, lint]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions: {}
     steps:
-      - name: the check passed
+      - name: the check and lint passed
         env:
           CHECK: ${{ needs.check.result }}
-        run: test "${CHECK}" = success
+          LINT: ${{ needs.lint.result }}
+        run: test "${CHECK}" = success && test "${LINT}" = success
   merge:
     needs: result
     uses: devenvy/ffmpeg-build/.github/workflows/automerge.yml@52201a1204772caf79156ced0954c25407f6b433 # v0.0.5

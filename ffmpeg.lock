@@ -1,5 +1,5 @@
 # ffmpeg.lock - written only by `ffmpeg-build update` / `ffmpeg-build lock`. Do not edit.
-engine: 0.0.3
+engine: 0.0.7
 ffmpeg:
   "8": { version: 8.1.3, sha256: 7138d28c96d9d3e3af4ee3d8cad72741f8ffb40da90c1112235dea3ecd3178a3 }
   "9": { version: 9.0.2, sha256: 8c3850283eb25fa026482078a04051e0be17347b09ef81a0849bec15a96e002e }
@@ -7,7 +7,7 @@ libraries:
   amf: { version: 1.5.3, commit: 8c648005e07d4309033282bfd9947df2c7e76104 }
   aom: { version: 3.15.2, commit: af3dc9aadc793c1b00edc003e3fc19a44fdeb574 }
   brotli: { version: 1.2.0, commit: 028fb5a23661f123017c060daa546b55cf4bde29 }
-  chromaprint: { version: 1.6.1, commit: aed8eba2202dd9d7b3b0a56c77904cc805490d72 }
+  chromaprint: { version: 1.6.2, commit: 3b38c100022bdfb49be7797c4828a476f1621d55 }
   dav1d: { version: 1.5.4, commit: 54706fc6bc0cdecab7e9593974a4039cc038fca7 }
   fontconfig: { version: 2.18.3, commit: 0f236723a3c26bd9745e32ba2b3ee21e5f809295 }
   freetype: { version: 2.15.0, commit: 37515cf56ba3349656049edbed89ffc6f6466f2d }

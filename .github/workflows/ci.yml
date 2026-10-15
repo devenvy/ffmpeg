@@ -1,48 +1,39 @@
-# The pull-request check: builds and tests the releases a change touches (`due: true`), publishes nothing, and merges
-# the lock updates (update-lock.yml) and Dependabot's action bumps once they pass. `result` is the check the main
-# ruleset requires.
-#
-# Permissions: contents: write and pull-requests: write (below), for the merges and because GitHub checks the called
-# workflow's release job against them even though it is skipped.
-name: ci
+# The pull-request check: is ffmpeg-build.yml valid, does ffmpeg.lock cover it, can every target be planned? It builds
+# nothing (the daily release builds and tests every target before it publishes, and keeps a release that fails a
+# draft), so it takes a minute. It merges the lock updates (update-lock.yml) and Dependabot's PRs once it passes.
+# `result` is the check the main ruleset requires.
+name: CI
 on:
   pull_request:
-  workflow_dispatch: # update-lock.yml and update-pin.yml start it on its PR's branch (GITHUB_TOKEN's pushes start nothing)
+  workflow_dispatch: # update-lock.yml starts it on its PR's branch (GITHUB_TOKEN's pushes start nothing)
 
 # a newer push to the same branch replaces the run under way
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
-# contents: write although nothing is published: GitHub refuses to start a run whose called workflow has a job (here
-# the skipped release job) asking for more than the caller grants. Pull requests from forks get a read-only token anyway.
 permissions: {}
 
 jobs:
-  build:
-    uses: devenvy/ffmpeg-build/.github/workflows/build.yml@c0028ba10c1ed72d491b46c2ad1710ce9666c6a1 # v0.0.3
-    # contents: write although nothing is published: GitHub checks the called workflow's (skipped) release job against it
+  check:
+    uses: devenvy/ffmpeg-build/.github/workflows/check.yml@52201a1204772caf79156ced0954c25407f6b433 # v0.0.5
     permissions:
-      contents: write
-    with:
-      publish: never
-      due: true
-      # tests: build-runner   # no Windows test runners (a private repository pays twice the Linux rate for them)
-  # one check for a branch ruleset to require, whatever the build ran
+      contents: read
+  # one check for the main ruleset to require, whatever ran
   result:
-    needs: build
+    needs: check
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions: {}
     steps:
-      - name: the build passed
+      - name: the check passed
         env:
-          BUILD: ${{ needs.build.result }}
-        run: test "${BUILD}" = success
+          CHECK: ${{ needs.check.result }}
+        run: test "${CHECK}" = success
   merge:
     needs: result
-    uses: devenvy/ffmpeg-build/.github/workflows/automerge.yml@c0028ba10c1ed72d491b46c2ad1710ce9666c6a1 # v0.0.3
+    uses: devenvy/ffmpeg-build/.github/workflows/automerge.yml@52201a1204772caf79156ced0954c25407f6b433 # v0.0.5
     permissions:
       contents: write
       pull-requests: write

@@ -4,7 +4,7 @@
 # person's change.
 #
 # Permissions: actions: write, contents: write and pull-requests: write (below).
-name: update-lock
+name: Update lock
 on:
   schedule:
     - cron: '41 5 * * *'
@@ -14,7 +14,7 @@ permissions: {}
 
 jobs:
   update:
-    uses: devenvy/ffmpeg-build/.github/workflows/update-lock.yml@c0028ba10c1ed72d491b46c2ad1710ce9666c6a1 # v0.0.3
+    uses: devenvy/ffmpeg-build/.github/workflows/update-lock.yml@52201a1204772caf79156ced0954c25407f6b433 # v0.0.5
     permissions:
       actions: write
       contents: write

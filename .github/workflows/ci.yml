@@ -16,7 +16,7 @@ permissions: {}
 
 jobs:
   check:
-    uses: devenvy/ffmpeg-build/.github/workflows/check.yml@52201a1204772caf79156ced0954c25407f6b433 # v0.0.5
+    uses: devenvy/ffmpeg-build/.github/workflows/check.yml@f8b45a38a7b7b63f2697a45ee608103f24c874ea # v0.0.9
     permissions:
       contents: read
   # the workflows: actionlint (mistakes) and zizmor (GitHub Actions security)
@@ -50,7 +50,7 @@ jobs:
         run: test "${CHECK}" = success && test "${LINT}" = success
   merge:
     needs: result
-    uses: devenvy/ffmpeg-build/.github/workflows/automerge.yml@52201a1204772caf79156ced0954c25407f6b433 # v0.0.5
+    uses: devenvy/ffmpeg-build/.github/workflows/automerge.yml@f8b45a38a7b7b63f2697a45ee608103f24c874ea # v0.0.9
     permissions:
       contents: write
       pull-requests: write
@@ -64,7 +64,7 @@ jobs:
     permissions: {}
     steps:
       - id: app-token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
           client-id: ${{ secrets.DEVENVY_BOT_CLIENT_ID }}
           private-key: ${{ secrets.DEVENVY_BOT_PRIVATE_KEY }}

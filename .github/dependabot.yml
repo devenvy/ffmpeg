@@ -1,12 +1,12 @@
-# The actions the workflows use (ffmpeg.lock is kept current by update-lock.yml, not Dependabot): one grouped PR a week,
-# each release a week old first, merged by ci.yml once it passes.
+# The actions the workflows use (ffmpeg.lock is kept current by update-lock.yml, not Dependabot): one grouped PR,
+# each release a week old first (ffmpeg-build's own at once, looked for daily so they follow the engine
+# update-lock moves ffmpeg.lock to), merged by ci.yml once it passes.
 version: 2
 updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: weekly
-      day: monday
+      interval: daily
     labels: [dependencies]
     commit-message:
       prefix: ci

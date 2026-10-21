@@ -16,7 +16,7 @@ permissions: {}
 
 jobs:
   check:
-    uses: devenvy/ffmpeg-build/.github/workflows/check.yml@88ea8f00a79d7bd2fe15cff52e83108166ed631b # v0.0.12
+    uses: devenvy/ffmpeg-build/.github/workflows/check.yml@d13c421eccfb521683fd03234056639cf1038e21 # v0.0.13
     permissions:
       contents: read
   # the workflows: actionlint (mistakes) and zizmor (GitHub Actions security)
@@ -50,7 +50,7 @@ jobs:
         run: test "${CHECK}" = success && test "${LINT}" = success
   merge:
     needs: result
-    uses: devenvy/ffmpeg-build/.github/workflows/automerge.yml@88ea8f00a79d7bd2fe15cff52e83108166ed631b # v0.0.12
+    uses: devenvy/ffmpeg-build/.github/workflows/automerge.yml@d13c421eccfb521683fd03234056639cf1038e21 # v0.0.13
     permissions:
       contents: write
       pull-requests: write

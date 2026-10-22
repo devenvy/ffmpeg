@@ -16,7 +16,7 @@ permissions: {}
 
 jobs:
   check:
-    uses: devenvy/ffmpeg-build/.github/workflows/check.yml@b28c4dd83afc3942aadbe6f7c6bf1f157e557a05 # v0.0.14
+    uses: devenvy/ffmpeg-build/.github/workflows/check.yml@6a896af714fafbfc2600fbdb646bab4c85215038 # v0.0.15
     permissions:
       contents: read
   # the workflows: actionlint (mistakes) and zizmor (GitHub Actions security)
@@ -32,7 +32,7 @@ jobs:
       - name: actionlint
         uses: raven-actions/actionlint@3d39aea434753780c3b3d4a1a31c854b4dbf49d7 # v2.2.0
       - name: zizmor
-        uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482 # v0.6.4
+        uses: zizmorcore/zizmor-action@85b2b9fb8e3325e7a23d7d0a9d7ba5ae0f999e3e # v0.7.1
         with:
           advanced-security: false # fail the job on findings instead of uploading SARIF
   # one check for the main ruleset to require, whatever ran
@@ -50,7 +50,7 @@ jobs:
         run: test "${CHECK}" = success && test "${LINT}" = success
   merge:
     needs: result
-    uses: devenvy/ffmpeg-build/.github/workflows/automerge.yml@b28c4dd83afc3942aadbe6f7c6bf1f157e557a05 # v0.0.14
+    uses: devenvy/ffmpeg-build/.github/workflows/automerge.yml@6a896af714fafbfc2600fbdb646bab4c85215038 # v0.0.15
     permissions:
       contents: write
       pull-requests: write

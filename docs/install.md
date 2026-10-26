@@ -49,7 +49,8 @@ $env:PATH = "C:\ffmpeg;$env:PATH"
 
 The DLLs sit beside `ffmpeg.exe`. To link from MSVC or CMake, take the `-dev` archive: `include/` and the `lib/*.lib`
 import libraries. Vulkan comes with the GPU driver. `win-arm64` has no NVENC/NVDEC, AMF, QSV or SVT-AV1 (none exist for
-Windows on ARM); it decodes in hardware through D3D11VA, DXVA2 and Media Foundation.
+Windows on ARM); it decodes in hardware through D3D11VA, DXVA2 and Media Foundation. VMAF is omitted on Windows
+ARM64 because the current upstream release needs a source fix with this toolchain.
 
 ## macOS
 
@@ -78,11 +79,13 @@ and x86_64 devices). Hardware decode uses MediaCodec. The minimum is Android 9 (
 
 `ffmpeg-<version>-ios-<variant>.tar.gz` holds one dynamic `.xcframework` per `libav*` library, each with the device
 (`ios-arm64`), simulator (`ios-sim-arm64`) and Mac Catalyst (arm64 + x64 in one slice) builds. Add them to your Xcode
-target; Xcode picks the slice. Hardware decode uses VideoToolbox. The iOS 14.0 minimum applies to Catalyst.
+target; Xcode picks the slice. iOS hardware decode uses VideoToolbox. The iOS 14.0 minimum applies to Catalyst.
 
 - The simulator slice leaves out x264, x265, kvazaar, libvpx, libaom, Opus and libass (they don't build for the arm64
   simulator); test that work on a device.
 - Mac Catalyst has no SecureTransport, so it takes TLS like Linux: none in `lgplv2`.
+- Mac Catalyst omits VideoToolbox because the current FFmpeg and SDK combination needs source changes. Its
+  software codecs remain available.
 - The `v3` frameworks link MoltenVK in for FFmpeg's Vulkan filters; nothing to embed or configure. On Mac Catalyst,
   also link `-framework IOKit`.
 

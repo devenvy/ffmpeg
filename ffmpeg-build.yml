@@ -9,6 +9,8 @@ notify: { new-ffmpeg: true }
 # on an older driver. 13.0.x patch releases still arrive. Tracking issue: #54.
 pin:
   nvenc: '13.0'
+  # Match the native font stack verified by the cleaned engine.
+  fontconfig: '2.15'
 bases:
   common:
     with: [openh264, dav1d, openjpeg, jxl, zimg, vmaf, lcms2, vorbis, mp3lame, speex, gsm, soxr, chromaprint,
@@ -24,7 +26,7 @@ bases:
   linux-musl:
     with: [aom, vpx, opus, freetype, fribidi, harfbuzz, ass, drm, fontconfig, nvenc, svtav1, vaapi, webp]
   maccatalyst:
-    with: [aom, vpx, opus, freetype, fribidi, harfbuzz, ass, videotoolbox]
+    with: [aom, vpx, opus, freetype, fribidi, harfbuzz, ass]
   osx:
     with: [aom, vpx, opus, freetype, fribidi, harfbuzz, ass, audiotoolbox, fontconfig, securetransport,
            svtav1, videotoolbox, webp]
@@ -477,96 +479,112 @@ targets:
     with: [openssl, nvenc, vaapi, drm, vpl, vulkan, placebo, shaderc, kvazaar, svtav1]
   maccatalyst-arm64-gplv2:
     platform: maccatalyst-arm64
+    allow-removal: [videotoolbox]
     license: gplv2
     ffmpeg: "9"
     base: [common, maccatalyst]
     with: [gnutls, x264, x265]
   maccatalyst-arm64-gplv2-ffmpeg8:
     platform: maccatalyst-arm64
+    allow-removal: [videotoolbox]
     license: gplv2
     ffmpeg: "8"
     base: [common, maccatalyst]
     with: [gnutls, x264, x265]
   maccatalyst-arm64-gplv3:
     platform: maccatalyst-arm64
+    allow-removal: [videotoolbox]
     license: gplv3
     ffmpeg: "9"
     base: [common, maccatalyst, gplv3]
     with: [openssl, vulkan, placebo, x264, x265]
   maccatalyst-arm64-gplv3-ffmpeg8:
     platform: maccatalyst-arm64
+    allow-removal: [videotoolbox]
     license: gplv3
     ffmpeg: "8"
     base: [common, maccatalyst, gplv3]
     with: [openssl, vulkan, placebo, shaderc, x264, x265]
   maccatalyst-arm64-lgplv2:
     platform: maccatalyst-arm64
+    allow-removal: [videotoolbox]
     license: lgplv2
     ffmpeg: "9"
     base: [common, maccatalyst]
     with: [kvazaar]
   maccatalyst-arm64-lgplv2-ffmpeg8:
     platform: maccatalyst-arm64
+    allow-removal: [videotoolbox]
     license: lgplv2
     ffmpeg: "8"
     base: [common, maccatalyst]
     with: [kvazaar]
   maccatalyst-arm64-lgplv3:
     platform: maccatalyst-arm64
+    allow-removal: [videotoolbox]
     license: lgplv3
     ffmpeg: "9"
     base: [common, maccatalyst, lgplv3]
     with: [openssl, vulkan, placebo, kvazaar]
   maccatalyst-arm64-lgplv3-ffmpeg8:
     platform: maccatalyst-arm64
+    allow-removal: [videotoolbox]
     license: lgplv3
     ffmpeg: "8"
     base: [common, maccatalyst, lgplv3]
     with: [openssl, vulkan, placebo, shaderc, kvazaar]
   maccatalyst-x64-gplv2:
     platform: maccatalyst-x64
+    allow-removal: [videotoolbox]
     license: gplv2
     ffmpeg: "9"
     base: [common, maccatalyst]
     with: [gnutls, x264, x265]
   maccatalyst-x64-gplv2-ffmpeg8:
     platform: maccatalyst-x64
+    allow-removal: [videotoolbox]
     license: gplv2
     ffmpeg: "8"
     base: [common, maccatalyst]
     with: [gnutls, x264, x265]
   maccatalyst-x64-gplv3:
     platform: maccatalyst-x64
+    allow-removal: [videotoolbox]
     license: gplv3
     ffmpeg: "9"
     base: [common, maccatalyst, gplv3]
     with: [openssl, vulkan, placebo, x264, x265]
   maccatalyst-x64-gplv3-ffmpeg8:
     platform: maccatalyst-x64
+    allow-removal: [videotoolbox]
     license: gplv3
     ffmpeg: "8"
     base: [common, maccatalyst, gplv3]
     with: [openssl, vulkan, placebo, shaderc, x264, x265]
   maccatalyst-x64-lgplv2:
     platform: maccatalyst-x64
+    allow-removal: [videotoolbox]
     license: lgplv2
     ffmpeg: "9"
     base: [common, maccatalyst]
     with: [kvazaar]
   maccatalyst-x64-lgplv2-ffmpeg8:
     platform: maccatalyst-x64
+    allow-removal: [videotoolbox]
     license: lgplv2
     ffmpeg: "8"
     base: [common, maccatalyst]
     with: [kvazaar]
   maccatalyst-x64-lgplv3:
     platform: maccatalyst-x64
+    allow-removal: [videotoolbox]
     license: lgplv3
     ffmpeg: "9"
     base: [common, maccatalyst, lgplv3]
     with: [openssl, vulkan, placebo, kvazaar]
   maccatalyst-x64-lgplv3-ffmpeg8:
     platform: maccatalyst-x64
+    allow-removal: [videotoolbox]
     license: lgplv3
     ffmpeg: "8"
     base: [common, maccatalyst, lgplv3]
@@ -669,48 +687,64 @@ targets:
     with: [vulkan, placebo, shaderc, kvazaar]
   win-arm64-gplv2:
     platform: win-arm64
+    without: [vmaf]
+    allow-removal: [libvmaf]
     license: gplv2
     ffmpeg: "9"
     base: [common, win]
     with: [x264, x265]
   win-arm64-gplv2-ffmpeg8:
     platform: win-arm64
+    without: [vmaf]
+    allow-removal: [libvmaf]
     license: gplv2
     ffmpeg: "8"
     base: [common, win]
     with: [x264, x265]
   win-arm64-gplv3:
     platform: win-arm64
+    without: [vmaf]
+    allow-removal: [libvmaf]
     license: gplv3
     ffmpeg: "9"
     base: [common, win, gplv3]
     with: [vulkan, placebo, x264, x265]
   win-arm64-gplv3-ffmpeg8:
     platform: win-arm64
+    without: [vmaf]
+    allow-removal: [libvmaf]
     license: gplv3
     ffmpeg: "8"
     base: [common, win, gplv3]
     with: [vulkan, placebo, shaderc, x264, x265]
   win-arm64-lgplv2:
     platform: win-arm64
+    without: [vmaf]
+    allow-removal: [libvmaf]
     license: lgplv2
     ffmpeg: "9"
     base: [common, win]
     with: [kvazaar]
   win-arm64-lgplv2-ffmpeg8:
     platform: win-arm64
+    without: [vmaf]
+    allow-removal: [libvmaf]
     license: lgplv2
     ffmpeg: "8"
     base: [common, win]
     with: [kvazaar]
   win-arm64-lgplv3:
     platform: win-arm64
+    without: [vmaf]
+    allow-removal: [libvmaf]
     license: lgplv3
     ffmpeg: "9"
     base: [common, win, lgplv3]
     with: [vulkan, placebo, kvazaar]
   win-arm64-lgplv3-ffmpeg8:
     platform: win-arm64
+    without: [vmaf]
+    allow-removal: [libvmaf]
     license: lgplv3
     ffmpeg: "8"
     base: [common, win, lgplv3]

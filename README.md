@@ -8,6 +8,9 @@ They are built from [`ffmpeg-build.yml`](ffmpeg-build.yml) by [ffmpeg-build](htt
 every library version is locked in [`ffmpeg.lock`](ffmpeg.lock), every license is checked before anything builds, and
 each archive carries its license notices. [Using the builds](docs/install.md) covers each platform.
 
+New releases also publish a `ffmpeg-<version>-<target>.spdx.json` SBOM beside each target's archives, covered by
+`SHA256SUMS`. These SPDX 2.3 inventories record build inputs and exact archive hashes; iOS bundles have a combined inventory.
+
 ## Platforms
 
 | OS                    | RIDs                                                                          |

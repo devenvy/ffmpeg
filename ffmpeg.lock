@@ -11,7 +11,7 @@ libraries:
   dav1d: { version: 1.5.4, commit: 54706fc6bc0cdecab7e9593974a4039cc038fca7 }
   fontconfig: { version: 2.15.0, commit: 72b9a48f57de6204d99ce1c217b5609ee92ece9b }
   freetype: { version: 2.15.0, commit: 37515cf56ba3349656049edbed89ffc6f6466f2d }
-  fribidi: { version: 1.0.17, commit: b93119f5fdc7ea47672cc304c1455ffa6dfe7536 }
+  fribidi: { version: 1.0.18, commit: 15393e4937aa95bcf865d92143735746aeb654fa }
   gmp: { version: 6.3.0, sha256: a3c2b80201b89e68616f4ad30bc66aee4927c3ce50e33929ca819d5c43538898 }
   gnutls: { version: 3.8.13, sha256: ffed8ec1bf09c2426d4f14aae377de4753b53e537d685e604e99a8b16ca9c97e }
   harfbuzz: { version: 15.0.0, commit: 35f656a1a2bab548ea7f54a6dd3fba2b09680d14 }

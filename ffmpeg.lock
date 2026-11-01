@@ -18,7 +18,7 @@ libraries:
   highway: { version: 1.4.0, commit: 2607d3b5b0113992fe84d3848859eae13b3b52c1 }
   kissfft: { version: 131.2.0, commit: 7bce4153c6bc8aba2db0e889e576f9d00505cbe1 }
   kvazaar: { version: 2.3.2, commit: 6040962bed5cc68c5ad01234c38c08b8b2822068 }
-  lcms2: { version: 2.19.1, commit: 21c582a594fe5279f90c0b93437c398f93bf62b0 }
+  lcms2: { version: 2.20, commit: 7717fce0d85447ef3b2df0cca2e99207c15eeecd }
   libass: { version: 0.17.5, commit: 4a05d8127f525943ebf45fdc6497c9e665947f0d }
   libdrm: { version: 2.4.134, commit: e984d448b8b17aab853369e6c203e53719f46de1 }
   libexpat: { version: 2.9.0, commit: a76b1174c1ea52abb639a4c69d52b630a8a106a2 }

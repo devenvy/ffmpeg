@@ -14,7 +14,7 @@ libraries:
   fribidi: { version: 1.0.18, commit: 15393e4937aa95bcf865d92143735746aeb654fa }
   gmp: { version: 6.3.0, sha256: a3c2b80201b89e68616f4ad30bc66aee4927c3ce50e33929ca819d5c43538898 }
   gnutls: { version: 3.8.13, sha256: ffed8ec1bf09c2426d4f14aae377de4753b53e537d685e604e99a8b16ca9c97e }
-  harfbuzz: { version: 15.0.0, commit: 35f656a1a2bab548ea7f54a6dd3fba2b09680d14 }
+  harfbuzz: { version: 15.1.0, commit: 3df40d9b98d6b32f0e4288d4ecfbb158ddb3a372 }
   highway: { version: 1.4.0, commit: 2607d3b5b0113992fe84d3848859eae13b3b52c1 }
   kissfft: { version: 131.2.0, commit: 7bce4153c6bc8aba2db0e889e576f9d00505cbe1 }
   kvazaar: { version: 2.3.2, commit: 6040962bed5cc68c5ad01234c38c08b8b2822068 }
@@ -60,4 +60,4 @@ libraries:
   x264: b35605ace3ddf7c1a5d67a2eb553f034aef41d55
   x265: { version: 4.3, commit: e9b88125dc21393b3fd8d68e98083bdfb89778a8 }
   zimg: { version: 3.0.6, commit: f819b14e8f39d1282400b0d9543e8ef73c1b2bbd }
-  zlib: { version: 1.3.2, commit: da607da739fa6047df13e66a2af6b8bec7c2a498 }
+  zlib: { version: 1.4, commit: 99623ef7097352da7993ba614161fd6a311e046e }

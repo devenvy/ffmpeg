@@ -14,7 +14,7 @@ permissions: {}
 
 jobs:
   update:
-    uses: devenvy/ffmpeg-build/.github/workflows/update-lock.yml@9bc7e2b1a306d9ea9faa378702410fe317d6d63d # v0.0.21
+    uses: devenvy/ffmpeg-build/.github/workflows/update-lock.yml@06aa5d9ff5efc47b7ea4804dcdc2a59bddf4f10d # v0.0.22
     permissions:
       actions: write
       contents: write

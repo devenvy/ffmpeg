@@ -1,0 +1,21 @@
+# Retries a failed release whose only failures are jobs GitHub gave no runner (hosted macOS capacity: a release queues
+# dozens of macOS jobs; one that waits too long is dropped and all-builds fails the run). Re-runs only the failed jobs,
+# up to two times; any other failure is left for review. See devenvy/ffmpeg-build's docs/releases.md.
+#
+# Permissions: actions: write (re-run) and checks: read (the jobs' annotations), below.
+name: Retry release
+on:
+  # zizmor: ignore[dangerous-triggers] checks out and runs no code: it reads the run's jobs and re-runs them
+  workflow_run:
+    workflows: [Release]
+    types: [completed]
+
+permissions: {}
+
+jobs:
+  retry:
+    if: github.event.workflow_run.conclusion == 'failure'
+    uses: devenvy/ffmpeg-build/.github/workflows/retry.yml@acbec8058c9429b152d6bde3e898f07e8d532bd8 # sbom-static-cxx-runtime; re-pin to the engine release
+    permissions:
+      actions: write
+      checks: read

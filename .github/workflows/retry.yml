@@ -15,7 +15,7 @@ permissions: {}
 jobs:
   retry:
     if: github.event.workflow_run.conclusion == 'failure'
-    uses: devenvy/ffmpeg-build/.github/workflows/retry.yml@acbec8058c9429b152d6bde3e898f07e8d532bd8 # sbom-static-cxx-runtime; re-pin to the engine release
+    uses: devenvy/ffmpeg-build/.github/workflows/retry.yml@85cbcfa3ee4973492f17051f4c71484155a4755f # v0.0.24
     permissions:
       actions: write
       checks: read

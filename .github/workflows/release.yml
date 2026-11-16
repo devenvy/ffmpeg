@@ -12,7 +12,7 @@ permissions: {}
 
 jobs:
   release:
-    uses: devenvy/ffmpeg-build/.github/workflows/build.yml@85cbcfa3ee4973492f17051f4c71484155a4755f # v0.0.24
+    uses: devenvy/ffmpeg-build/.github/workflows/build.yml@e55cceee7956fa305adf119b06a165740232f3a5 # v0.0.25
     permissions:
       contents: write # the GitHub releases
     with:

@@ -15,7 +15,7 @@ permissions: {}
 jobs:
   retry:
     if: github.event.workflow_run.conclusion == 'failure'
-    uses: devenvy/ffmpeg-build/.github/workflows/retry.yml@e55cceee7956fa305adf119b06a165740232f3a5 # v0.0.25
+    uses: devenvy/ffmpeg-build/.github/workflows/retry.yml@fbe20aae56c90ddc24e50fbf0f831a55c7d1a98e # v0.0.26
     permissions:
       actions: write
       checks: read

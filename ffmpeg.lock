@@ -56,7 +56,7 @@ libraries:
   vulkan-headers: { version: 1.4.363.0, commit: 6802bb4733b63ed5efd3adb308a6c885ef180ea1 }
   vulkan-loader: { version: 1.4.363.0, commit: fa218055ff4948b159f31d43f800c808a13d51df }
   vulkan-shim: 65b3936528cd92eb4ea3de485d03f858a3850484
-  whisper.cpp: { version: 1.9.5, commit: d1be6fde11ac6e0407606b4e42fe72d34add8037 }
+  whisper.cpp: { version: 1.9.6, commit: 96ec4d9823e9d0211944172da35f9f29134af990 }
   x264: b35605ace3ddf7c1a5d67a2eb553f034aef41d55
   x265: { version: 4.3, commit: e9b88125dc21393b3fd8d68e98083bdfb89778a8 }
   zimg: { version: 3.0.6, commit: f819b14e8f39d1282400b0d9543e8ef73c1b2bbd }
